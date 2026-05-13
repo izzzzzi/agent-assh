@@ -26,7 +26,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return writeInvalidArgs(cmd, err.Error(), "run assh-go --help")
 	})
-	cmd.AddCommand(newExecCommand(), newReadCommand())
+	cmd.AddCommand(newExecCommand(), newReadCommand(), newCapabilitiesCommand())
 	return cmd
 }
 
