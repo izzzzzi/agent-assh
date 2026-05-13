@@ -11,10 +11,24 @@ func TestSingleQuote(t *testing.T) {
 }
 
 func TestSafeSID(t *testing.T) {
-	if !SafeSID("abcdef12") {
-		t.Fatalf("SafeSID(%q) = false, want true", "abcdef12")
+	for _, sid := range []string{
+		"abcdef12",
+		"abcdef1234567890abcdef1234567890",
+	} {
+		if !SafeSID(sid) {
+			t.Fatalf("SafeSID(%q) = false, want true", sid)
+		}
 	}
-	if SafeSID("../bad") {
-		t.Fatalf("SafeSID(%q) = true, want false", "../bad")
+
+	for _, sid := range []string{
+		"abcdef1",
+		"abcdef1234567890abcdef12345678901",
+		"ABCDEF12",
+		"abcdeg12",
+		"../bad",
+	} {
+		if SafeSID(sid) {
+			t.Fatalf("SafeSID(%q) = true, want false", sid)
+		}
 	}
 }
