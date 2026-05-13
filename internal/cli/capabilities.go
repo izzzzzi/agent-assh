@@ -24,6 +24,9 @@ func newCapabilitiesCommand() *cobra.Command {
 			if host == "" {
 				return writeInvalidArgs(cmd, "host required", "")
 			}
+			if port < 1 || port > 65535 {
+				return writeInvalidArgs(cmd, "port must be between 1 and 65535", "")
+			}
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
@@ -37,8 +40,8 @@ func newCapabilitiesCommand() *cobra.Command {
 				HostKeyPolicy: "accept-new",
 			}.Run(ctx, capabilities.ProbeCommand())
 
-			if result.Err != nil {
-				return writeError(cmd, "connection_error", connectionErrorMessage(result), "")
+			if code := sshErrorCode(ctx.Err(), result.Err); code != "" {
+				return writeError(cmd, code, connectionErrorMessage(ctx.Err(), result), "")
 			}
 
 			return writeJSON(cmd, capabilities.ParseProbe(result.Stdout))
@@ -52,10 +55,13 @@ func newCapabilitiesCommand() *cobra.Command {
 	return cmd
 }
 
-func connectionErrorMessage(result transport.Result) string {
+func connectionErrorMessage(ctxErr error, result transport.Result) string {
+	if ctxErr != nil {
+		return ctxErr.Error()
+	}
 	stderr := strings.TrimSpace(string(result.Stderr))
 	if stderr != "" {
 		return stderr
 	}
-	return result.Err.Error()
+	return sshErrorMessage(ctxErr, result.Err)
 }
