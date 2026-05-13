@@ -64,15 +64,25 @@ func (s *OutputStore) Read(id, stream string, offset, limit int) (OutputPage, er
 	lines := splitLines(string(data))
 	total := len(lines)
 
-	end := offset + limit
-	if end > total {
-		end = total
+	if offset >= total {
+		return OutputPage{
+			OutputID:   id,
+			Stream:     stream,
+			Offset:     offset,
+			Limit:      limit,
+			TotalLines: total,
+			HasMore:    false,
+			Content:    "",
+		}, nil
 	}
 
-	content := ""
-	if offset < total {
-		content = strings.Join(lines[offset:end], "")
+	remaining := total - offset
+	if limit > remaining {
+		limit = remaining
 	}
+	end := offset + limit
+
+	content := strings.Join(lines[offset:end], "")
 
 	return OutputPage{
 		OutputID:   id,
@@ -93,9 +103,44 @@ func (s *OutputStore) path(id, stream string) string {
 }
 
 func writePrivateFile(path string, data []byte) error {
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
+	if err != nil {
 		return err
 	}
+	tmpPath := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	// POSIX private modes are enforced on Unix. On Windows these modes are
+	// best-effort; privacy relies on the per-user state directory.
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		if removeErr := os.Remove(path); removeErr != nil {
+			return err
+		}
+		if err := os.Rename(tmpPath, path); err != nil {
+			return err
+		}
+	}
+	cleanup = false
 	return os.Chmod(path, 0o600)
 }
 
