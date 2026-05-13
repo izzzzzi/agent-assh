@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -53,7 +54,8 @@ func TestRunUsesMockSSH(t *testing.T) {
 	if result.ExitCode != 7 {
 		t.Fatalf("Run() ExitCode = %d, want 7; err = %v", result.ExitCode, result.Err)
 	}
-	if string(result.Stdout) != "stdout\n" {
+	stdout := strings.ReplaceAll(string(result.Stdout), "\r\n", "\n")
+	if stdout != "stdout\n" {
 		t.Fatalf("Run() Stdout = %q, want %q", result.Stdout, "stdout\n")
 	}
 }
