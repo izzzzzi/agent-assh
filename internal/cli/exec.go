@@ -105,6 +105,9 @@ func newReadCommand() *cobra.Command {
 			if outputID == "" {
 				return writeInvalidArgs(cmd, "id required", "")
 			}
+			if !ids.Valid(outputID) {
+				return writeInvalidArgs(cmd, "invalid output id", "")
+			}
 			if stream != "stdout" && stream != "stderr" {
 				return writeInvalidArgs(cmd, "stream must be stdout or stderr", "")
 			}
