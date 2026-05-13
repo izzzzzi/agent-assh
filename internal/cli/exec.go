@@ -3,7 +3,10 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/agent-ssh/assh/internal/ids"
@@ -33,6 +36,15 @@ func newExecCommand() *cobra.Command {
 			if len(args) == 0 {
 				return writeInvalidArgs(cmd, "command required", "")
 			}
+			if timeout < 1 {
+				return writeInvalidArgs(cmd, "timeout must be greater than 0", "")
+			}
+			if port < 1 || port > 65535 {
+				return writeInvalidArgs(cmd, "port must be between 1 and 65535", "")
+			}
+			if !validHostKeyPolicy(hostKeyPolicy) {
+				return writeInvalidArgs(cmd, "invalid host key policy", "")
+			}
 
 			outputID, err := ids.New()
 			if err != nil {
@@ -49,7 +61,11 @@ func newExecCommand() *cobra.Command {
 				Identity:      identity,
 				TimeoutSecond: timeout,
 				HostKeyPolicy: hostKeyPolicy,
-			}.Run(ctx, args[0])
+			}.Run(ctx, remoteCommand(args))
+
+			if code := sshErrorCode(ctx.Err(), result.Err); code != "" {
+				return writeError(cmd, code, sshErrorMessage(ctx.Err(), result.Err), "")
+			}
 
 			store := state.NewOutputStore(filepath.Join(state.BaseDir(), "outputs"))
 			if err := store.Write(outputID, result.Stdout, result.Stderr); err != nil {
@@ -89,6 +105,15 @@ func newReadCommand() *cobra.Command {
 			if outputID == "" {
 				return writeInvalidArgs(cmd, "id required", "")
 			}
+			if stream != "stdout" && stream != "stderr" {
+				return writeInvalidArgs(cmd, "stream must be stdout or stderr", "")
+			}
+			if offset < 0 {
+				return writeInvalidArgs(cmd, "offset must be non-negative", "")
+			}
+			if limit < 1 {
+				return writeInvalidArgs(cmd, "limit must be at least 1", "")
+			}
 
 			store := state.NewOutputStore(filepath.Join(state.BaseDir(), "outputs"))
 			page, err := store.Read(outputID, stream, offset, limit)
@@ -104,6 +129,45 @@ func newReadCommand() *cobra.Command {
 	cmd.Flags().IntVar(&offset, "offset", 0, "line offset")
 	cmd.Flags().IntVar(&limit, "limit", 50, "line limit")
 	return cmd
+}
+
+func remoteCommand(args []string) string {
+	return strings.Join(args, " ")
+}
+
+func validHostKeyPolicy(policy string) bool {
+	return policy == "accept-new" || policy == "strict" || policy == "no-check"
+}
+
+func sshErrorCode(ctxErr, runErr error) string {
+	if ctxErr != nil {
+		return "timeout"
+	}
+	if runErr == nil {
+		return ""
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(runErr, &exitErr) {
+		return ""
+	}
+
+	var execErr *exec.Error
+	if errors.As(runErr, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
+		return "ssh_missing"
+	}
+
+	return "connection_error"
+}
+
+func sshErrorMessage(ctxErr, runErr error) string {
+	if ctxErr != nil {
+		return ctxErr.Error()
+	}
+	if runErr != nil {
+		return runErr.Error()
+	}
+	return ""
 }
 
 func countLines(data []byte) int {
