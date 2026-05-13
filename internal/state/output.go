@@ -37,10 +37,10 @@ func (s *OutputStore) Write(id string, stdout, stderr []byte) error {
 	if err := os.Chmod(s.dir, 0o700); err != nil {
 		return err
 	}
-	if err := os.WriteFile(s.path(id, "stdout"), stdout, 0o600); err != nil {
+	if err := writePrivateFile(s.path(id, "stdout"), stdout); err != nil {
 		return err
 	}
-	return os.WriteFile(s.path(id, "stderr"), stderr, 0o600)
+	return writePrivateFile(s.path(id, "stderr"), stderr)
 }
 
 func (s *OutputStore) Read(id, stream string, offset, limit int) (OutputPage, error) {
@@ -90,6 +90,13 @@ func (s *OutputStore) path(id, stream string) string {
 		return filepath.Join(s.dir, id+".err")
 	}
 	return filepath.Join(s.dir, id)
+}
+
+func writePrivateFile(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func splitLines(content string) []string {
