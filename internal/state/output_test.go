@@ -22,6 +22,9 @@ func TestOutputStoreWriteAndReadPage(t *testing.T) {
 	if page.Content != "b\n" {
 		t.Fatalf("Content = %q, want %q", page.Content, "b\n")
 	}
+	if !page.OK {
+		t.Fatalf("OK = false, want true")
+	}
 	if page.TotalLines != 3 {
 		t.Fatalf("TotalLines = %d, want 3", page.TotalLines)
 	}
@@ -51,6 +54,9 @@ func TestOutputStoreReadOffsetBeyondTotalWithHugeLimit(t *testing.T) {
 
 	if page.Content != "" {
 		t.Fatalf("Content = %q, want empty", page.Content)
+	}
+	if !page.OK {
+		t.Fatalf("OK = false, want true")
 	}
 	if page.TotalLines != 2 {
 		t.Fatalf("TotalLines = %d, want 2", page.TotalLines)

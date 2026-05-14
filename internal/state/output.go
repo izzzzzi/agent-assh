@@ -10,6 +10,7 @@ import (
 )
 
 type OutputPage struct {
+	OK         bool   `json:"ok"`
 	OutputID   string `json:"output_id"`
 	Stream     string `json:"stream"`
 	Offset     int    `json:"offset"`
@@ -66,6 +67,7 @@ func (s *OutputStore) Read(id, stream string, offset, limit int) (OutputPage, er
 
 	if offset >= total {
 		return OutputPage{
+			OK:         true,
 			OutputID:   id,
 			Stream:     stream,
 			Offset:     offset,
@@ -85,6 +87,7 @@ func (s *OutputStore) Read(id, stream string, offset, limit int) (OutputPage, er
 	content := strings.Join(lines[offset:end], "")
 
 	return OutputPage{
+		OK:         true,
 		OutputID:   id,
 		Stream:     stream,
 		Offset:     offset,
