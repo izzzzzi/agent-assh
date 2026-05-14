@@ -93,9 +93,9 @@ func TestOpenRemoteCommandUsesValidatedSIDAndQuotedValues(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`mkdir -p "$HOME/.assh/sessions"`,
-		`mkdir -p "$HOME/.assh/sessions/abcdef12"`,
-		`printf %s '{"sid":"abcdef12","label":"don'"'"'t/use"}' > "$HOME/.assh/sessions/abcdef12/meta.json"`,
+		`mkdir -p ~/.assh/sessions`,
+		`mkdir -p ~/.assh/sessions/abcdef12`,
+		`printf %s '{"sid":"abcdef12","label":"don'"'"'t/use"}' > ~/.assh/sessions/abcdef12/meta.json`,
 		"tmux new-session -d -s 'assh_abcdef12'",
 	} {
 		if !strings.Contains(got, want) {
@@ -114,6 +114,128 @@ func TestOpenRemoteCommandRejectsInvalidTmuxNames(t *testing.T) {
 		t.Run(tmuxName, func(t *testing.T) {
 			if _, err := OpenRemoteCommand(`{"sid":"abcdef12"}`, tmuxName); err == nil {
 				t.Fatalf("OpenRemoteCommand() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestExecRemoteCommandWritesSeqFiles(t *testing.T) {
+	got, err := ExecRemoteCommand("abcdef12", "assh_abcdef12", 3, "pwd")
+	if err != nil {
+		t.Fatalf("ExecRemoteCommand() error = %v", err)
+	}
+
+	for _, want := range []string{
+		"~/.assh/sessions/abcdef12/3.out",
+		"~/.assh/sessions/abcdef12/3.err",
+		"~/.assh/sessions/abcdef12/3.rc",
+		"tmux send-keys",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("ExecRemoteCommand() = %q, want to contain %q", got, want)
+		}
+	}
+}
+
+func TestExecRemoteCommandRejectsUnsafeInputs(t *testing.T) {
+	tests := []struct {
+		name     string
+		sid      string
+		tmuxName string
+		seq      int
+		command  string
+	}{
+		{name: "bad sid", sid: "../bad", tmuxName: "assh_../bad", seq: 1, command: "pwd"},
+		{name: "bad tmux metachar", sid: "abcdef12", tmuxName: "assh_abcdef12;touch_bad", seq: 1, command: "pwd"},
+		{name: "mismatched tmux", sid: "abcdef12", tmuxName: "assh_abcdef13", seq: 1, command: "pwd"},
+		{name: "bad seq", sid: "abcdef12", tmuxName: "assh_abcdef12", seq: 0, command: "pwd"},
+		{name: "empty command", sid: "abcdef12", tmuxName: "assh_abcdef12", seq: 1, command: "  "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := ExecRemoteCommand(tt.sid, tt.tmuxName, tt.seq, tt.command); err == nil {
+				t.Fatalf("ExecRemoteCommand() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestReadRemoteCommandBuildsPagedRead(t *testing.T) {
+	got, err := ReadRemoteCommand("abcdef12", 3, "stderr", 4, 10)
+	if err != nil {
+		t.Fatalf("ReadRemoteCommand() error = %v", err)
+	}
+
+	for _, want := range []string{
+		"~/.assh/sessions/abcdef12/3.err",
+		"__ASSH_NOT_FOUND__",
+		"tail -n +5",
+		"head -n 10",
+		"__ASSH_TOTAL_LINES__",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("ReadRemoteCommand() = %q, want to contain %q", got, want)
+		}
+	}
+}
+
+func TestReadRemoteCommandRejectsUnsafeInputs(t *testing.T) {
+	tests := []struct {
+		name   string
+		sid    string
+		seq    int
+		stream string
+		offset int
+		limit  int
+	}{
+		{name: "bad sid", sid: "../bad", seq: 1, stream: "stdout", offset: 0, limit: 1},
+		{name: "bad seq", sid: "abcdef12", seq: 0, stream: "stdout", offset: 0, limit: 1},
+		{name: "bad stream", sid: "abcdef12", seq: 1, stream: "bad", offset: 0, limit: 1},
+		{name: "bad offset", sid: "abcdef12", seq: 1, stream: "stdout", offset: -1, limit: 1},
+		{name: "bad limit", sid: "abcdef12", seq: 1, stream: "stdout", offset: 0, limit: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := ReadRemoteCommand(tt.sid, tt.seq, tt.stream, tt.offset, tt.limit); err == nil {
+				t.Fatalf("ReadRemoteCommand() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestCloseRemoteCommandChecksMarker(t *testing.T) {
+	got, err := CloseRemoteCommand("abcdef12", "assh_abcdef12")
+	if err != nil {
+		t.Fatalf("CloseRemoteCommand() error = %v", err)
+	}
+
+	for _, want := range []string{
+		"created_by",
+		"assh",
+		"tmux kill-session",
+		"rm -rf ~/.assh/sessions/abcdef12",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("CloseRemoteCommand() = %q, want to contain %q", got, want)
+		}
+	}
+}
+
+func TestCloseRemoteCommandRejectsUnsafeInputs(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		sid      string
+		tmuxName string
+	}{
+		{name: "bad sid", sid: "../bad", tmuxName: "assh_../bad"},
+		{name: "missing prefix", sid: "abcdef12", tmuxName: "tmux_abcdef12"},
+		{name: "mismatched", sid: "abcdef12", tmuxName: "assh_abcdef13"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := CloseRemoteCommand(tt.sid, tt.tmuxName); err == nil {
+				t.Fatalf("CloseRemoteCommand() error = nil, want error")
 			}
 		})
 	}

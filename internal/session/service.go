@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,13 +40,13 @@ func OpenRemoteCommand(metaJSON string, tmuxName string) (string, error) {
 		return "", errors.New("tmux name must start with assh_")
 	}
 	sid := strings.TrimPrefix(tmuxName, "assh_")
-	if !remote.SafeSID(sid) {
-		return "", errors.New("tmux name contains invalid session id")
+	if err := validateSessionTarget(sid, tmuxName); err != nil {
+		return "", err
 	}
 
-	sessionRoot := `"$HOME/.assh/sessions"`
-	sessionDir := `"$HOME/.assh/sessions/` + sid + `"`
-	metaPath := `"$HOME/.assh/sessions/` + sid + `/meta.json"`
+	sessionRoot := "~/.assh/sessions"
+	sessionDir := sessionRoot + "/" + sid
+	metaPath := sessionDir + "/meta.json"
 
 	parts := []string{
 		"mkdir -p " + sessionRoot,
@@ -54,6 +55,78 @@ func OpenRemoteCommand(metaJSON string, tmuxName string) (string, error) {
 		"tmux new-session -d -s " + remote.SingleQuote(tmuxName),
 	}
 	return strings.Join(parts, " && "), nil
+}
+
+func ExecRemoteCommand(sid, tmuxName string, seq int, command string) (string, error) {
+	if err := validateSessionTarget(sid, tmuxName); err != nil {
+		return "", err
+	}
+	if seq < 1 {
+		return "", errors.New("seq must be positive")
+	}
+	if strings.TrimSpace(command) == "" {
+		return "", errors.New("command required")
+	}
+
+	dir := sessionDir(sid)
+	seqText := strconv.Itoa(seq)
+	out := dir + "/" + seqText + ".out"
+	errPath := dir + "/" + seqText + ".err"
+	rc := dir + "/" + seqText + ".rc"
+	wrapped := command + " > " + out + " 2> " + errPath + "; echo $? > " + rc
+	return "mkdir -p " + dir + " && tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter", nil
+}
+
+func ReadRemoteCommand(sid string, seq int, stream string, offset int, limit int) (string, error) {
+	if !remote.SafeSID(sid) {
+		return "", errors.New("invalid session id")
+	}
+	if seq < 1 {
+		return "", errors.New("seq must be positive")
+	}
+	if stream != "stdout" && stream != "stderr" {
+		return "", errors.New("invalid stream")
+	}
+	if offset < 0 || limit < 1 {
+		return "", errors.New("invalid pagination")
+	}
+
+	ext := "out"
+	if stream == "stderr" {
+		ext = "err"
+	}
+	file := sessionDir(sid) + "/" + strconv.Itoa(seq) + "." + ext
+	return "test -f " + file + " || { echo __ASSH_NOT_FOUND__; exit 0; }; " +
+		"total=$(wc -l < " + file + "); " +
+		"tail -n +" + strconv.Itoa(offset+1) + " " + file + " | head -n " + strconv.Itoa(limit) + "; " +
+		"printf '\\n__ASSH_TOTAL_LINES__=%s\\n' \"$total\"", nil
+}
+
+func CloseRemoteCommand(sid, tmuxName string) (string, error) {
+	if err := validateSessionTarget(sid, tmuxName); err != nil {
+		return "", err
+	}
+
+	dir := sessionDir(sid)
+	metaPath := dir + "/meta.json"
+	return "test -f " + metaPath + " || exit 0; " +
+		"grep -q '\"created_by\":\"assh\"' " + metaPath + " || exit 3; " +
+		"tmux kill-session -t " + remote.SingleQuote(tmuxName) + " 2>/dev/null || true; " +
+		"rm -rf " + dir, nil
+}
+
+func validateSessionTarget(sid, tmuxName string) error {
+	if !remote.SafeSID(sid) {
+		return errors.New("invalid session id")
+	}
+	if tmuxName != "assh_"+sid {
+		return errors.New("tmux name does not match session id")
+	}
+	return nil
+}
+
+func sessionDir(sid string) string {
+	return "~/.assh/sessions/" + sid
 }
 
 func (m Metadata) Expired(now time.Time) bool {

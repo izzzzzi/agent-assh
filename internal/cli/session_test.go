@@ -35,6 +35,60 @@ func TestSessionCloseRequiresSID(t *testing.T) {
 	}
 }
 
+func TestSessionExecRequiresSIDAndCommand(t *testing.T) {
+	got := executeSessionJSONError(t, []string{"session", "exec", "--sid", "bad", "--", "pwd"})
+	if got["ok"] != false || got["error"] != "invalid_args" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+
+	got = executeSessionJSONError(t, []string{"session", "exec", "--sid", "abcdef12"})
+	if got["ok"] != false || got["error"] != "invalid_args" || got["message"] != "command required" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionExecReturnsJSON(t *testing.T) {
+	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--", "pwd"})
+	if got["ok"] != true || got["operation"] != "session_exec" || got["sid"] != "abcdef12" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionReadRequiresSIDAndSeq(t *testing.T) {
+	got := executeSessionJSONError(t, []string{"session", "read", "--seq", "1"})
+	if got["ok"] != false || got["error"] != "invalid_args" || got["message"] != "--sid is required" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+
+	got = executeSessionJSONError(t, []string{"session", "read", "--sid", "abcdef12"})
+	if got["ok"] != false || got["error"] != "invalid_args" || got["message"] != "--seq is required" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionReadValidatesFlags(t *testing.T) {
+	tests := [][]string{
+		{"session", "read", "--sid", "abcdef12", "--seq", "1", "--stream", "bad"},
+		{"session", "read", "--sid", "abcdef12", "--seq", "1", "--offset", "-1"},
+		{"session", "read", "--sid", "abcdef12", "--seq", "1", "--limit", "0"},
+		{"session", "read", "--sid", "abcdef12", "--seq", "1", "extra"},
+	}
+
+	for _, args := range tests {
+		got := executeSessionJSONError(t, args)
+		if got["ok"] != false || got["error"] != "invalid_args" {
+			t.Fatalf("args %v unexpected response: %#v", args, got)
+		}
+	}
+}
+
+func TestSessionReadReturnsJSON(t *testing.T) {
+	got := executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "2"})
+	if got["ok"] != true || got["operation"] != "session_read" || got["sid"] != "abcdef12" || got["seq"] != float64(2) {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionGCReturnsDryRunCandidates(t *testing.T) {
 	got := executeSessionJSON(t, []string{"session", "gc"})
 
