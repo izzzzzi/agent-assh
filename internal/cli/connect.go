@@ -40,13 +40,7 @@ func newConnectCommand() *cobra.Command {
 				req.Identity = filepath.Join(homeDir(), ".ssh", "id_agent_ed25519")
 			}
 
-			service := bootstrap.Service{
-				RunSSH:         runBootstrapSSH,
-				EnsureKeyPair:  ensureKeyPair,
-				DeployPassword: deployPublicKeyWithPassword,
-				LookupEnv:      os.LookupEnv,
-				NewID:          ids.New,
-			}
+			service := newBootstrapService()
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), req.Timeout)
 			defer cancel()
@@ -78,6 +72,16 @@ func newConnectCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&req.SkipGC, "no-gc", false, "skip bootstrap cleanup")
 	cmd.Flags().BoolVar(&req.SkipTmuxInstall, "no-install-tmux", false, "do not install tmux if missing")
 	return cmd
+}
+
+var newBootstrapService = func() bootstrap.Service {
+	return bootstrap.Service{
+		RunSSH:         runBootstrapSSH,
+		EnsureKeyPair:  ensureKeyPair,
+		DeployPassword: deployPublicKeyWithPassword,
+		LookupEnv:      os.LookupEnv,
+		NewID:          ids.New,
+	}
 }
 
 func runBootstrapSSH(ctx context.Context, target bootstrap.SSHTarget, remoteCommand string) bootstrap.SSHResult {
