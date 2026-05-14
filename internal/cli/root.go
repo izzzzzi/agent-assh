@@ -28,6 +28,7 @@ func NewRootCommand() *cobra.Command {
 		return writeInvalidArgs(cmd, err.Error(), "run assh --help")
 	})
 	cmd.AddCommand(
+		newConnectCommand(),
 		newExecCommand(),
 		newReadCommand(),
 		newCapabilitiesCommand(),
