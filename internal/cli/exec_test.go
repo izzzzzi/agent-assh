@@ -277,6 +277,26 @@ func TestRunSSHWithPasswordClassifiesRemoteCommandFailure(t *testing.T) {
 	}
 }
 
+func TestRunSSHWithPasswordPrioritizesRemoteExitOverAuthText(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fake ssh is unix-only")
+	}
+	dir := t.TempDir()
+	sshPath := filepath.Join(dir, "ssh")
+	if err := os.WriteFile(sshPath, []byte("#!/bin/sh\necho Permission denied >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatalf("write fake ssh: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	err := runSSHWithPassword(context.Background(), "password", []string{"example.com", "true"})
+	if err == nil {
+		t.Fatalf("runSSHWithPassword() error = nil, want command failure")
+	}
+	if got := passwordSSHErrorCode(err); got != "command_failed" {
+		t.Fatalf("passwordSSHErrorCode() = %q, want command_failed; err = %v", got, err)
+	}
+}
+
 func TestKeyDeployRemoteCommandChainsAppendPath(t *testing.T) {
 	got := keyDeployRemoteCommand("ssh-ed25519 AAAATEST")
 	if !strings.Contains(got, "&& (") {

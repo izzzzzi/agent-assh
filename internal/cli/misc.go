@@ -218,15 +218,18 @@ func passwordSSHErrorCode(err error) string {
 		if errors.As(passwordErr.err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
 			return "ssh_missing"
 		}
-		if code := passwordSSHTextErrorCode(passwordErr.Error()); code != "connection_error" {
-			return code
-		}
 		var exitErr *exec.ExitError
 		if errors.As(passwordErr.err, &exitErr) {
 			if exitErr.ExitCode() == 255 {
+				if code := passwordSSHTextErrorCode(passwordErr.Error()); code != "connection_error" {
+					return code
+				}
 				return "connection_error"
 			}
 			return "command_failed"
+		}
+		if code := passwordSSHTextErrorCode(passwordErr.Error()); code != "connection_error" {
+			return code
 		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
