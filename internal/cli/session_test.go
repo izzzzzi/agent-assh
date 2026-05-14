@@ -74,6 +74,29 @@ func TestSessionCloseRequiresSID(t *testing.T) {
 	}
 }
 
+func TestSessionCloseTmuxMissingKeepsRegistry(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stdout:   nil,
+			Stderr:   []byte("tmux_missing\n"),
+			ExitCode: 127,
+			Err:      &exec.ExitError{},
+		}
+	}
+
+	got := executeJSONError(t, []string{"session", "close", "--sid", "abcdef12"})
+	if got["error"] != "tmux_missing" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+
+	if _, err := session.LoadRegistry(stateBaseDir(), "abcdef12"); err != nil {
+		t.Fatalf("registry deleted despite remote close failure: %v", err)
+	}
+}
+
 func TestSessionExecRequiresSIDAndCommand(t *testing.T) {
 	got := executeSessionJSONError(t, []string{"session", "exec", "--sid", "bad", "--", "pwd"})
 	if got["ok"] != false || got["error"] != "invalid_args" {

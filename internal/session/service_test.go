@@ -233,14 +233,19 @@ func TestCloseRemoteCommandChecksMarker(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"command -v tmux",
 		"created_by",
 		"assh",
+		"tmux has-session",
 		"tmux kill-session",
 		"rm -rf ~/.assh/sessions/abcdef12",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("CloseRemoteCommand() = %q, want to contain %q", got, want)
 		}
+	}
+	if strings.Contains(got, "kill-session -t 'assh_abcdef12' 2>/dev/null || true") {
+		t.Fatalf("CloseRemoteCommand() suppresses kill-session failure: %q", got)
 	}
 }
 
