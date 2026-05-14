@@ -182,6 +182,11 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		tmuxInstalled = true
 	}
 
+	gcDeleted, gcErrors, err := s.runGC(ctx, req, target)
+	if err != nil {
+		return Result{}, err
+	}
+
 	sid, err := s.NewID()
 	if err != nil {
 		return Result{}, Error{Code: "internal_error", Message: err.Error()}
@@ -225,6 +230,8 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		KeyDeployed:   keyDeployed,
 		KeyVerified:   true,
 		TmuxInstalled: tmuxInstalled,
+		GCDeleted:     gcDeleted,
+		GCErrors:      gcErrors,
 		SID:           sid,
 		Session:       req.SessionName,
 		TmuxName:      metadata.TmuxName,
@@ -234,6 +241,48 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 			"close": "assh session close -s " + sid,
 		},
 	}, nil
+}
+
+func (s Service) runGC(ctx context.Context, req Request, target SSHTarget) ([]string, []GCError, error) {
+	if req.SkipGC {
+		return nil, nil, nil
+	}
+	entries, err := session.ListRegistry(req.StateDir)
+	if err != nil {
+		return nil, nil, Error{Code: "internal_error", Message: err.Error()}
+	}
+
+	now := time.Now().UTC()
+	var deleted []string
+	var gcErrors []GCError
+	for _, entry := range entries {
+		if entry.Host != req.Host || entry.User != req.User || entry.Port != req.Port {
+			continue
+		}
+		if req.GCOlderThan > 0 && !entry.CreatedAt.Add(req.GCOlderThan).Before(now) {
+			continue
+		}
+
+		command, err := session.GCRemoteCommand(entry.SID, entry.TmuxName)
+		if err != nil {
+			gcErrors = append(gcErrors, GCError{SID: entry.SID, Error: err.Error()})
+			continue
+		}
+		gcTarget := target
+		gcTarget.Identity = entry.Identity
+		gcTarget.HostKeyPolicy = entry.HostKeyPolicy
+		result := s.RunSSH(ctx, gcTarget, command)
+		if code := sshErrorCode(ctx.Err(), result); code != "" {
+			gcErrors = append(gcErrors, GCError{SID: entry.SID, Error: sshErrorMessage(ctx.Err(), result)})
+			continue
+		}
+		if err := session.DeleteRegistry(req.StateDir, entry.SID); err != nil {
+			gcErrors = append(gcErrors, GCError{SID: entry.SID, Error: err.Error()})
+			continue
+		}
+		deleted = append(deleted, entry.SID)
+	}
+	return deleted, gcErrors, nil
 }
 
 func installErrorCode(code string) string {
