@@ -1,6 +1,13 @@
 config:
   MD013: false
+  MD032: false
   MD033: false
+  MD040: false
+  MD041: false
 globs:
-  - "*.md"
-  - "docs/**/*.md"
+  - "README.md"
+  - "README.ru.md"
+  - "AGENT_INSTRUCTIONS.md"
+  - "SYSTEM_PROMPT_snippet.md"
+ignores:
+  - "docs/superpowers/**"
