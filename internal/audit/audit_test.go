@@ -33,3 +33,25 @@ func TestWriteOmitsCommandText(t *testing.T) {
 		t.Fatalf("audit entry contains command key: %s", data)
 	}
 }
+
+func TestReadFiltersAuditEvents(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	events := []Event{
+		{Action: "exec", Host: "a.example", ExitCode: 0},
+		{Action: "exec", Host: "a.example", ExitCode: 2},
+		{Action: "exec", Host: "b.example", ExitCode: 1},
+	}
+	for _, event := range events {
+		if err := Write(path, event); err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
+	}
+
+	got, err := Read(path, Filter{Last: 10, Host: "a.example", Failed: true})
+	if err != nil {
+		t.Fatalf("Read() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Host != "a.example" || got[0].ExitCode != 2 {
+		t.Fatalf("unexpected events: %#v", got)
+	}
+}

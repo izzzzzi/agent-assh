@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -42,4 +43,42 @@ func Write(path string, event Event) error {
 		return err
 	}
 	return nil
+}
+
+type Filter struct {
+	Last   int
+	Host   string
+	Failed bool
+}
+
+func Read(path string, filter Filter) ([]Event, error) {
+	body, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return []Event{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(strings.TrimSpace(string(body)), "\n")
+	events := make([]Event, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var event Event
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return nil, err
+		}
+		if filter.Host != "" && event.Host != filter.Host {
+			continue
+		}
+		if filter.Failed && event.ExitCode == 0 {
+			continue
+		}
+		events = append(events, event)
+	}
+	if filter.Last > 0 && len(events) > filter.Last {
+		events = events[len(events)-filter.Last:]
+	}
+	return events, nil
 }

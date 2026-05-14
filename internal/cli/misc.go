@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agent-ssh/assh/internal/audit"
 	"github.com/agent-ssh/assh/internal/remote"
 	"github.com/agent-ssh/assh/internal/transport"
 	"github.com/spf13/cobra"
@@ -107,6 +108,8 @@ func newKeyDeployCommand() *cobra.Command {
 
 func newAuditCommand() *cobra.Command {
 	var last int
+	var host string
+	var failed bool
 	cmd := &cobra.Command{
 		Use:           "audit",
 		SilenceUsage:  true,
@@ -115,29 +118,20 @@ func newAuditCommand() *cobra.Command {
 			if last < 1 {
 				return writeInvalidArgs(cmd, "--last must be greater than 0", "")
 			}
-			body, err := os.ReadFile(filepath.Join(stateBaseDir(), "audit", "audit.jsonl"))
-			if errors.Is(err, os.ErrNotExist) {
-				return writeJSON(cmd, []string{})
-			}
+			events, err := audit.Read(filepath.Join(stateBaseDir(), "audit", "audit.jsonl"), audit.Filter{
+				Last:   last,
+				Host:   host,
+				Failed: failed,
+			})
 			if err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			lines := strings.Split(strings.TrimSpace(string(body)), "\n")
-			if len(lines) > last {
-				lines = lines[len(lines)-last:]
-			}
-			_, _ = cmd.OutOrStdout().Write([]byte("["))
-			for i, line := range lines {
-				if i > 0 {
-					_, _ = cmd.OutOrStdout().Write([]byte(","))
-				}
-				_, _ = cmd.OutOrStdout().Write([]byte(line))
-			}
-			_, _ = cmd.OutOrStdout().Write([]byte("]\n"))
-			return nil
+			return writeJSON(cmd, events)
 		},
 	}
 	cmd.Flags().IntVar(&last, "last", 20, "last audit entries")
+	cmd.Flags().StringVar(&host, "host", "", "filter by host")
+	cmd.Flags().BoolVar(&failed, "failed", false, "show only failed events")
 	return cmd
 }
 
