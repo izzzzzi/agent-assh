@@ -4,6 +4,8 @@
 1. **Token economy** — агент видит строки, а не мегабайты
 2. **Persistent sessions** — cwd/env живёт между командами
 
+Note: v2 targets a Go binary with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. During development, the existing Bash `assh` remains the reference implementation.
+
 ## Быстрый старт
 
 ```bash

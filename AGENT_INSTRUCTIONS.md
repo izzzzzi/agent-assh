@@ -10,6 +10,8 @@
 2. **Persistent sessions**: tmux-сессия на сервере. `cd /app` сохраняется, `git pull` выполняется в `/app`.
    Не нужно клеить команды через `&&`.
 
+Note: v2 targets a Go binary with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. During development, the existing Bash `assh` remains the reference implementation.
+
 ## Где находится
 
 `~/agent_ssh/assh` — один файл, bash, зависит от `ssh`, `ssh-keygen`, `tmux` (на сервере для session).
