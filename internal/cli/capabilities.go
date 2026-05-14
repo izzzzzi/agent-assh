@@ -39,7 +39,7 @@ func newCapabilitiesCommand() *cobra.Command {
 				HostKeyPolicy: "accept-new",
 			}, capabilities.ProbeCommand())
 
-			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 			writeAudit("capabilities", host, user, capabilities.ProbeCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))

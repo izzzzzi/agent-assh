@@ -104,6 +104,25 @@ func TestOpenRemoteCommandUsesValidatedSIDAndQuotedValues(t *testing.T) {
 	}
 }
 
+func TestOpenRemoteCommandChecksTmuxBeforeCreatingSession(t *testing.T) {
+	meta := NewMetadata("abcdef12", "deploy", time.Hour, "")
+	body, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	cmd, err := OpenRemoteCommand(string(body), meta.TmuxName)
+	if err != nil {
+		t.Fatalf("OpenRemoteCommand() error = %v", err)
+	}
+	if !strings.Contains(cmd, "command -v tmux") {
+		t.Fatalf("remote open command does not check tmux: %s", cmd)
+	}
+	if strings.Index(cmd, "command -v tmux") > strings.Index(cmd, "tmux new-session") {
+		t.Fatalf("tmux check must happen before tmux new-session: %s", cmd)
+	}
+}
+
 func TestOpenRemoteCommandRejectsInvalidTmuxNames(t *testing.T) {
 	for _, tmuxName := range []string{
 		"assh_abcdef12;touch_bad",

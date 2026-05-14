@@ -90,7 +90,7 @@ func newSessionOpenCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeout)*time.Second)
 			defer cancel()
 			result := runSSH(ctx, sessionSSH(host, user, port, identity, timeout, hostKeyPolicy), remoteCommand)
-			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
@@ -288,7 +288,7 @@ func newSessionCloseCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
 			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
-			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 			if err := session.DeleteRegistry(stateBaseDir(), sid); err != nil {

@@ -66,6 +66,7 @@ func OpenRemoteCommand(metaJSON string, tmuxName string) (string, error) {
 	metaPath := sessionDir + "/meta.json"
 
 	parts := []string{
+		"command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }",
 		"mkdir -p " + sessionRoot,
 		"mkdir -p " + sessionDir,
 		"printf %s " + remote.SingleQuote(metaJSON) + " > " + metaPath,

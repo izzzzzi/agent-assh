@@ -201,6 +201,24 @@ func sshResultErrorCode(ctxErr error, result transport.Result) string {
 	}
 }
 
+func lifecycleResultErrorCode(ctxErr error, result transport.Result) string {
+	if code := sshResultErrorCode(ctxErr, result); code != "" {
+		return code
+	}
+	if result.Err == nil && result.ExitCode == 0 {
+		return ""
+	}
+	stderr := strings.ToLower(strings.TrimSpace(string(result.Stderr)))
+	switch {
+	case strings.Contains(stderr, "tmux_missing"):
+		return "tmux_missing"
+	case strings.Contains(stderr, "tmux_install_failed"):
+		return "tmux_install_failed"
+	default:
+		return "command_failed"
+	}
+}
+
 func sshErrorMessage(ctxErr, runErr error) string {
 	if ctxErr != nil {
 		return ctxErr.Error()

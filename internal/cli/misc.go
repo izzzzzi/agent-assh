@@ -31,7 +31,7 @@ func newScanCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
 			result := runSSH(ctx, transport.SSHCommand{Host: host, User: user, Port: port, Identity: identity, TimeoutSecond: 30, HostKeyPolicy: "accept-new"}, scanRemoteCommand())
-			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 			writeAudit("scan", host, user, scanRemoteCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))

@@ -2,14 +2,17 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/agent-ssh/assh/internal/session"
+	"github.com/agent-ssh/assh/internal/transport"
 )
 
 func TestSessionOpenRequiresHost(t *testing.T) {
@@ -34,6 +37,33 @@ func TestSessionOpenReturnsPlaceholderJSON(t *testing.T) {
 
 	if got["ok"] != true || got["host"] != "example.com" || got["session"] != "deploy" || got["install_tmux"] != true || got["sid"] == "" {
 		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionOpenTmuxMissingDoesNotSaveRegistry(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stdout:   nil,
+			Stderr:   []byte("tmux_missing\n"),
+			ExitCode: 127,
+			Err:      &exec.ExitError{},
+		}
+	}
+
+	got := executeJSONError(t, []string{"session", "open", "--host", "example.com", "--name", "deploy"})
+	if got["error"] != "tmux_missing" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+
+	entries, err := session.ListRegistry(stateBaseDir())
+	if err != nil {
+		t.Fatalf("ListRegistry() error = %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("registry saved despite remote failure: %#v", entries)
 	}
 }
 
