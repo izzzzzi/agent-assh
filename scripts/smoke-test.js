@@ -31,23 +31,40 @@ assert.throws(() => target('win32', 'arm64'), /windows\/arm64/);
 assert.throws(() => target('freebsd', 'x64'), /Unsupported platform/);
 assert.throws(() => target('linux', 'ia32'), /Unsupported architecture/);
 
-fs.mkdirSync(vendorDir, { recursive: true });
-
 const info = target();
 const binaryPath = path.join(vendorDir, `assh${info.ext}`);
 const fake = process.platform === 'win32'
   ? '#!/usr/bin/env node\r\nconsole.log(`assh smoke ${process.argv.slice(2).join(" ")}`);\r\n'
   : '#!/bin/sh\necho "assh smoke $*"\n';
 
-fs.writeFileSync(binaryPath, fake, { mode: 0o755 });
-fs.chmodSync(binaryPath, 0o755);
+const vendorExisted = fs.existsSync(vendorDir);
+const binaryExisted = fs.existsSync(binaryPath);
+const originalBinary = binaryExisted ? fs.readFileSync(binaryPath) : null;
+const originalMode = binaryExisted ? fs.statSync(binaryPath).mode & 0o777 : null;
 
-const result = spawnSync(process.execPath, [path.join(root, 'bin', 'assh.js'), 'arg-one'], {
-  cwd: root,
-  encoding: 'utf8',
-});
+try {
+  fs.mkdirSync(vendorDir, { recursive: true });
+  fs.writeFileSync(binaryPath, fake, { mode: 0o755 });
+  fs.chmodSync(binaryPath, 0o755);
 
-assert.equal(result.status, 0, result.stderr || result.stdout);
-assert.match(result.stdout, /assh smoke/);
+  const result = spawnSync(process.execPath, [path.join(root, 'bin', 'assh.js'), 'arg-one'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
 
-console.log('smoke ok');
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /assh smoke/);
+
+  console.log('smoke ok');
+} finally {
+  if (binaryExisted) {
+    fs.writeFileSync(binaryPath, originalBinary, { mode: originalMode });
+    fs.chmodSync(binaryPath, originalMode);
+  } else {
+    fs.rmSync(binaryPath, { force: true });
+  }
+
+  if (!vendorExisted && fs.existsSync(vendorDir) && fs.readdirSync(vendorDir).length === 0) {
+    fs.rmdirSync(vendorDir);
+  }
+}

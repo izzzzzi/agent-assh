@@ -11,8 +11,13 @@ const args = process.argv.slice(2);
 let command = binary;
 let commandArgs = args;
 
+if (!fs.existsSync(binary)) {
+  console.error(`assh binary not found at ${binary}; reinstall agent-assh or rerun postinstall`);
+  process.exit(1);
+}
+
 if (process.platform === 'win32') {
-  const header = fs.existsSync(binary) ? fs.readFileSync(binary).subarray(0, 2) : Buffer.alloc(0);
+  const header = fs.readFileSync(binary).subarray(0, 2);
   if (header.toString('ascii') !== 'MZ') {
     command = process.execPath;
     commandArgs = [binary, ...args];
