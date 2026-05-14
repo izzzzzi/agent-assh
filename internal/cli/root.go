@@ -10,6 +10,7 @@ import (
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "assh",
+		Short:         "SSH workflow helper for LLM agents",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -34,6 +35,7 @@ func NewRootCommand() *cobra.Command {
 		newScanCommand(),
 		newKeyDeployCommand(),
 		newAuditCommand(),
+		newVersionCommand(),
 	)
 	return cmd
 }

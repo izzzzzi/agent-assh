@@ -24,3 +24,23 @@ func TestUnknownCommandReturnsJSONError(t *testing.T) {
 		t.Fatalf("unexpected response: %#v", got)
 	}
 }
+
+func TestVersionCommandReturnsJSON(t *testing.T) {
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"version"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("expected json output, got %q", out.String())
+	}
+	if got["ok"] != true || got["version"] == "" || got["go_version"] == "" {
+		t.Fatalf("unexpected version response: %#v", got)
+	}
+}

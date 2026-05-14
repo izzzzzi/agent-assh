@@ -11,7 +11,6 @@ import (
 	"github.com/agent-ssh/assh/internal/remote"
 	"github.com/agent-ssh/assh/internal/response"
 	"github.com/agent-ssh/assh/internal/session"
-	"github.com/agent-ssh/assh/internal/state"
 	"github.com/agent-ssh/assh/internal/transport"
 	"github.com/spf13/cobra"
 )
@@ -90,7 +89,7 @@ func newSessionOpenCommand() *cobra.Command {
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeout)*time.Second)
 			defer cancel()
-			result := sessionSSH(host, user, port, identity, timeout, hostKeyPolicy).Run(ctx, remoteCommand)
+			result := runSSH(ctx, sessionSSH(host, user, port, identity, timeout, hostKeyPolicy), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -107,7 +106,7 @@ func newSessionOpenCommand() *cobra.Command {
 				CreatedAt:     metadata.CreatedAt,
 				TTLSeconds:    metadata.TTLSeconds,
 			}
-			if err := session.SaveRegistry(state.BaseDir(), entry); err != nil {
+			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			writeAudit("session_open", host, user, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
@@ -149,7 +148,7 @@ func newSessionExecCommand() *cobra.Command {
 			if len(args) == 0 {
 				return writeInvalidArgs(cmd, "command required", "")
 			}
-			entry, err := session.LoadRegistry(state.BaseDir(), sid)
+			entry, err := session.LoadRegistry(stateBaseDir(), sid)
 			if err != nil {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
@@ -160,7 +159,7 @@ func newSessionExecCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
-			result := sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy).Run(ctx, remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -168,7 +167,7 @@ func newSessionExecCommand() *cobra.Command {
 			if timedOut {
 				return writeError(cmd, "timeout", "session command timed out", "")
 			}
-			if err := session.SaveRegistry(state.BaseDir(), entry); err != nil {
+			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			writeAudit("session_exec", entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
@@ -219,7 +218,7 @@ func newSessionReadCommand() *cobra.Command {
 			if offset < 0 || limit < 1 {
 				return writeInvalidArgs(cmd, "invalid pagination", "")
 			}
-			entry, err := session.LoadRegistry(state.BaseDir(), sid)
+			entry, err := session.LoadRegistry(stateBaseDir(), sid)
 			if err != nil {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
@@ -229,7 +228,7 @@ func newSessionReadCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
-			result := sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy).Run(ctx, remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -278,7 +277,7 @@ func newSessionCloseCommand() *cobra.Command {
 			if !remote.SafeSID(sid) {
 				return writeInvalidArgs(cmd, "--sid is required", "")
 			}
-			entry, err := session.LoadRegistry(state.BaseDir(), sid)
+			entry, err := session.LoadRegistry(stateBaseDir(), sid)
 			if err != nil {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
@@ -288,11 +287,11 @@ func newSessionCloseCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
-			result := sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy).Run(ctx, remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
-			if err := session.DeleteRegistry(state.BaseDir(), sid); err != nil {
+			if err := session.DeleteRegistry(stateBaseDir(), sid); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			writeAudit("session_close", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
@@ -316,7 +315,7 @@ func newSessionGCCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			entries, err := session.ListRegistry(state.BaseDir())
+			entries, err := session.ListRegistry(stateBaseDir())
 			if err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
@@ -326,7 +325,7 @@ func newSessionGCCommand() *cobra.Command {
 				if (session.Metadata{CreatedAt: entry.CreatedAt, TTLSeconds: entry.TTLSeconds}).Expired(now) {
 					candidates = append(candidates, entry.SID)
 					if execute {
-						_ = session.DeleteRegistry(state.BaseDir(), entry.SID)
+						_ = session.DeleteRegistry(stateBaseDir(), entry.SID)
 					}
 				}
 			}

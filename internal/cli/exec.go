@@ -57,20 +57,20 @@ func newExecCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeout)*time.Second)
 			defer cancel()
 
-			result := transport.SSHCommand{
+			result := runSSH(ctx, transport.SSHCommand{
 				Host:          host,
 				User:          user,
 				Port:          port,
 				Identity:      identity,
 				TimeoutSecond: timeout,
 				HostKeyPolicy: hostKeyPolicy,
-			}.Run(ctx, remoteCommand(args))
+			}, remoteCommand(args))
 
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
-			store := state.NewOutputStore(filepath.Join(state.BaseDir(), "outputs"))
+			store := state.NewOutputStore(filepath.Join(stateBaseDir(), "outputs"))
 			if err := store.Write(outputID, result.Stdout, result.Stderr); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
@@ -122,7 +122,7 @@ func newReadCommand() *cobra.Command {
 				return writeInvalidArgs(cmd, "limit must be at least 1", "")
 			}
 
-			store := state.NewOutputStore(filepath.Join(state.BaseDir(), "outputs"))
+			store := state.NewOutputStore(filepath.Join(stateBaseDir(), "outputs"))
 			page, err := store.Read(outputID, stream, offset, limit)
 			if err != nil {
 				return writeError(cmd, "output_not_found", err.Error(), "")
@@ -233,7 +233,7 @@ func writeAudit(action, host, user, command string, exitCode int, stdoutLines in
 		sum := sha256.Sum256([]byte(command))
 		hash = fmt.Sprintf("%x", sum[:])
 	}
-	_ = audit.Write(filepath.Join(state.BaseDir(), "audit", "audit.jsonl"), audit.Event{
+	_ = audit.Write(filepath.Join(stateBaseDir(), "audit", "audit.jsonl"), audit.Event{
 		Action:      action,
 		Host:        host,
 		User:        user,
@@ -242,4 +242,12 @@ func writeAudit(action, host, user, command string, exitCode int, stdoutLines in
 		StdoutLines: stdoutLines,
 		StderrLines: stderrLines,
 	})
+}
+
+var runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+	return command.Run(ctx, remoteCommand)
+}
+
+func stateBaseDir() string {
+	return state.BaseDir()
 }

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/agent-ssh/assh/internal/remote"
-	"github.com/agent-ssh/assh/internal/state"
 	"github.com/agent-ssh/assh/internal/transport"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +30,7 @@ func newScanCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := transport.SSHCommand{Host: host, User: user, Port: port, Identity: identity, TimeoutSecond: 30, HostKeyPolicy: "accept-new"}.Run(ctx, scanRemoteCommand())
+			result := runSSH(ctx, transport.SSHCommand{Host: host, User: user, Port: port, Identity: identity, TimeoutSecond: 30, HostKeyPolicy: "accept-new"}, scanRemoteCommand())
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -116,7 +115,7 @@ func newAuditCommand() *cobra.Command {
 			if last < 1 {
 				return writeInvalidArgs(cmd, "--last must be greater than 0", "")
 			}
-			body, err := os.ReadFile(filepath.Join(state.BaseDir(), "audit", "audit.jsonl"))
+			body, err := os.ReadFile(filepath.Join(stateBaseDir(), "audit", "audit.jsonl"))
 			if errors.Is(err, os.ErrNotExist) {
 				return writeJSON(cmd, []string{})
 			}

@@ -30,14 +30,14 @@ func newCapabilitiesCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
 
-			result := transport.SSHCommand{
+			result := runSSH(ctx, transport.SSHCommand{
 				Host:          host,
 				User:          user,
 				Port:          port,
 				Identity:      identity,
 				TimeoutSecond: 30,
 				HostKeyPolicy: "accept-new",
-			}.Run(ctx, capabilities.ProbeCommand())
+			}, capabilities.ProbeCommand())
 
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
