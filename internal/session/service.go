@@ -90,7 +90,7 @@ func ExecRemoteCommand(sid, tmuxName string, seq int, command string) (string, e
 	out := dir + "/" + seqText + ".out"
 	errPath := dir + "/" + seqText + ".err"
 	rc := dir + "/" + seqText + ".rc"
-	wrapped := command + " > " + out + " 2> " + errPath + "; echo $? > " + rc
+	wrapped := "{ " + command + "; } > " + out + " 2> " + errPath + "; echo $? > " + rc
 	return "mkdir -p " + dir + " && rm -f " + rc + " && " +
 		"tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter; " +
 		"i=0; while [ $i -lt 120 ] && [ ! -f " + rc + " ]; do i=$((i+1)); sleep 1; done; " +

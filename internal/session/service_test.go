@@ -120,7 +120,7 @@ func TestOpenRemoteCommandRejectsInvalidTmuxNames(t *testing.T) {
 }
 
 func TestExecRemoteCommandWritesSeqFiles(t *testing.T) {
-	got, err := ExecRemoteCommand("abcdef12", "assh_abcdef12", 3, "pwd")
+	got, err := ExecRemoteCommand("abcdef12", "assh_abcdef12", 3, "echo a; echo b")
 	if err != nil {
 		t.Fatalf("ExecRemoteCommand() error = %v", err)
 	}
@@ -129,6 +129,7 @@ func TestExecRemoteCommandWritesSeqFiles(t *testing.T) {
 		"~/.assh/sessions/abcdef12/3.out",
 		"~/.assh/sessions/abcdef12/3.err",
 		"~/.assh/sessions/abcdef12/3.rc",
+		"{ echo a; echo b; } > ~/.assh/sessions/abcdef12/3.out 2> ~/.assh/sessions/abcdef12/3.err",
 		"tmux send-keys",
 	} {
 		if !strings.Contains(got, want) {

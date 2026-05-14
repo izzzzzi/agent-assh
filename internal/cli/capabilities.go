@@ -42,6 +42,7 @@ func newCapabilitiesCommand() *cobra.Command {
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
+			writeAudit("capabilities", host, user, capabilities.ProbeCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, capabilities.ParseProbe(result.Stdout))
 		},
