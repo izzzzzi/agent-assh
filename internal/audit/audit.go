@@ -19,7 +19,7 @@ type Event struct {
 	StderrLines int       `json:"stderr_lines,omitempty"`
 }
 
-func Write(path string, event Event) error {
+func Write(path string, event Event) (err error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
@@ -28,7 +28,11 @@ func Write(path string, event Event) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); err == nil {
+			err = closeErr
+		}
+	}()
 
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now().UTC()

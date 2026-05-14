@@ -162,7 +162,7 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	askpass := filepath.Join(dir, "askpass.sh")
 	if err := os.WriteFile(askpass, []byte("#!/bin/sh\nprintf '%s\\n' "+remote.SingleQuote(password)+"\n"), 0o700); err != nil {
 		return err

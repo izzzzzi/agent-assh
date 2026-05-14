@@ -196,7 +196,7 @@ func SaveRegistry(baseDir string, entry RegistryEntry) error {
 		return err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if _, err := tmp.Write(body); err != nil {
 		_ = tmp.Close()
 		return err
