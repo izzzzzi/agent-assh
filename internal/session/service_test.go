@@ -275,13 +275,19 @@ func TestGCRemoteCommandValidatesMetadataBeforeDelete(t *testing.T) {
 	}
 	for _, want := range []string{
 		"meta.json",
-		"\"created_by\":\"assh\"",
+		"json.load",
+		"created_by",
+		"sid",
+		"tmux_name",
 		"tmux kill-session -t 'assh_abcdef12'",
 		"rm -rf ~/.assh/sessions/abcdef12",
 	} {
 		if !strings.Contains(cmd, want) {
 			t.Fatalf("GCRemoteCommand missing %q: %s", want, cmd)
 		}
+	}
+	if strings.Contains(cmd, "grep -q") {
+		t.Fatalf("GCRemoteCommand uses grep metadata validation: %s", cmd)
 	}
 }
 

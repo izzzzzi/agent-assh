@@ -154,10 +154,12 @@ func GCRemoteCommand(sid, tmuxName string) (string, error) {
 	dir := sessionDir(sid)
 	metaPath := dir + "/meta.json"
 	quotedTmuxName := remote.SingleQuote(tmuxName)
+	validateMeta := "py=$(command -v python3 2>/dev/null || command -v python 2>/dev/null) || { echo metadata_validator_missing >&2; exit 3; }; " +
+		"\"$py\" -c " + remote.SingleQuote(`import json,sys;p,sid,tmux=sys.argv[1:4];m=json.load(open(p,encoding="utf-8"));sys.exit(0 if m.get("created_by")=="assh" and m.get("sid")==sid and m.get("tmux_name")==tmux else 3)`) +
+		" " + metaPath + " " + sid + " " + remote.SingleQuote(tmuxName) + " || { echo metadata_validation_failed >&2; exit 3; }"
 	return "test -f " + metaPath + " || exit 0; " +
 		"command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }; " +
-		"grep -q '\"created_by\":\"assh\"' " + metaPath + " || exit 3; " +
-		"grep -q '\"sid\":\"" + sid + "\"' " + metaPath + " || exit 3; " +
+		validateMeta + "; " +
 		"if tmux has-session -t " + quotedTmuxName + " 2>/dev/null; then tmux kill-session -t " + quotedTmuxName + " || exit $?; fi; " +
 		"rm -rf " + dir, nil
 }

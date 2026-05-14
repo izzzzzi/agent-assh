@@ -338,6 +338,68 @@ func TestSessionGCDryRunFiltersByHostAndAge(t *testing.T) {
 	}
 }
 
+func TestSessionGCDryRunDoesNotRunSSHOrDeleteRegistry(t *testing.T) {
+	writeExpiredSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		t.Fatalf("runSSH called during dry run")
+		return transport.Result{}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "gc"})
+	if got["dry_run"] != true {
+		t.Fatalf("expected dry run: %#v", got)
+	}
+	if _, err := session.LoadRegistry(stateBaseDir(), "abcdef12"); err != nil {
+		t.Fatalf("registry missing after dry run: %v", err)
+	}
+}
+
+func TestSessionGCExecuteRemoteFailureKeepsRegistryAndReportsError(t *testing.T) {
+	writeExpiredSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stderr:   []byte("metadata validation failed"),
+			ExitCode: 3,
+			Err:      &exec.ExitError{},
+		}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "gc", "--execute"})
+	errors := got["errors"].([]any)
+	if len(errors) != 1 {
+		t.Fatalf("expected one cleanup error: %#v", got)
+	}
+	cleanupError := errors[0].(map[string]any)
+	if cleanupError["sid"] != "abcdef12" || cleanupError["error"] == "" {
+		t.Fatalf("unexpected cleanup error: %#v", cleanupError)
+	}
+	if _, err := session.LoadRegistry(stateBaseDir(), "abcdef12"); err != nil {
+		t.Fatalf("registry deleted after failed remote cleanup: %v", err)
+	}
+}
+
+func TestSessionGCExecuteSuccessDeletesRegistryAndReportsDeleted(t *testing.T) {
+	writeExpiredSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "gc", "--execute"})
+	deleted := got["deleted"].([]any)
+	if len(deleted) != 1 || deleted[0] != "abcdef12" {
+		t.Fatalf("unexpected deleted list: %#v", got)
+	}
+	if _, err := session.LoadRegistry(stateBaseDir(), "abcdef12"); err == nil {
+		t.Fatalf("registry still present after successful remote cleanup")
+	}
+}
+
 func executeSessionJSON(t *testing.T, args []string) map[string]any {
 	t.Helper()
 
@@ -405,6 +467,25 @@ func writeTestSessionRegistry(t *testing.T, sid string) {
 		HostKeyPolicy: "accept-new",
 		TmuxName:      "assh_" + sid,
 		CreatedAt:     time.Now().UTC(),
+		TTLSeconds:    3600,
+	}
+	if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+		t.Fatalf("SaveRegistry() error = %v", err)
+	}
+}
+
+func writeExpiredSessionRegistry(t *testing.T, sid string) {
+	t.Helper()
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	entry := session.RegistryEntry{
+		SID:           sid,
+		Label:         "deploy",
+		Host:          "example.com",
+		User:          "root",
+		Port:          22,
+		HostKeyPolicy: "accept-new",
+		TmuxName:      "assh_" + sid,
+		CreatedAt:     time.Now().UTC().Add(-2 * time.Hour),
 		TTLSeconds:    3600,
 	}
 	if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
