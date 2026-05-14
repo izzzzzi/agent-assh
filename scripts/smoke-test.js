@@ -7,7 +7,7 @@ const { spawnSync } = require('node:child_process');
 const { target } = require('./platform');
 
 const root = path.join(__dirname, '..');
-const vendorDir = path.join(root, 'vendor');
+const nativeDir = path.join(root, 'native');
 
 assert.deepEqual(target('linux', 'x64'), {
   os: 'linux',
@@ -32,18 +32,18 @@ assert.throws(() => target('freebsd', 'x64'), /Unsupported platform/);
 assert.throws(() => target('linux', 'ia32'), /Unsupported architecture/);
 
 const info = target();
-const binaryPath = path.join(vendorDir, `assh${info.ext}`);
+const binaryPath = path.join(nativeDir, `assh${info.ext}`);
 const fake = process.platform === 'win32'
   ? '#!/usr/bin/env node\r\nconsole.log(`assh smoke ${process.argv.slice(2).join(" ")}`);\r\n'
   : '#!/bin/sh\necho "assh smoke $*"\n';
 
-const vendorExisted = fs.existsSync(vendorDir);
+const nativeExisted = fs.existsSync(nativeDir);
 const binaryExisted = fs.existsSync(binaryPath);
 const originalBinary = binaryExisted ? fs.readFileSync(binaryPath) : null;
 const originalMode = binaryExisted ? fs.statSync(binaryPath).mode & 0o777 : null;
 
 try {
-  fs.mkdirSync(vendorDir, { recursive: true });
+  fs.mkdirSync(nativeDir, { recursive: true });
   fs.writeFileSync(binaryPath, fake, { mode: 0o755 });
   fs.chmodSync(binaryPath, 0o755);
 
@@ -64,7 +64,7 @@ try {
     fs.rmSync(binaryPath, { force: true });
   }
 
-  if (!vendorExisted && fs.existsSync(vendorDir) && fs.readdirSync(vendorDir).length === 0) {
-    fs.rmdirSync(vendorDir);
+  if (!nativeExisted && fs.existsSync(nativeDir) && fs.readdirSync(nativeDir).length === 0) {
+    fs.rmdirSync(nativeDir);
   }
 }

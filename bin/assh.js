@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 
 const ext = process.platform === 'win32' ? '.exe' : '';
-const binary = path.join(__dirname, '..', 'vendor', `assh${ext}`);
+const binary = path.join(__dirname, '..', 'native', `assh${ext}`);
 const args = process.argv.slice(2);
 let command = binary;
 let commandArgs = args;

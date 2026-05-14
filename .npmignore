@@ -1,6 +1,7 @@
 .git
 .github
 bin/assh
+native
 dist
 docs/superpowers
 *.test

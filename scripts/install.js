@@ -10,18 +10,18 @@ const pkg = require('../package.json');
 const { target } = require('./platform');
 
 const root = path.join(__dirname, '..');
-const vendorDir = path.join(root, 'vendor');
+const nativeDir = path.join(root, 'native');
 
-function ensureVendorDir() {
-  fs.mkdirSync(vendorDir, { recursive: true });
+function ensureNativeDir() {
+  fs.mkdirSync(nativeDir, { recursive: true });
 }
 
 function binaryPath(info) {
-  return path.join(vendorDir, `assh${info.ext}`);
+  return path.join(nativeDir, `assh${info.ext}`);
 }
 
 function writeFakeExecutable(info) {
-  ensureVendorDir();
+  ensureNativeDir();
   const body = process.platform === 'win32'
     ? '#!/usr/bin/env node\r\nconsole.log(`assh smoke ${process.argv.slice(2).join(" ")}`);\r\n'
     : '#!/bin/sh\necho "assh smoke $*"\n';
@@ -164,7 +164,7 @@ async function main() {
       throw new Error(`Archive did not contain assh${info.ext}`);
     }
 
-    ensureVendorDir();
+    ensureNativeDir();
     fs.copyFileSync(extracted, binaryPath(info));
     fs.chmodSync(binaryPath(info), 0o755);
   } finally {
