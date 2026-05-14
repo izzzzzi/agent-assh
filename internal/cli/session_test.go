@@ -13,6 +13,13 @@ func TestSessionOpenRequiresHost(t *testing.T) {
 	}
 }
 
+func TestSessionOpenRejectsUnexpectedPositionalArgs(t *testing.T) {
+	got := executeSessionJSONError(t, []string{"session", "open", "--host", "example.com", "extra"})
+	if got["ok"] != false || got["error"] != "invalid_args" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionOpenReturnsPlaceholderJSON(t *testing.T) {
 	got := executeSessionJSON(t, []string{"session", "open", "--host", "example.com", "--name", "deploy", "--install-tmux"})
 

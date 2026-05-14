@@ -25,6 +25,12 @@ func newSessionOpenCommand() *cobra.Command {
 		Use:           "open",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return writeInvalidArgs(cmd, "unexpected positional arguments", "")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if host == "" {
 				return writeInvalidArgs(cmd, "host required", "")

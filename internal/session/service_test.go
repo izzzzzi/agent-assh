@@ -65,7 +65,7 @@ func TestNewMetadata(t *testing.T) {
 	}
 }
 
-func TestCanCleanupRequiresAsshMarker(t *testing.T) {
+func TestCanCleanupRequiresAsshMarkerAndSafeSID(t *testing.T) {
 	good := Metadata{CreatedBy: "assh", SID: "abcdef12", TmuxName: "assh_abcdef12"}
 	if !CanCleanup(good) {
 		t.Fatalf("CanCleanup(good) = false, want true")
@@ -76,21 +76,46 @@ func TestCanCleanupRequiresAsshMarker(t *testing.T) {
 	if CanCleanup(bad) {
 		t.Fatalf("CanCleanup(bad CreatedBy) = true, want false")
 	}
+
+	bad = good
+	bad.SID = "../bad"
+	bad.TmuxName = "assh_../bad"
+	if CanCleanup(bad) {
+		t.Fatalf("CanCleanup(bad unsafe SID) = true, want false")
+	}
 }
 
-func TestOpenRemoteCommandUsesDerivedSIDAndQuotedValues(t *testing.T) {
+func TestOpenRemoteCommandUsesValidatedSIDAndQuotedValues(t *testing.T) {
 	metaJSON := `{"sid":"abcdef12","label":"don't/use"}`
-	got := OpenRemoteCommand(metaJSON, "assh_abcdef12")
+	got, err := OpenRemoteCommand(metaJSON, "assh_abcdef12")
+	if err != nil {
+		t.Fatalf("OpenRemoteCommand() error = %v", err)
+	}
 
 	for _, want := range []string{
-		"mkdir -p ~/.assh/sessions",
-		"mkdir -p ~/.assh/sessions/abcdef12",
-		`printf %s '{"sid":"abcdef12","label":"don'"'"'t/use"}' > ~/.assh/sessions/abcdef12/meta.json`,
+		`mkdir -p "$HOME/.assh/sessions"`,
+		`mkdir -p "$HOME/.assh/sessions/abcdef12"`,
+		`printf %s '{"sid":"abcdef12","label":"don'"'"'t/use"}' > "$HOME/.assh/sessions/abcdef12/meta.json"`,
 		"tmux new-session -d -s 'assh_abcdef12'",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("OpenRemoteCommand() = %q, want to contain %q", got, want)
 		}
+	}
+}
+
+func TestOpenRemoteCommandRejectsInvalidTmuxNames(t *testing.T) {
+	for _, tmuxName := range []string{
+		"assh_abcdef12;touch_bad",
+		"assh_../bad",
+		"tmux_abcdef12",
+		"assh_",
+	} {
+		t.Run(tmuxName, func(t *testing.T) {
+			if _, err := OpenRemoteCommand(`{"sid":"abcdef12"}`, tmuxName); err == nil {
+				t.Fatalf("OpenRemoteCommand() error = nil, want error")
+			}
+		})
 	}
 }
 

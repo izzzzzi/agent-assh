@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -30,20 +31,29 @@ func NewMetadata(sid, label string, ttl time.Duration, clientID string) Metadata
 }
 
 func CanCleanup(m Metadata) bool {
-	return m.CreatedBy == "assh" && m.SID != "" && m.TmuxName == "assh_"+m.SID
+	return m.CreatedBy == "assh" && remote.SafeSID(m.SID) && m.TmuxName == "assh_"+m.SID
 }
 
-func OpenRemoteCommand(metaJSON string, tmuxName string) string {
+func OpenRemoteCommand(metaJSON string, tmuxName string) (string, error) {
+	if !strings.HasPrefix(tmuxName, "assh_") {
+		return "", errors.New("tmux name must start with assh_")
+	}
 	sid := strings.TrimPrefix(tmuxName, "assh_")
-	sessionDir := "~/.assh/sessions/" + sid
+	if !remote.SafeSID(sid) {
+		return "", errors.New("tmux name contains invalid session id")
+	}
+
+	sessionRoot := `"$HOME/.assh/sessions"`
+	sessionDir := `"$HOME/.assh/sessions/` + sid + `"`
+	metaPath := `"$HOME/.assh/sessions/` + sid + `/meta.json"`
 
 	parts := []string{
-		"mkdir -p ~/.assh/sessions",
+		"mkdir -p " + sessionRoot,
 		"mkdir -p " + sessionDir,
-		"printf %s " + remote.SingleQuote(metaJSON) + " > " + sessionDir + "/meta.json",
+		"printf %s " + remote.SingleQuote(metaJSON) + " > " + metaPath,
 		"tmux new-session -d -s " + remote.SingleQuote(tmuxName),
 	}
-	return strings.Join(parts, " && ")
+	return strings.Join(parts, " && "), nil
 }
 
 func (m Metadata) Expired(now time.Time) bool {
