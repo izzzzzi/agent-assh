@@ -11,7 +11,7 @@ Status: Awaiting user review
 - `read` pages selected output only when the agent needs it.
 - `session` keeps remote cwd/env alive through `tmux`.
 
-The current implementation already has the main Go structure, tests, and a Bash MVP kept as reference behavior. The gap for v1.0 is that documentation, CLI help, release infrastructure, npm installation, and some advertised workflow features are not yet aligned.
+The current implementation already has the main Go structure and tests. The old Bash MVP was useful during development, but v1 ships the Go CLI as the only supported implementation. The gap for v1.0 is that documentation, CLI help, release infrastructure, npm installation, and some advertised workflow features are not yet aligned.
 
 v1.0 should be a stable first public release, not a minimal internal milestone.
 

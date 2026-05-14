@@ -1571,7 +1571,7 @@ Expected: PASS.
 Modify `README.md`, `AGENT_INSTRUCTIONS.md`, and `SYSTEM_PROMPT_snippet.md` to state:
 
 ```markdown
-Note: the primary CLI is the Go binary `assh`, with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. The old Bash MVP is kept as `assh.bash` for behavior comparison.
+Note: the primary CLI is the Go binary `assh`, with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. The old Bash MVP was used as development reference behavior and is not a supported v1 entry point.
 ```
 
 - [ ] **Step 5: Commit if inside git**

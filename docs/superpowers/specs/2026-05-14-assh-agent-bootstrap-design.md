@@ -17,7 +17,7 @@ The remaining product gap is first-contact usability for agents. Today an agent 
 
 The desired v1 behavior is an agent-first SSH CLI where a user can install `assh`, give an agent minimal instructions, and the agent can safely bootstrap access, prepare tmux, open a session, and manage old sessions without pulling large output into context.
 
-The old Bash MVP is still present as `assh.bash`, but the Go binary is now the only supported implementation.
+The old Bash MVP existed during development, but the Go binary is now the only supported implementation.
 
 ## Goals
 
