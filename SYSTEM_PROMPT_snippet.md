@@ -59,8 +59,6 @@ Rules:
 - Operational commands emit one JSON value by default.
 - `read --raw` and `session read --raw` print only content.
 - Remote non-zero status is a command result, not a transport failure.
-- There is no `cwd` response field.
-- There is no `attempt` response field.
 
 ### Errors
 

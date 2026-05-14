@@ -102,8 +102,6 @@ assh audit --last 20 --host HOST --failed
 - Errors use `{"ok":false,"error":"code","message":"..."}`.
 - `exec` responses include `exit_code`, `output_id`, `stdout_lines`, and `stderr_lines`.
 - `session exec` responses include `rc`, `seq`, `stdout_lines`, `stderr_lines`, `sid`, and `session`.
-- There is no `cwd` response field.
-- There is no `attempt` response field.
 
 ## Error Handling
 

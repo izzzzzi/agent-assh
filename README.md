@@ -7,7 +7,7 @@
 
 SSH workflow helper for LLM agents.
 
-`assh` keeps large SSH output out of the agent context. Commands return metadata first, and agents read only the lines they need. Persistent sessions use remote `tmux` so working directory and environment changes survive between related commands without adding `cwd` to command responses.
+`assh` keeps large SSH output out of the agent context. Commands return metadata first, and agents read only the lines they need. Persistent sessions use remote `tmux` so working directory and environment changes survive between related commands.
 
 ## Install
 
@@ -71,7 +71,7 @@ Errors use:
 {"ok":false,"error":"tmux_missing","message":"tmux is not installed"}
 ```
 
-`exec` and `session exec` treat remote non-zero status as command results, not transport failures. Response objects do not include `cwd` or `attempt` fields.
+`exec` and `session exec` treat remote non-zero status as command results, not transport failures.
 
 ## Agent Workflow
 
