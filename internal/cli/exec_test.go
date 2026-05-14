@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,6 +254,39 @@ func TestRunSSHWithPasswordClassifiesContextTimeout(t *testing.T) {
 	}
 	if got := passwordSSHErrorCode(err); got != "timeout" {
 		t.Fatalf("passwordSSHErrorCode() = %q, want timeout; err = %v", got, err)
+	}
+}
+
+func TestRunSSHWithPasswordClassifiesRemoteCommandFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fake ssh is unix-only")
+	}
+	dir := t.TempDir()
+	sshPath := filepath.Join(dir, "ssh")
+	if err := os.WriteFile(sshPath, []byte("#!/bin/sh\necho remote chmod failed >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatalf("write fake ssh: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	err := runSSHWithPassword(context.Background(), "password", []string{"example.com", "true"})
+	if err == nil {
+		t.Fatalf("runSSHWithPassword() error = nil, want command failure")
+	}
+	if got := passwordSSHErrorCode(err); got != "command_failed" {
+		t.Fatalf("passwordSSHErrorCode() = %q, want command_failed; err = %v", got, err)
+	}
+}
+
+func TestKeyDeployRemoteCommandChainsAppendPath(t *testing.T) {
+	got := keyDeployRemoteCommand("ssh-ed25519 AAAATEST")
+	if !strings.Contains(got, "&& (") {
+		t.Fatalf("keyDeployRemoteCommand() does not group append path: %s", got)
+	}
+	if !strings.Contains(got, ") && chmod 600") {
+		t.Fatalf("keyDeployRemoteCommand() does not chain chmod after append group: %s", got)
+	}
+	if strings.Contains(got, "authorized_keys; chmod") {
+		t.Fatalf("keyDeployRemoteCommand() can mask append failure: %s", got)
 	}
 }
 

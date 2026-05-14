@@ -218,6 +218,16 @@ func passwordSSHErrorCode(err error) string {
 		if errors.As(passwordErr.err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
 			return "ssh_missing"
 		}
+		if code := passwordSSHTextErrorCode(passwordErr.Error()); code != "connection_error" {
+			return code
+		}
+		var exitErr *exec.ExitError
+		if errors.As(passwordErr.err, &exitErr) {
+			if exitErr.ExitCode() == 255 {
+				return "connection_error"
+			}
+			return "command_failed"
+		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return "timeout"
@@ -225,6 +235,16 @@ func passwordSSHErrorCode(err error) string {
 	var execErr *exec.Error
 	if errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
 		return "ssh_missing"
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if code := passwordSSHTextErrorCode(err.Error()); code != "connection_error" {
+			return code
+		}
+		if exitErr.ExitCode() == 255 {
+			return "connection_error"
+		}
+		return "command_failed"
 	}
 	return passwordSSHTextErrorCode(err.Error())
 }
@@ -248,6 +268,6 @@ func passwordSSHTextErrorCode(text string) string {
 func keyDeployRemoteCommand(pubKey string) string {
 	quotedKey := remote.SingleQuote(pubKey)
 	return "mkdir -p ~/.ssh && chmod 700 ~/.ssh && " +
-		"grep -qxF " + quotedKey + " ~/.ssh/authorized_keys 2>/dev/null || echo " + quotedKey + " >> ~/.ssh/authorized_keys; " +
+		"(grep -qxF " + quotedKey + " ~/.ssh/authorized_keys 2>/dev/null || echo " + quotedKey + " >> ~/.ssh/authorized_keys) && " +
 		"chmod 600 ~/.ssh/authorized_keys"
 }
