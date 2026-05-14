@@ -87,7 +87,7 @@ func ReadRemoteCommand(sid string, seq int, stream string, offset int, limit int
 	if stream != "stdout" && stream != "stderr" {
 		return "", errors.New("invalid stream")
 	}
-	if offset < 0 || limit < 1 {
+	if offset < 0 || offset == int(^uint(0)>>1) || limit < 1 {
 		return "", errors.New("invalid pagination")
 	}
 
@@ -96,9 +96,10 @@ func ReadRemoteCommand(sid string, seq int, stream string, offset int, limit int
 		ext = "err"
 	}
 	file := sessionDir(sid) + "/" + strconv.Itoa(seq) + "." + ext
+	start := offset + 1
 	return "test -f " + file + " || { echo __ASSH_NOT_FOUND__; exit 0; }; " +
 		"total=$(wc -l < " + file + "); " +
-		"tail -n +" + strconv.Itoa(offset+1) + " " + file + " | head -n " + strconv.Itoa(limit) + "; " +
+		"tail -n +" + strconv.Itoa(start) + " " + file + " | head -n " + strconv.Itoa(limit) + "; " +
 		"printf '\\n__ASSH_TOTAL_LINES__=%s\\n' \"$total\"", nil
 }
 

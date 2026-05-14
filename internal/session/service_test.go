@@ -193,6 +193,7 @@ func TestReadRemoteCommandRejectsUnsafeInputs(t *testing.T) {
 		{name: "bad seq", sid: "abcdef12", seq: 0, stream: "stdout", offset: 0, limit: 1},
 		{name: "bad stream", sid: "abcdef12", seq: 1, stream: "bad", offset: 0, limit: 1},
 		{name: "bad offset", sid: "abcdef12", seq: 1, stream: "stdout", offset: -1, limit: 1},
+		{name: "offset overflow", sid: "abcdef12", seq: 1, stream: "stdout", offset: int(^uint(0) >> 1), limit: 1},
 		{name: "bad limit", sid: "abcdef12", seq: 1, stream: "stdout", offset: 0, limit: 0},
 	}
 
