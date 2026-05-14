@@ -39,6 +39,38 @@ func TestSessionOpenReturnsPlaceholderJSON(t *testing.T) {
 	if got["ok"] != true || got["host"] != "example.com" || got["session"] != "deploy" || got["install_tmux"] != true || got["sid"] == "" {
 		t.Fatalf("unexpected response: %#v", got)
 	}
+	if got["tmux_name"] == "" || !strings.HasPrefix(got["tmux_name"].(string), "assh_") {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionOpenInstallTmuxFailureReturnsStableError(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		if !strings.Contains(remoteCommand, "tmux_install_failed") {
+			t.Fatalf("install command does not emit tmux_install_failed: %s", remoteCommand)
+		}
+		return transport.Result{
+			Stderr:   []byte("tmux_install_failed\n"),
+			ExitCode: 1,
+			Err:      &exec.ExitError{},
+		}
+	}
+
+	got := executeJSONError(t, []string{"session", "open", "--host", "example.com", "--install-tmux"})
+	if got["error"] != "tmux_install_failed" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+
+	entries, err := session.ListRegistry(stateBaseDir())
+	if err != nil {
+		t.Fatalf("ListRegistry() error = %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("registry saved despite install failure: %#v", entries)
+	}
 }
 
 func TestSessionOpenTmuxMissingDoesNotSaveRegistry(t *testing.T) {

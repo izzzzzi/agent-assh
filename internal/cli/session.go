@@ -116,6 +116,7 @@ func newSessionOpenCommand() *cobra.Command {
 				"install_tmux": installTmux,
 				"session":      label,
 				"sid":          sid,
+				"tmux_name":    metadata.TmuxName,
 				"host":         host,
 				"user":         user,
 			})
@@ -400,12 +401,12 @@ func sessionSSH(host, user string, port int, identity string, timeout int, polic
 }
 
 func installTmuxCommand() string {
-	return "if command -v apt >/dev/null 2>&1; then sudo -n apt update >/dev/null 2>&1 && sudo -n apt install -y tmux; " +
-		"elif command -v dnf >/dev/null 2>&1; then sudo -n dnf install -y tmux; " +
-		"elif command -v yum >/dev/null 2>&1; then sudo -n yum install -y tmux; " +
-		"elif command -v apk >/dev/null 2>&1; then sudo -n apk add tmux; " +
-		"elif command -v pacman >/dev/null 2>&1; then sudo -n pacman -Sy --noconfirm tmux; " +
-		"elif command -v brew >/dev/null 2>&1; then brew install tmux; " +
+	return "if command -v apt >/dev/null 2>&1; then sudo -n apt update >/dev/null 2>&1 && sudo -n apt install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+		"elif command -v dnf >/dev/null 2>&1; then sudo -n dnf install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+		"elif command -v yum >/dev/null 2>&1; then sudo -n yum install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+		"elif command -v apk >/dev/null 2>&1; then sudo -n apk add tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+		"elif command -v pacman >/dev/null 2>&1; then sudo -n pacman -Sy --noconfirm tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+		"elif command -v brew >/dev/null 2>&1; then brew install tmux || { echo tmux_install_failed >&2; exit 1; }; " +
 		"else echo tmux_missing >&2; exit 127; fi"
 }
 
