@@ -316,6 +316,8 @@ func newSessionCloseCommand() *cobra.Command {
 
 func newSessionGCCommand() *cobra.Command {
 	var execute bool
+	var host string
+	var olderThan time.Duration
 	cmd := &cobra.Command{
 		Use:           "gc",
 		SilenceUsage:  true,
@@ -332,23 +334,57 @@ func newSessionGCCommand() *cobra.Command {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			candidates := make([]string, 0)
+			deleted := make([]string, 0)
+			cleanupErrors := make([]map[string]string, 0)
 			now := time.Now().UTC()
 			for _, entry := range entries {
-				if (session.Metadata{CreatedAt: entry.CreatedAt, TTLSeconds: entry.TTLSeconds}).Expired(now) {
-					candidates = append(candidates, entry.SID)
-					if execute {
-						_ = session.DeleteRegistry(stateBaseDir(), entry.SID)
-					}
+				if host != "" && entry.Host != host {
+					continue
 				}
+				if olderThan > 0 && entry.CreatedAt.After(now.Add(-olderThan)) {
+					continue
+				}
+				if olderThan == 0 && !(session.Metadata{CreatedAt: entry.CreatedAt, TTLSeconds: entry.TTLSeconds}).Expired(now) {
+					continue
+				}
+
+				candidates = append(candidates, entry.SID)
+				if !execute {
+					continue
+				}
+
+				remoteCommand, err := session.GCRemoteCommand(entry.SID, entry.TmuxName)
+				if err != nil {
+					cleanupErrors = append(cleanupErrors, map[string]string{"sid": entry.SID, "error": err.Error()})
+					continue
+				}
+				ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
+				result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
+				code := lifecycleResultErrorCode(ctx.Err(), result)
+				cancel()
+				if code != "" {
+					cleanupErrors = append(cleanupErrors, map[string]string{"sid": entry.SID, "error": code})
+					continue
+				}
+				if err := session.DeleteRegistry(stateBaseDir(), entry.SID); err != nil {
+					cleanupErrors = append(cleanupErrors, map[string]string{"sid": entry.SID, "error": err.Error()})
+					continue
+				}
+				deleted = append(deleted, entry.SID)
+				writeAudit("session_gc", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			}
 			return writeJSON(cmd, response.OK{
 				"ok":         true,
 				"dry_run":    !execute,
 				"candidates": candidates,
+				"deleted":    deleted,
+				"errors":     cleanupErrors,
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&execute, "execute", false, "delete expired local registry entries")
+	cmd.Flags().BoolVar(&execute, "execute", false, "delete remote sessions and local registry entries")
+	cmd.Flags().StringVar(&host, "host", "", "filter by host")
+	cmd.Flags().DurationVar(&olderThan, "older-than", 0, "include sessions older than duration")
 	return cmd
 }
 

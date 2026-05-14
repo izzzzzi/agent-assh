@@ -303,6 +303,41 @@ func TestSessionGCReturnsDryRunCandidates(t *testing.T) {
 	}
 }
 
+func TestSessionGCDryRunFiltersByHostAndAge(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	now := time.Now().UTC()
+	entries := []session.RegistryEntry{
+		{SID: "abcdef12", Host: "a.example", User: "root", Port: 22, HostKeyPolicy: "accept-new", TmuxName: "assh_abcdef12", CreatedAt: now.Add(-48 * time.Hour), TTLSeconds: 3600},
+		{SID: "abcdef13", Host: "b.example", User: "root", Port: 22, HostKeyPolicy: "accept-new", TmuxName: "assh_abcdef13", CreatedAt: now.Add(-48 * time.Hour), TTLSeconds: 3600},
+	}
+	for _, entry := range entries {
+		if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+			t.Fatalf("SaveRegistry() error = %v", err)
+		}
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"session", "gc", "--host", "a.example", "--older-than", "24h"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if got["dry_run"] != true {
+		t.Fatalf("expected dry run: %#v", got)
+	}
+	candidates := got["candidates"].([]any)
+	if len(candidates) != 1 || candidates[0] != "abcdef12" {
+		t.Fatalf("unexpected candidates: %#v", candidates)
+	}
+}
+
 func executeSessionJSON(t *testing.T, args []string) map[string]any {
 	t.Helper()
 

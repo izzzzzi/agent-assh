@@ -268,6 +268,23 @@ func TestCloseRemoteCommandChecksMarker(t *testing.T) {
 	}
 }
 
+func TestGCRemoteCommandValidatesMetadataBeforeDelete(t *testing.T) {
+	cmd, err := GCRemoteCommand("abcdef12", "assh_abcdef12")
+	if err != nil {
+		t.Fatalf("GCRemoteCommand() error = %v", err)
+	}
+	for _, want := range []string{
+		"meta.json",
+		"\"created_by\":\"assh\"",
+		"tmux kill-session -t 'assh_abcdef12'",
+		"rm -rf ~/.assh/sessions/abcdef12",
+	} {
+		if !strings.Contains(cmd, want) {
+			t.Fatalf("GCRemoteCommand missing %q: %s", want, cmd)
+		}
+	}
+}
+
 func TestCloseRemoteCommandRejectsUnsafeInputs(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

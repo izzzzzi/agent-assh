@@ -146,6 +146,22 @@ func CloseRemoteCommand(sid, tmuxName string) (string, error) {
 		"rm -rf " + dir, nil
 }
 
+func GCRemoteCommand(sid, tmuxName string) (string, error) {
+	if err := validateSessionTarget(sid, tmuxName); err != nil {
+		return "", err
+	}
+
+	dir := sessionDir(sid)
+	metaPath := dir + "/meta.json"
+	quotedTmuxName := remote.SingleQuote(tmuxName)
+	return "test -f " + metaPath + " || exit 0; " +
+		"command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }; " +
+		"grep -q '\"created_by\":\"assh\"' " + metaPath + " || exit 3; " +
+		"grep -q '\"sid\":\"" + sid + "\"' " + metaPath + " || exit 3; " +
+		"if tmux has-session -t " + quotedTmuxName + " 2>/dev/null; then tmux kill-session -t " + quotedTmuxName + " || exit $?; fi; " +
+		"rm -rf " + dir, nil
+}
+
 func validateSessionTarget(sid, tmuxName string) error {
 	if !remote.SafeSID(sid) {
 		return errors.New("invalid session id")
