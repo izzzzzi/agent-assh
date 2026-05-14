@@ -282,7 +282,7 @@ The Go implementation can coexist with the current Bash script during developmen
 Suggested approach:
 
 - Keep current `assh` as reference behavior.
-- Build Go binary as `assh-go` during development.
+- Build Go binary as `assh` during development.
 - When command contract is verified, replace `assh` with the Go binary or update install docs.
 - Update `README.md`, `AGENT_INSTRUCTIONS.md`, and `SYSTEM_PROMPT_snippet.md` after CLI behavior is stable.
 

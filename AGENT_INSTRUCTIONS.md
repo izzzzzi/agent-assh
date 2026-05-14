@@ -10,18 +10,20 @@
 2. **Persistent sessions**: tmux-сессия на сервере. `cd /app` сохраняется, `git pull` выполняется в `/app`.
    Не нужно клеить команды через `&&`.
 
-Note: v2 targets a Go binary with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. During development, the existing Bash `assh` remains the reference implementation.
+Текущая основная версия — Go-бинарь `assh`: JSON по умолчанию, system OpenSSH transport, безопасный lifecycle для `tmux`-сессий. Старый Bash MVP сохранён как `assh.bash` для сравнения поведения.
 
 ## Где находится
 
-`~/agent_ssh/assh` — один файл, bash, зависит от `ssh`, `ssh-keygen`, `tmux` (на сервере для session).
+`~/agent_ssh/bin/assh` после сборки. Исходный entrypoint: `~/agent_ssh/cmd/assh`.
 
 ## Установка
 
 ```bash
-export PATH="$HOME/agent_ssh:$PATH"
+cd ~/agent_ssh
+go build -o ./bin/assh ./cmd/assh
+export PATH="$HOME/agent_ssh/bin:$PATH"
 # или
-ln -sf ~/agent_ssh/assh /usr/local/bin/assh
+ln -sf ~/agent_ssh/bin/assh /usr/local/bin/assh
 ```
 
 ## Алгоритм работы
@@ -145,6 +147,6 @@ assh audit --host 10.0.0.1   # фильтр по хосту
 
 ## Требования
 
-- bash 4+, ssh, ssh-keygen
+- Go 1.22+ для сборки
+- ssh, ssh-keygen
 - tmux на удалённом сервере (для session, необязательно для exec)
-- python3 (вспомогательно, для JSON)

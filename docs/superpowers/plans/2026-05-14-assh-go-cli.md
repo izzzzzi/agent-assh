@@ -4,7 +4,7 @@
 
 **Goal:** Replace the Bash `assh` MVP with a cross-platform Go CLI that exposes stable JSON-first SSH functions for agents.
 
-**Architecture:** Build a Go module with Cobra commands, a small internal JSON response package, local state storage, a subprocess OpenSSH transport, and session lifecycle services around remote `tmux`. Keep the existing Bash script as reference behavior while developing the Go binary as `assh-go`.
+**Architecture:** Build a Go module with Cobra commands, a small internal JSON response package, local state storage, a subprocess OpenSSH transport, and session lifecycle services around remote `tmux`. Keep the existing Bash script as reference behavior while developing the Go binary as `assh`.
 
 **Tech Stack:** Go 1.22+, Cobra, standard `encoding/json`, `os/exec`, `context`, `testing`, mock `ssh` integration tests.
 
@@ -13,7 +13,7 @@
 ## File Structure
 
 - Create `go.mod`: Go module declaration and Cobra dependency.
-- Create `cmd/assh-go/main.go`: CLI entrypoint.
+- Create `cmd/assh/main.go`: CLI entrypoint.
 - Create `internal/cli/root.go`: root command, global flags, JSON error boundary.
 - Create `internal/cli/exec.go`: `exec` and `read` commands.
 - Create `internal/cli/session.go`: `session open/exec/read/close/gc` command wiring.
@@ -35,7 +35,7 @@ Commit steps in this plan assume a git workspace. In the current `/Users/apple/a
 
 **Files:**
 - Create: `go.mod`
-- Create: `cmd/assh-go/main.go`
+- Create: `cmd/assh/main.go`
 - Create: `internal/cli/root.go`
 - Create: `internal/response/response.go`
 - Test: `internal/response/response_test.go`
@@ -183,11 +183,11 @@ import (
 
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "assh-go",
+		Use:           "assh",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, _ := response.MarshalError("invalid_args", "command required", "run assh-go help")
+			body, _ := response.MarshalError("invalid_args", "command required", "run assh help")
 			_, _ = cmd.OutOrStdout().Write(body)
 			return errors.New("command required")
 		},
@@ -208,7 +208,7 @@ func Execute() error {
 }
 ```
 
-Create `cmd/assh-go/main.go`:
+Create `cmd/assh/main.go`:
 
 ```go
 package main
@@ -719,11 +719,11 @@ Modify `internal/cli/root.go` so `NewRootCommand` adds commands:
 ```go
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "assh-go",
+		Use:           "assh",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, _ := response.MarshalError("invalid_args", "command required", "run assh-go help")
+			body, _ := response.MarshalError("invalid_args", "command required", "run assh help")
 			_, _ = cmd.OutOrStdout().Write(body)
 			return errors.New("command required")
 		},
@@ -1571,7 +1571,7 @@ Expected: PASS.
 Modify `README.md`, `AGENT_INSTRUCTIONS.md`, and `SYSTEM_PROMPT_snippet.md` to state:
 
 ```markdown
-Note: v2 targets a Go binary with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. During development, the existing Bash `assh` remains the reference implementation.
+Note: the primary CLI is the Go binary `assh`, with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. The old Bash MVP is kept as `assh.bash` for behavior comparison.
 ```
 
 - [ ] **Step 5: Commit if inside git**
@@ -1613,8 +1613,8 @@ Expected: PASS.
 Run:
 
 ```bash
-go build -o ./bin/assh-go ./cmd/assh-go
-./bin/assh-go --help
+go build -o ./bin/assh ./cmd/assh
+./bin/assh --help
 ```
 
 Expected: build succeeds and help text prints.
@@ -1624,9 +1624,9 @@ Expected: build succeeds and help text prints.
 Run:
 
 ```bash
-GOOS=linux GOARCH=amd64 go build -o ./bin/assh-go-linux-amd64 ./cmd/assh-go
-GOOS=darwin GOARCH=arm64 go build -o ./bin/assh-go-darwin-arm64 ./cmd/assh-go
-GOOS=windows GOARCH=amd64 go build -o ./bin/assh-go-windows-amd64.exe ./cmd/assh-go
+GOOS=linux GOARCH=amd64 go build -o ./bin/assh-linux-amd64 ./cmd/assh
+GOOS=darwin GOARCH=arm64 go build -o ./bin/assh-darwin-arm64 ./cmd/assh
+GOOS=windows GOARCH=amd64 go build -o ./bin/assh-windows-amd64.exe ./cmd/assh
 ```
 
 Expected: all builds succeed.

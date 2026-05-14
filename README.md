@@ -4,7 +4,15 @@
 1. **Token economy** — агент видит строки, а не мегабайты
 2. **Persistent sessions** — cwd/env живёт между командами
 
-Note: v2 targets a Go binary with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. During development, the existing Bash `assh` remains the reference implementation.
+Текущая основная версия — Go-бинарь `assh`: JSON по умолчанию, system OpenSSH transport, безопасный lifecycle для `tmux`-сессий. Старый Bash MVP сохранён как `assh.bash` для сравнения поведения.
+
+## Установка/сборка
+
+```bash
+go build -o ./bin/assh ./cmd/assh
+export PATH="$PWD/bin:$PATH"
+assh --help
+```
 
 ## Быстрый старт
 
@@ -66,10 +74,9 @@ assh scan -H 10.0.0.1 -u root -i ~/.ssh/id_ed25519
 assh exec      — выполнить команду, вернуть метаданные
 assh read      — прочитать вывод с пагинацией
 assh scan      — собрать инфу о сервере
-assh session   — persistent tmux-сессии (open/exec/read/close/list)
+assh session   — persistent tmux-сессии (open/exec/read/close/gc)
 assh key-deploy — задеплоить SSH-ключ
 assh audit     — аудит-лог
-assh connections — активные подключения
 ```
 
 ## Формат ответа
@@ -92,6 +99,6 @@ assh connections — активные подключения
 
 ## Требования
 
-- bash 4+, ssh, ssh-keygen
+- Go 1.22+ для сборки
+- ssh, ssh-keygen
 - tmux на сервере (для session)
-- python3 (для JSON, вспомогательно)

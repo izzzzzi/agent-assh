@@ -9,22 +9,22 @@ import (
 
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "assh-go",
+		Use:           "assh",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return writeInvalidArgs(cmd, "unknown command "+args[0], "run assh-go --help")
+				return writeInvalidArgs(cmd, "unknown command "+args[0], "run assh --help")
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return writeInvalidArgs(cmd, "command required", "run assh-go --help")
+			return writeInvalidArgs(cmd, "command required", "run assh --help")
 		},
 	}
 	cmd.PersistentFlags().Bool("json", true, "emit JSON output")
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return writeInvalidArgs(cmd, err.Error(), "run assh-go --help")
+		return writeInvalidArgs(cmd, err.Error(), "run assh --help")
 	})
 	cmd.AddCommand(
 		newExecCommand(),

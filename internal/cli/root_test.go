@@ -20,7 +20,7 @@ func TestUnknownCommandReturnsJSONError(t *testing.T) {
 	if json.Unmarshal(out.Bytes(), &got) != nil {
 		t.Fatalf("expected json output, got %q", out.String())
 	}
-	if got["ok"] != false || got["error"] != "invalid_args" || got["hint"] != "run assh-go --help" {
+	if got["ok"] != false || got["error"] != "invalid_args" || got["hint"] != "run assh --help" {
 		t.Fatalf("unexpected response: %#v", got)
 	}
 }

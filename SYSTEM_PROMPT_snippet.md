@@ -1,6 +1,6 @@
 ## assh — SSH для LLM-агентов
 
-Note: v2 targets a Go binary with JSON output by default, system OpenSSH transport, and safe `tmux` session lifecycle. During development, the existing Bash `assh` remains the reference implementation.
+Текущая основная версия — Go-бинарь `assh`: JSON по умолчанию, system OpenSSH transport, безопасный lifecycle для `tmux`-сессий. Старый Bash MVP сохранён как `assh.bash` для сравнения поведения.
 
 ### Алгоритм для агента
 
