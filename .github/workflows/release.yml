@@ -36,6 +36,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify npm version matches tag
+        run: 'test "v$(node -p "require(''./package.json'').version")" = "$GITHUB_REF_NAME"'
+
       - name: Publish npm package
         run: npm publish --access public
         env:
