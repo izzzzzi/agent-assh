@@ -1,69 +1,75 @@
-## assh — SSH для LLM-агентов
+## assh SSH Workflow
 
-Текущая основная версия — Go-бинарь `assh`: JSON по умолчанию, system OpenSSH transport, безопасный lifecycle для `tmux`-сессий. Старый Bash MVP сохранён как `assh.bash` для сравнения поведения.
+Use `assh` for SSH work so large remote output stays out of the agent context.
 
-### Алгоритм для агента
-
-```
-нужен SSH?
-  ├─ нужна серия связанных команд (cd потом ls потом cat)?
-  │    → assh session open
-  │    → assh session exec (cwd сохраняется!)
-  │    → assh session read --seq N --limit 20
-  │    → assh session close
-  │
-  ├─ одна команда?
-  │    → assh exec (metadata only: output_id, stdout_lines)
-  │    → if stdout_lines > 50:
-  │         assh read --limit 20 --offset 0
-  │         assh read --limit 20 --offset end-20
-  │    → if stdout_lines <= 50:
-  │         assh read (всё)
-  │
-  ├─ нужна инфа о сервере?
-  │    → assh scan (OS, CPU, RAM, disk, Docker, IP)
-  │
-  └─ первый раз на сервере?
-       → assh key-deploy (один раз, потом без пароля)
-```
-
-### Ключевые команды
+Install when missing:
 
 ```bash
-# Token economy: агент видит СТРОКИ, не мегабайты
-assh exec -H host -u root -i key -- "cmd"
-  → {"ok":true, "output_id":"a1b2c3", "stdout_lines":4327}
-
-assh read --id a1b2c3 --limit 20 --offset 4300
-  → {"ok":true, "content":"...", "total_lines":4327, "has_more":false}
-
-# Persistent sessions: cwd/env живёт
-assh session open -H host -u root -i key -n deploy
-assh session exec -s SID -- "cd /app"
-assh session exec -s SID -- "git pull"   # ещё в /app!
-assh session read -s SID --seq 2 --limit 10
-assh session close -s SID
-
-# Key deploy (один раз → потом без пароля)
-export MY_PASS="..."; assh key-deploy -H host -u root -E MY_PASS; unset MY_PASS
-
-# Scan (OS, CPU, RAM)
-assh scan -H host -u root -i key
+npm i -g agent-assh
+assh version
 ```
 
-### Ошибки
+### Agent Algorithm
+
+```text
+Need SSH?
+  One command:
+    assh exec -H HOST -u root -i KEY -- "cmd"
+    inspect stdout_lines/stderr_lines
+    assh read --id OUTPUT_ID --limit 20 --offset 0
+    assh read --id OUTPUT_ID --stream stderr --raw
+
+  Related commands with shared directory/env:
+    assh session open -H HOST -u root -i KEY -n NAME
+    assh session exec -s SID -- "cd /app"
+    assh session exec -s SID --timeout 600 -- "git pull"
+    assh session read -s SID --seq 2 --limit 20
+    assh session read -s SID --seq 2 --raw
+    assh session close -s SID
+
+  Cleanup:
+    assh session gc --older-than 24h --execute
+
+  Audit:
+    assh audit --last 20 --host HOST --failed
+```
+
+### JSON Contract
+
+`assh exec` returns metadata and stores output:
 
 ```json
-{"ok":false,"error":"auth_failed"}         → неверный пароль/ключ
-{"ok":false,"error":"host_key_failed"}     → новый хост
-{"ok":false,"error":"connection_error"}     → хост недоступен
-{"ok":false,"error":"timeout"}              → команда зависла
+{"ok":true,"exit_code":0,"output_id":"a1b2c3d4","stdout_lines":4327,"stderr_lines":0}
 ```
 
-### Правила
+`assh read` returns paginated content unless `--raw` is used:
 
-1. Пароль — ТОЛЬКО через `-E` (env), никогда в команде
-2. После key-deploy: `unset` переменную с паролем
-3. `auth_failed` → спроси пользователя, не перебирай
-4. `stdout_lines > 50` → читай через `read --limit`, не тащи всё в контекст
-5. Серия команд к одному хосту → `session` (один tmux, cwd сохраняется)
+```json
+{"ok":true,"output_id":"a1b2c3d4","stream":"stdout","offset":0,"limit":20,"total_lines":4327,"has_more":true,"content":"..."}
+```
+
+`assh session exec` returns command metadata:
+
+```json
+{"ok":true,"rc":0,"seq":2,"stdout_lines":15,"stderr_lines":0,"sid":"f7a2b3c4","session":"deploy"}
+```
+
+Rules:
+
+- Operational commands emit one JSON value by default.
+- `read --raw` and `session read --raw` print only content.
+- Remote non-zero status is a command result, not a transport failure.
+- There is no `cwd` response field.
+- There is no `attempt` response field.
+
+### Errors
+
+```json
+{"ok":false,"error":"auth_failed"}
+{"ok":false,"error":"host_key_failed"}
+{"ok":false,"error":"connection_error"}
+{"ok":false,"error":"timeout"}
+{"ok":false,"error":"tmux_missing"}
+```
+
+Passwords are only accepted through environment variables for `key-deploy`; never put passwords in command arguments. Command text is not written to audit logs.

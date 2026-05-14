@@ -1,152 +1,122 @@
-# assh — Инструкция для LLM-агента
+# assh Agent Instructions
 
-## Что это
+`assh` is the SSH workflow helper for LLM agents. It returns compact JSON metadata for remote commands and stores large output locally so the agent can read only the lines it needs.
 
-`assh` — CLI-инструмент для SSH, решающий две главные проблемы агентов:
-
-1. **Token economy**: команда возвращает метаданные (`stdout_lines: 4327`), а не 1 MB текста.
-   Агент решает — читать 20 строк или не читать вообще.
-
-2. **Persistent sessions**: tmux-сессия на сервере. `cd /app` сохраняется, `git pull` выполняется в `/app`.
-   Не нужно клеить команды через `&&`.
-
-Текущая основная версия — Go-бинарь `assh`: JSON по умолчанию, system OpenSSH transport, безопасный lifecycle для `tmux`-сессий. Старый Bash MVP сохранён как `assh.bash` для сравнения поведения.
-
-## Где находится
-
-`~/agent_ssh/bin/assh` после сборки. Исходный entrypoint: `~/agent_ssh/cmd/assh`.
-
-## Установка
+## Install
 
 ```bash
-cd ~/agent_ssh
-go build -o ./bin/assh ./cmd/assh
-export PATH="$HOME/agent_ssh/bin:$PATH"
-# или
-ln -sf ~/agent_ssh/bin/assh /usr/local/bin/assh
+npm i -g agent-assh
+assh version
 ```
 
-## Алгоритм работы
+## Decision Flow
 
-```
-нужен SSH?
-  ├─ серия связанных команд?
-  │    assh session open → assh session exec → assh session read → assh session close
-  │
-  ├─ одна команда?
-  │    assh exec → {"stdout_lines": N}
-  │    if N > 50: assh read --limit 20 --offset 0 (или --offset end-20)
-  │    if N <= 50: assh read --id ID
-  │
-  ├─ информация о сервере?
-  │    assh scan
-  │
-  └─ первый раз?
-       assh key-deploy → ssh-ключ → далее без пароля
+```text
+Need SSH?
+  One command:
+    assh exec -> read stdout_lines/stderr_lines -> assh read
+  Related commands that share directory or environment:
+    assh session open -> session exec -> session read -> session close
+  Host inventory:
+    assh scan
+  First login with password:
+    assh key-deploy with password from env
 ```
 
-## Команды
+## Commands
 
-### exec — выполнить команду (metadata only)
+### exec
 
 ```bash
-assh exec -H 10.0.0.1 -u root -i ~/.ssh/id_agent_ed25519 -- "df -h"
-# → {"ok":true,"exit_code":0,"output_id":"a1b2c3","stdout_lines":10,"stderr_lines":0,"attempt":1,"cwd":"/root"}
+assh exec -H HOST -u root -i ~/.ssh/id_ed25519 -- "df -h"
 ```
 
-### read — прочитать вывод с пагинацией
+Example response:
+
+```json
+{"ok":true,"exit_code":0,"output_id":"a1b2c3d4","stdout_lines":10,"stderr_lines":0}
+```
+
+Remote non-zero exit status is a command result. It is not a transport failure.
+
+### read
 
 ```bash
-# Прочитать первые 10 строк
-assh read --id a1b2c3 --limit 10 --offset 0
-
-# Прочитать последние 20 строк из 4327
-assh read --id a1b2c3 --limit 20 --offset 4307
-
-# Прочитать stderr
-assh read --id a1b2c3 --stream stderr --limit 5
-
-# Raw-вывод (для пайпов)
-assh read --id a1b2c3 --raw | grep ERROR
+assh read --id a1b2c3d4 --limit 10 --offset 0
+assh read --id a1b2c3d4 --stream stderr --limit 20
+assh read --id a1b2c3d4 --raw
 ```
 
-### session — persistent tmux-сессия
+Use `read --raw` when piping output to local tools. Raw mode prints only content, without JSON.
+
+### session
 
 ```bash
-# Открыть
-assh session open -H 10.0.0.1 -u root -i ~/.ssh/id_ed25519 -n deploy
-# → {"ok":true,"session":"deploy","sid":"f7a2b3c4"}
-
-# Выполнить команду (cwd сохраняется!)
-assh session exec -s f7a2b3c4 -- "cd /var/log"
-# → {"ok":true,"rc":0,"seq":1,"stdout_lines":0,"cwd":"/var/log"}
-
-assh session exec -s f7a2b3c4 -- "ls *.log | wc -l"
-# → {"ok":true,"rc":0,"seq":2,"stdout_lines":1,"cwd":"/var/log"}   # ЕЩЁ В /var/log!
-
-# Прочитать вывод команды
-assh session read -s f7a2b3c4 --seq 2 --limit 10
-# → {"ok":true,"content":"142\n","total_lines":1}
-
-# Закрыть
-assh session close -s f7a2b3c4
+assh session open -H HOST -u root -i ~/.ssh/id_ed25519 -n deploy
+assh session exec -s SID -- "cd /app"
+assh session exec -s SID --timeout 600 -- "git pull"
+assh session read -s SID --seq 2 --limit 20
+assh session read -s SID --seq 2 --stream stderr --raw
+assh session close -s SID
 ```
 
-### scan — информация о сервере
+Example `session exec` response:
+
+```json
+{"ok":true,"rc":0,"seq":2,"stdout_lines":15,"stderr_lines":0,"sid":"f7a2b3c4","session":"deploy"}
+```
+
+Use `session read --raw` when piping session output to local tools.
+
+Clean up old trusted `assh` tmux sessions:
 
 ```bash
-assh scan -H 10.0.0.1 -u root -i ~/.ssh/id_ed25519
-# → {"hostname":"web01","os":"Ubuntu 22.04","kernel":"5.15.0","arch":"x86_64",
-#     "cpu_cores":"4","mem_total_mb":"8192","mem_used_mb":"5120",
-#     "disk_root_pct":"45","docker":"24.0.7","ip":"10.0.0.1"}
+assh session gc --older-than 24h --execute
 ```
 
-### key-deploy — задеплоить SSH-ключ (один раз)
+### scan
+
+```bash
+assh scan -H HOST -u root -i ~/.ssh/id_ed25519
+```
+
+### key-deploy
 
 ```bash
 export TARGET_PASS="secret"
-assh key-deploy -H 10.0.0.1 -u root -E TARGET_PASS
+assh key-deploy -H HOST -u root -E TARGET_PASS
 unset TARGET_PASS
-
-# Далее — без пароля
-assh exec -H 10.0.0.1 -u root -i ~/.ssh/id_agent_ed25519 -- "hostname"
 ```
 
-### audit — аудит-лог
+Passwords must come from environment variables. Never put a password in command arguments.
+
+### audit
 
 ```bash
-assh audit --last 20          # последние 20 записей
-assh audit --failed           # только ошибки
-assh audit --host 10.0.0.1   # фильтр по хосту
+assh audit --last 20 --host HOST --failed
 ```
 
-## Ошибки
+## JSON Rules
+
+- Operational commands emit one JSON value by default.
+- Errors use `{"ok":false,"error":"code","message":"..."}`.
+- `exec` responses include `exit_code`, `output_id`, `stdout_lines`, and `stderr_lines`.
+- `session exec` responses include `rc`, `seq`, `stdout_lines`, `stderr_lines`, `sid`, and `session`.
+- There is no `cwd` response field.
+- There is no `attempt` response field.
+
+## Error Handling
 
 ```json
-{"ok":false,"error":"auth_failed"}         → неверный пароль/ключ, спроси у пользователя
-{"ok":false,"error":"host_key_failed"}     → новый хост, нужно принять
-{"ok":false,"error":"connection_error"}     → хост недоступен, попробуй позже
-{"ok":false,"error":"timeout"}              → команда зависла, уменьши или разбей
-{"ok":false,"error":"all_retries_failed"}   → 3 попытки не удались
+{"ok":false,"error":"auth_failed"}
+{"ok":false,"error":"host_key_failed"}
+{"ok":false,"error":"connection_error"}
+{"ok":false,"error":"timeout"}
+{"ok":false,"error":"tmux_missing"}
 ```
 
-## Token Economy — почему это важно
+On `auth_failed`, ask the user for valid credentials. Do not retry with guessed passwords.
 
-Без assh: `ssh host "journalctl -p warning"` вливает 4327 строк (1.1 MB, 282K токенов) в контекст агента.
-Агент теряет способность рассуждать после 3-4 таких команд.
+## Context Discipline
 
-С assh: агент видит `{"stdout_lines":4327}` (50 байт) и решает прочитать только последние 20 строк.
-Экономия: **99.3% токенов** (3.3K вместо 282K для 8-командной диагностики).
-
-## Безопасность
-
-1. Пароль — ТОЛЬКО через env (`-E`), никогда в командной строке
-2. SSH_ASKPASS — пароль не виден в `ps aux`
-3. После `key-deploy`: `unset` переменную — пароль живёт секунды
-4. Аудит-лог в `~/.agent_ssh/audit.jsonl` — без паролей
-
-## Требования
-
-- Go 1.22+ для сборки
-- ssh, ssh-keygen
-- tmux на удалённом сервере (для session, необязательно для exec)
+If `stdout_lines` or `stderr_lines` is large, do not read all output. Read targeted windows with `--limit`, `--offset`, and `--stream`; use raw mode only when another local command consumes the output.
