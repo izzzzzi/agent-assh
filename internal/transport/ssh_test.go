@@ -25,6 +25,12 @@ func TestSSHCommandBuildsArgvWithoutShell(t *testing.T) {
 	if !containsSubsequence(args, "-p", "2222") {
 		t.Fatalf("Args() = %#v, want -p 2222", args)
 	}
+	if !slices.Contains(args, "-T") {
+		t.Fatalf("Args() = %#v, want -T to disable PTY allocation", args)
+	}
+	if slices.Contains(args, "-t") || slices.Contains(args, "-tt") {
+		t.Fatalf("Args() = %#v, must not request PTY allocation", args)
+	}
 	if containsSubsequence(args, "sh", "-c") {
 		t.Fatalf("Args() = %#v, must not use sh -c", args)
 	}

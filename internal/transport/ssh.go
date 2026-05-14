@@ -27,6 +27,7 @@ type Result struct {
 func (c SSHCommand) Args(remoteCommand string) []string {
 	args := make([]string, 0, 10)
 
+	args = append(args, "-T")
 	if c.Port != 0 && c.Port != 22 {
 		args = append(args, "-p", strconv.Itoa(c.Port))
 	}
