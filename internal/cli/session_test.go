@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/agent-ssh/assh/internal/session"
-	"github.com/agent-ssh/assh/internal/state"
 )
 
 func TestSessionOpenRequiresHost(t *testing.T) {
@@ -186,7 +185,7 @@ func writeTestSessionRegistry(t *testing.T, sid string) {
 		CreatedAt:     time.Now().UTC(),
 		TTLSeconds:    3600,
 	}
-	if err := session.SaveRegistry(state.BaseDir(), entry); err != nil {
+	if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
 		t.Fatalf("SaveRegistry() error = %v", err)
 	}
 }
