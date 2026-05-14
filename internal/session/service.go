@@ -138,7 +138,7 @@ func CloseRemoteCommand(sid, tmuxName string) (string, error) {
 	return "test -f " + metaPath + " || exit 0; " +
 		"command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }; " +
 		"grep -q '\"created_by\":\"assh\"' " + metaPath + " || exit 3; " +
-		"if tmux has-session -t " + quotedTmuxName + " 2>/dev/null; then tmux kill-session -t " + quotedTmuxName + "; fi; " +
+		"if tmux has-session -t " + quotedTmuxName + " 2>/dev/null; then tmux kill-session -t " + quotedTmuxName + " || exit $?; fi; " +
 		"rm -rf " + dir, nil
 }
 

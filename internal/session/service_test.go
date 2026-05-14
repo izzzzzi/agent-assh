@@ -247,6 +247,9 @@ func TestCloseRemoteCommandChecksMarker(t *testing.T) {
 	if strings.Contains(got, "kill-session -t 'assh_abcdef12' 2>/dev/null || true") {
 		t.Fatalf("CloseRemoteCommand() suppresses kill-session failure: %q", got)
 	}
+	if !strings.Contains(got, "tmux kill-session -t 'assh_abcdef12' || exit $?") {
+		t.Fatalf("CloseRemoteCommand() does not propagate kill-session failure: %q", got)
+	}
 }
 
 func TestCloseRemoteCommandRejectsUnsafeInputs(t *testing.T) {
