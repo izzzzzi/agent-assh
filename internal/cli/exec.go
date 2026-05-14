@@ -3,12 +3,15 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/agent-ssh/assh/internal/audit"
 	"github.com/agent-ssh/assh/internal/ids"
 	"github.com/agent-ssh/assh/internal/response"
 	"github.com/agent-ssh/assh/internal/state"
@@ -71,6 +74,7 @@ func newExecCommand() *cobra.Command {
 			if err := store.Write(outputID, result.Stdout, result.Stderr); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
+			writeAudit("exec", host, user, remoteCommand(args), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -176,8 +180,18 @@ func sshResultErrorCode(ctxErr error, result transport.Result) string {
 		return "auth_failed"
 	case strings.Contains(stderr, "host key verification failed"), strings.Contains(stderr, "remote host identification has changed"):
 		return "host_key_failed"
-	default:
+	case strings.Contains(stderr, "connection refused"),
+		strings.Contains(stderr, "could not resolve hostname"),
+		strings.Contains(stderr, "no route to host"),
+		strings.Contains(stderr, "connection timed out"),
+		strings.Contains(stderr, "operation timed out"),
+		strings.Contains(stderr, "connection closed"),
+		strings.Contains(stderr, "kex_exchange_identification"),
+		strings.Contains(stderr, "banner exchange"),
+		strings.Contains(stderr, "network is unreachable"):
 		return "connection_error"
+	default:
+		return ""
 	}
 }
 
@@ -211,4 +225,21 @@ func countLines(data []byte) int {
 		lines++
 	}
 	return lines
+}
+
+func writeAudit(action, host, user, command string, exitCode int, stdoutLines int, stderrLines int) {
+	hash := ""
+	if command != "" {
+		sum := sha256.Sum256([]byte(command))
+		hash = fmt.Sprintf("%x", sum[:])
+	}
+	_ = audit.Write(filepath.Join(state.BaseDir(), "audit", "audit.jsonl"), audit.Event{
+		Action:      action,
+		Host:        host,
+		User:        user,
+		CommandHash: hash,
+		ExitCode:    exitCode,
+		StdoutLines: stdoutLines,
+		StderrLines: stderrLines,
+	})
 }

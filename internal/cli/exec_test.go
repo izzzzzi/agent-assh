@@ -153,6 +153,15 @@ func TestSSHResultErrorCodeAllowsRemoteNonZero(t *testing.T) {
 	if got != "" {
 		t.Fatalf("sshResultErrorCode() = %q, want empty", got)
 	}
+
+	got = sshResultErrorCode(nil, transport.Result{
+		Stderr:   []byte("application returned 255"),
+		ExitCode: 255,
+		Err:      &exec.ExitError{},
+	})
+	if got != "" {
+		t.Fatalf("sshResultErrorCode(remote 255) = %q, want empty", got)
+	}
 }
 
 func executeJSONError(t *testing.T, args []string) map[string]any {

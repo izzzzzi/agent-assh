@@ -35,6 +35,7 @@ func newScanCommand() *cobra.Command {
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
+			writeAudit("scan", host, user, scanRemoteCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			_, _ = cmd.OutOrStdout().Write(result.Stdout)
 			if len(result.Stdout) == 0 || result.Stdout[len(result.Stdout)-1] != '\n' {
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
@@ -88,6 +89,7 @@ func newKeyDeployCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "connection_error", err.Error(), "")
 			}
+			writeAudit("key_deploy", host, user, "key-deploy", 0, 0, 0)
 			return writeJSON(cmd, map[string]any{
 				"ok":       true,
 				"host":     host,

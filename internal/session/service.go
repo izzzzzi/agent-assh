@@ -91,7 +91,13 @@ func ExecRemoteCommand(sid, tmuxName string, seq int, command string) (string, e
 	errPath := dir + "/" + seqText + ".err"
 	rc := dir + "/" + seqText + ".rc"
 	wrapped := command + " > " + out + " 2> " + errPath + "; echo $? > " + rc
-	return "mkdir -p " + dir + " && tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter", nil
+	return "mkdir -p " + dir + " && rm -f " + rc + " && " +
+		"tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter; " +
+		"i=0; while [ $i -lt 120 ] && [ ! -f " + rc + " ]; do i=$((i+1)); sleep 1; done; " +
+		"test -f " + rc + " || { echo __ASSH_TIMEOUT__; exit 124; }; " +
+		"printf '__ASSH_RC__=%s\\n' \"$(cat " + rc + ")\"; " +
+		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(wc -l < " + out + " 2>/dev/null || echo 0)\"; " +
+		"printf '__ASSH_STDERR_LINES__=%s\\n' \"$(wc -l < " + errPath + " 2>/dev/null || echo 0)\"", nil
 }
 
 func ReadRemoteCommand(sid string, seq int, stream string, offset int, limit int) (string, error) {

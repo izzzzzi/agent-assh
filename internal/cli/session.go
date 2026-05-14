@@ -110,6 +110,7 @@ func newSessionOpenCommand() *cobra.Command {
 			if err := session.SaveRegistry(state.BaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
+			writeAudit("session_open", host, user, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -163,16 +164,21 @@ func newSessionExecCommand() *cobra.Command {
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
+			rc, stdoutLines, stderrLines, timedOut := parseSessionExec(result.Stdout)
+			if timedOut {
+				return writeError(cmd, "timeout", "session command timed out", "")
+			}
 			if err := session.SaveRegistry(state.BaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
+			writeAudit("session_exec", entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
 
 			return writeJSON(cmd, response.OK{
-				"ok":           result.ExitCode == 0,
-				"rc":           result.ExitCode,
+				"ok":           rc == 0,
+				"rc":           rc,
 				"seq":          entry.Seq,
-				"stdout_lines": 0,
-				"stderr_lines": countLines(result.Stderr),
+				"stdout_lines": stdoutLines,
+				"stderr_lines": stderrLines,
 				"sid":          sid,
 				"session":      entry.Label,
 			})
@@ -232,6 +238,7 @@ func newSessionReadCommand() *cobra.Command {
 				return writeError(cmd, "output_not_found", "session output not found", "")
 			}
 			hasMore := offset+limit < total
+			writeAudit("session_read", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":          true,
@@ -288,6 +295,7 @@ func newSessionCloseCommand() *cobra.Command {
 			if err := session.DeleteRegistry(state.BaseDir(), sid); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
+			writeAudit("session_close", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			return writeJSON(cmd, response.OK{"ok": true, "sid": sid, "session": entry.Label})
 		},
 	}
@@ -370,4 +378,27 @@ func parseSessionRead(stdout []byte) (string, int, bool) {
 		total = countLines([]byte(text[:idx]))
 	}
 	return text[:idx], total, false
+}
+
+func parseSessionExec(stdout []byte) (int, int, int, bool) {
+	text := string(stdout)
+	if strings.Contains(text, "__ASSH_TIMEOUT__") {
+		return -1, 0, 0, true
+	}
+	rc := markerInt(text, "__ASSH_RC__", 0)
+	stdoutLines := markerInt(text, "__ASSH_STDOUT_LINES__", 0)
+	stderrLines := markerInt(text, "__ASSH_STDERR_LINES__", 0)
+	return rc, stdoutLines, stderrLines, false
+}
+
+func markerInt(text string, marker string, fallback int) int {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, marker+"=") {
+			value, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, marker+"=")))
+			if err == nil {
+				return value
+			}
+		}
+	}
+	return fallback
 }
