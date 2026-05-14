@@ -208,6 +208,27 @@ func TestSSHResultErrorCodeAllowsRemoteNonZero(t *testing.T) {
 	}
 }
 
+func TestPasswordSSHErrorCodeClassifiesFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "nil", err: nil, want: ""},
+		{name: "auth", err: errors.New("Permission denied, please try again."), want: "auth_failed"},
+		{name: "host key", err: errors.New("Host key verification failed."), want: "host_key_failed"},
+		{name: "generic", err: errors.New("ssh exited with status 255"), want: "connection_error"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := passwordSSHErrorCode(test.err); got != test.want {
+				t.Fatalf("passwordSSHErrorCode() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func executeJSONError(t *testing.T, args []string) map[string]any {
 	t.Helper()
 

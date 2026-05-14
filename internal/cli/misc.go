@@ -86,7 +86,7 @@ func newKeyDeployCommand() *cobra.Command {
 				HostKeyPolicy: "accept-new",
 			}.Args(keyDeployRemoteCommand(strings.TrimSpace(string(pubKey)))))
 			if err != nil {
-				return writeError(cmd, "connection_error", err.Error(), "")
+				return writeError(cmd, passwordSSHErrorCode(err), err.Error(), "")
 			}
 			writeAudit("key_deploy", host, user, "key-deploy", 0, 0, 0)
 			return writeJSON(cmd, map[string]any{
@@ -184,6 +184,25 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 		return errors.New(strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func passwordSSHErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+	text := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(text, "permission denied"), strings.Contains(text, "authentication failed"):
+		return "auth_failed"
+	case strings.Contains(text, "host key verification failed"), strings.Contains(text, "remote host identification has changed"):
+		return "host_key_failed"
+	case strings.Contains(text, "tmux_missing"):
+		return "tmux_missing"
+	case strings.Contains(text, "tmux_install_failed"):
+		return "tmux_install_failed"
+	default:
+		return "connection_error"
+	}
 }
 
 func keyDeployRemoteCommand(pubKey string) string {
