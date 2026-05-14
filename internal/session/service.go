@@ -1,7 +1,10 @@
 package session
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +20,20 @@ type Metadata struct {
 	CreatedAt  time.Time `json:"created_at"`
 	TTLSeconds int64     `json:"ttl_seconds"`
 	ClientID   string    `json:"client_id,omitempty"`
+}
+
+type RegistryEntry struct {
+	SID           string    `json:"sid"`
+	Label         string    `json:"label"`
+	Host          string    `json:"host"`
+	User          string    `json:"user"`
+	Port          int       `json:"port"`
+	Identity      string    `json:"identity,omitempty"`
+	HostKeyPolicy string    `json:"host_key_policy"`
+	TmuxName      string    `json:"tmux_name"`
+	CreatedAt     time.Time `json:"created_at"`
+	TTLSeconds    int64     `json:"ttl_seconds"`
+	Seq           int       `json:"seq"`
 }
 
 func NewMetadata(sid, label string, ttl time.Duration, clientID string) Metadata {
@@ -128,6 +145,90 @@ func validateSessionTarget(sid, tmuxName string) error {
 
 func sessionDir(sid string) string {
 	return "~/.assh/sessions/" + sid
+}
+
+func SaveRegistry(baseDir string, entry RegistryEntry) error {
+	if !remote.SafeSID(entry.SID) {
+		return errors.New("invalid session id")
+	}
+	dir := filepath.Join(baseDir, "sessions")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	body, err := json.MarshalIndent(entry, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, entry.SID+".json")
+	tmp, err := os.CreateTemp(dir, entry.SID+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(body); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
+}
+
+func LoadRegistry(baseDir, sid string) (RegistryEntry, error) {
+	if !remote.SafeSID(sid) {
+		return RegistryEntry{}, errors.New("invalid session id")
+	}
+	body, err := os.ReadFile(filepath.Join(baseDir, "sessions", sid+".json"))
+	if err != nil {
+		return RegistryEntry{}, err
+	}
+	var entry RegistryEntry
+	if err := json.Unmarshal(body, &entry); err != nil {
+		return RegistryEntry{}, err
+	}
+	if entry.SID != sid || entry.TmuxName != "assh_"+sid {
+		return RegistryEntry{}, errors.New("invalid registry entry")
+	}
+	return entry, nil
+}
+
+func DeleteRegistry(baseDir, sid string) error {
+	if !remote.SafeSID(sid) {
+		return errors.New("invalid session id")
+	}
+	err := os.Remove(filepath.Join(baseDir, "sessions", sid+".json"))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+func ListRegistry(baseDir string) ([]RegistryEntry, error) {
+	dir := filepath.Join(baseDir, "sessions")
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var sessions []RegistryEntry
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		sid := strings.TrimSuffix(entry.Name(), ".json")
+		session, err := LoadRegistry(baseDir, sid)
+		if err == nil {
+			sessions = append(sessions, session)
+		}
+	}
+	return sessions, nil
 }
 
 func (m Metadata) Expired(now time.Time) bool {

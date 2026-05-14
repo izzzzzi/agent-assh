@@ -7,6 +7,9 @@ import (
 )
 
 func BaseDir() string {
+	if override := os.Getenv("ASSH_STATE_DIR"); override != "" {
+		return override
+	}
 	switch runtime.GOOS {
 	case "windows":
 		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {

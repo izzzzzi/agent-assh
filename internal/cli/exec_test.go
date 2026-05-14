@@ -7,6 +7,8 @@ import (
 	"errors"
 	"os/exec"
 	"testing"
+
+	"github.com/agent-ssh/assh/internal/transport"
 )
 
 func TestReadMissingIDReturnsJSONError(t *testing.T) {
@@ -114,6 +116,42 @@ func TestSSHErrorCodeClassifiesLocalFailures(t *testing.T) {
 
 	if got := sshErrorCode(nil, &exec.ExitError{}); got != "" {
 		t.Fatalf("remote exit code = %q, want empty", got)
+	}
+}
+
+func TestSSHResultErrorCodeClassifiesSSHExit255(t *testing.T) {
+	tests := []struct {
+		name   string
+		stderr string
+		want   string
+	}{
+		{name: "auth", stderr: "root@example.com: Permission denied (publickey).", want: "auth_failed"},
+		{name: "host key", stderr: "Host key verification failed.", want: "host_key_failed"},
+		{name: "connection", stderr: "ssh: connect to host example.com port 22: Connection refused", want: "connection_error"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := sshResultErrorCode(nil, transport.Result{
+				Stderr:   []byte(test.stderr),
+				ExitCode: 255,
+				Err:      &exec.ExitError{},
+			})
+			if got != test.want {
+				t.Fatalf("sshResultErrorCode() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestSSHResultErrorCodeAllowsRemoteNonZero(t *testing.T) {
+	got := sshResultErrorCode(nil, transport.Result{
+		Stderr:   []byte("remote command failed"),
+		ExitCode: 2,
+		Err:      &exec.ExitError{},
+	})
+	if got != "" {
+		t.Fatalf("sshResultErrorCode() = %q, want empty", got)
 	}
 }
 

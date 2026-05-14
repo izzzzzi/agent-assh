@@ -63,8 +63,8 @@ func newExecCommand() *cobra.Command {
 				HostKeyPolicy: hostKeyPolicy,
 			}.Run(ctx, remoteCommand(args))
 
-			if code := sshErrorCode(ctx.Err(), result.Err); code != "" {
-				return writeError(cmd, code, sshErrorMessage(ctx.Err(), result.Err), "")
+			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
 			store := state.NewOutputStore(filepath.Join(state.BaseDir(), "outputs"))
@@ -163,6 +163,24 @@ func sshErrorCode(ctxErr, runErr error) string {
 	return "connection_error"
 }
 
+func sshResultErrorCode(ctxErr error, result transport.Result) string {
+	if code := sshErrorCode(ctxErr, result.Err); code != "" {
+		return code
+	}
+	if result.Err == nil || result.ExitCode != 255 {
+		return ""
+	}
+	stderr := strings.ToLower(string(result.Stderr))
+	switch {
+	case strings.Contains(stderr, "permission denied"), strings.Contains(stderr, "authentication failed"):
+		return "auth_failed"
+	case strings.Contains(stderr, "host key verification failed"), strings.Contains(stderr, "remote host identification has changed"):
+		return "host_key_failed"
+	default:
+		return "connection_error"
+	}
+}
+
 func sshErrorMessage(ctxErr, runErr error) string {
 	if ctxErr != nil {
 		return ctxErr.Error()
@@ -171,6 +189,17 @@ func sshErrorMessage(ctxErr, runErr error) string {
 		return runErr.Error()
 	}
 	return ""
+}
+
+func sshResultErrorMessage(ctxErr error, result transport.Result) string {
+	if ctxErr != nil {
+		return ctxErr.Error()
+	}
+	stderr := strings.TrimSpace(string(result.Stderr))
+	if stderr != "" {
+		return stderr
+	}
+	return sshErrorMessage(ctxErr, result.Err)
 }
 
 func countLines(data []byte) int {

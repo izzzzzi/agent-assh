@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/agent-ssh/assh/internal/capabilities"
@@ -40,8 +39,8 @@ func newCapabilitiesCommand() *cobra.Command {
 				HostKeyPolicy: "accept-new",
 			}.Run(ctx, capabilities.ProbeCommand())
 
-			if code := sshErrorCode(ctx.Err(), result.Err); code != "" {
-				return writeError(cmd, code, connectionErrorMessage(ctx.Err(), result), "")
+			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
 			return writeJSON(cmd, capabilities.ParseProbe(result.Stdout))
@@ -53,15 +52,4 @@ func newCapabilitiesCommand() *cobra.Command {
 	cmd.Flags().IntVarP(&port, "port", "p", 22, "SSH port")
 	cmd.Flags().StringVarP(&identity, "identity", "i", "", "SSH identity file")
 	return cmd
-}
-
-func connectionErrorMessage(ctxErr error, result transport.Result) string {
-	if ctxErr != nil {
-		return ctxErr.Error()
-	}
-	stderr := strings.TrimSpace(string(result.Stderr))
-	if stderr != "" {
-		return stderr
-	}
-	return sshErrorMessage(ctxErr, result.Err)
 }
