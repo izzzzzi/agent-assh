@@ -181,6 +181,9 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 	command.Env = append(os.Environ(), "SSH_ASKPASS="+askpass, "SSH_ASKPASS_REQUIRE=force", "DISPLAY="+display)
 	output, err := command.CombinedOutput()
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return passwordSSHError{output: output, err: ctxErr}
+		}
 		return passwordSSHError{output: output, err: err}
 	}
 	return nil

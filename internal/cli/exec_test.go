@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/agent-ssh/assh/internal/state"
 	"github.com/agent-ssh/assh/internal/transport"
@@ -228,6 +231,28 @@ func TestPasswordSSHErrorCodeClassifiesFailures(t *testing.T) {
 				t.Fatalf("passwordSSHErrorCode() = %q, want %q", got, test.want)
 			}
 		})
+	}
+}
+
+func TestRunSSHWithPasswordClassifiesContextTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fake ssh is unix-only")
+	}
+	dir := t.TempDir()
+	sshPath := filepath.Join(dir, "ssh")
+	if err := os.WriteFile(sshPath, []byte("#!/bin/sh\nsleep 1\n"), 0o755); err != nil {
+		t.Fatalf("write fake ssh: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err := runSSHWithPassword(ctx, "password", []string{"example.com", "true"})
+	if err == nil {
+		t.Fatalf("runSSHWithPassword() error = nil, want timeout")
+	}
+	if got := passwordSSHErrorCode(err); got != "timeout" {
+		t.Fatalf("passwordSSHErrorCode() = %q, want timeout; err = %v", got, err)
 	}
 }
 
