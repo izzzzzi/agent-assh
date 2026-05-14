@@ -236,7 +236,7 @@ func newSessionReadCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
 			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
-			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 			content, total, notFound := parseSessionRead(result.Stdout)

@@ -229,6 +229,68 @@ func TestSessionReadRawPrintsOnlyContent(t *testing.T) {
 	}
 }
 
+func TestSessionReadRawNotFoundReturnsJSONError(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stdout:   []byte("__ASSH_NOT_FOUND__\n"),
+			ExitCode: 0,
+		}
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--raw"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error")
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("expected json output, got %q", out.String())
+	}
+	if got["ok"] != false || got["error"] != "output_not_found" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	if strings.Contains(out.String(), "__ASSH_NOT_FOUND__") {
+		t.Fatalf("raw not-found marker leaked to output: %q", out.String())
+	}
+}
+
+func TestSessionReadRawRemoteFailureReturnsJSONError(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stderr:   []byte("remote read failed"),
+			ExitCode: 1,
+			Err:      &exec.ExitError{},
+		}
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--raw"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error")
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("expected json output, got %q", out.String())
+	}
+	if got["ok"] != false || got["error"] != "command_failed" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionGCReturnsDryRunCandidates(t *testing.T) {
 	got := executeSessionJSON(t, []string{"session", "gc"})
 
