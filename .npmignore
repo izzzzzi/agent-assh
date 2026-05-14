@@ -1,0 +1,6 @@
+.git
+.github
+bin/assh
+dist
+docs/superpowers
+*.test
