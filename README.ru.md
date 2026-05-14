@@ -5,87 +5,123 @@
 [![npm](https://img.shields.io/npm/v/agent-assh)](https://www.npmjs.com/package/agent-assh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-SSH-инструмент для рабочих процессов LLM-агентов.
+SSH-инструмент для LLM-агентов.
 
-`assh` не отправляет большой SSH-вывод в контекст агента. Команды сначала возвращают метаданные, а агент читает только нужные строки. Persistent sessions используют remote `tmux`, поэтому рабочая директория и окружение сохраняются между связанными командами.
-
-## Установка
-
-```bash
-npm i -g agent-assh
-assh version
-```
-
-Архивы GitHub Releases доступны для Linux, macOS и Windows на поддерживаемых amd64/arm64 платформах.
+`assh` подготавливает SSH-доступ, открывает persistent `tmux`-сессию на сервере и не тащит большой вывод в контекст агента. Команды сначала возвращают компактный JSON с метаданными, а агент читает только нужные строки.
 
 ## Быстрый старт
 
 ```bash
-assh exec -H 10.0.0.1 -u root -i ~/.ssh/id_ed25519 -- "journalctl -p warning"
-assh read --id OUTPUT_ID --limit 20 --offset 0
-assh read --id OUTPUT_ID --stream stderr --raw
+npm i -g agent-assh
+
+export TARGET_PASS="..."
+assh connect -H 203.0.113.10 -u root -E TARGET_PASS -n deploy
+unset TARGET_PASS
 ```
 
-## Persistent Session
+Если вход по ключу уже работает, `assh connect` не читает `TARGET_PASS`.
 
 ```bash
-assh session open -H 10.0.0.1 -u root -i ~/.ssh/id_ed25519 -n deploy
-assh session exec -s SID -- "cd /app"
-assh session exec -s SID --timeout 600 -- "git pull"
-assh session read -s SID --seq 2 --limit 20
-assh session read -s SID --seq 2 --stream stderr --raw
-assh session gc --older-than 24h --execute
-assh session close -s SID
+assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_agent_ed25519 -n deploy
 ```
+
+`connect` возвращает session id и `next_commands`:
+
+```json
+{
+  "ok": true,
+  "sid": "f7a2b3c4",
+  "session": "deploy",
+  "tmux_name": "assh_f7a2b3c4",
+  "next_commands": {
+    "exec": "assh session exec -s f7a2b3c4 -- \"pwd\"",
+    "read": "assh session read -s f7a2b3c4 --seq 1 --limit 50",
+    "close": "assh session close -s f7a2b3c4"
+  }
+}
+```
+
+Дальше работайте через session API:
+
+```bash
+assh session exec -s f7a2b3c4 -- "pwd"
+assh session read -s f7a2b3c4 --seq 1 --limit 50
+assh session close -s f7a2b3c4
+```
+
+## Что делает connect
+
+`assh connect`:
+
+- создаёт или переиспользует `~/.ssh/id_agent_ed25519`, если не указан `--identity`;
+- сначала пробует вход по ключу;
+- использует `--password-env` только если вход по ключу не сработал;
+- добавляет публичный ключ и проверяет повторный вход по ключу;
+- проверяет capabilities сервера;
+- ставит `tmux` неинтерактивно, если не указан `--no-install-tmux`;
+- безопасно чистит старые доверенные `assh`-сессии, если не указан `--no-gc`;
+- открывает доверенную `tmux`-сессию и сохраняет локальную registry metadata.
 
 ## Команды
 
+- `assh connect`: первый bootstrap и открытие session.
+- `assh session exec|read|close|gc`: persistent workflow через tmux.
 - `assh exec`: выполнить одну remote-команду и сохранить вывод локально.
 - `assh read`: прочитать сохранённый вывод с пагинацией или через `--raw`.
-- `assh session open|exec|read|close|gc`: persistent workflow через tmux. `session exec` поддерживает `--timeout`.
 - `assh capabilities`: проверить поддержку session workflow на сервере.
 - `assh scan`: вернуть JSON-инвентарь хоста.
-- `assh key-deploy`: поставить SSH-ключ, используя пароль из env.
-- `assh audit`: читать локальный аудит через `--last`, `--host`, `--failed`.
+- `assh key-deploy`: низкоуровневая установка ключа через пароль из env.
+- `assh audit`: читать локальный audit через `--last`, `--host`, `--failed`.
 - `assh version`: вывести метаданные версии.
 
-## JSON-контракт
+## Экономия токенов
 
-Операционные команды по умолчанию печатают один JSON-объект. `read --raw` и `session read --raw` печатают только сохранённый content.
-
-```json
-{"ok":true,"exit_code":0,"output_id":"a1b2c3d4","stdout_lines":4327,"stderr_lines":0}
-```
-
-```json
-{"ok":true,"output_id":"a1b2c3d4","stream":"stdout","offset":0,"limit":20,"total_lines":4327,"has_more":true,"content":"..."}
-```
-
-```json
-{"ok":true,"rc":0,"seq":2,"stdout_lines":15,"stderr_lines":0,"sid":"f7a2b3c4","session":"deploy"}
-```
-
-Ошибки имеют форму:
-
-```json
-{"ok":false,"error":"tmux_missing","message":"tmux is not installed"}
-```
-
-`exec` и `session exec` считают ненулевой remote status результатом команды, а не transport failure.
-
-## Рабочий процесс агента
+Сначала смотрите метаданные, потом читайте нужные окна вывода:
 
 ```bash
-assh audit --last 20 --host HOST --failed
+assh session exec -s f7a2b3c4 -- "journalctl -p warning"
+assh session read -s f7a2b3c4 --seq 1 --limit 50
+assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
 ```
 
-Используйте `read --raw` для пайпов и точного remote-вывода. Используйте JSON-режим, когда агенту нужны метаданные пагинации.
+`--raw` используйте только для пайпов или точного вывода:
+
+```bash
+assh session read -s f7a2b3c4 --seq 1 --raw
+```
 
 ## Безопасность
 
-- Пароли принимаются только через env-переменные в `key-deploy`.
-- Текст команд не пишется в audit log; сохраняется hash.
+- Пароли принимаются только через env-переменные. Флага `--password` нет.
+- Если вход по ключу работает, `connect` не читает password env var.
+- Значения паролей не пишутся в audit logs.
+- Текст команд не пишется в audit logs; сохраняются hashes.
+- SSH запускается неинтерактивно и отключает pseudo-terminal allocation.
+- `--host-key-policy accept-new` используется по умолчанию. Для hardened окружений используйте `strict`.
+- `--host-key-policy no-check` небезопасен и подходит только для одноразовых lab/dev хостов.
 - Remote cleanup удаляет только sessions с доверенной metadata `assh`.
+
+## Плюсы
+
+- Одна команда делает первый вход, ключ, tmux, cleanup и открытие session.
+- Большой вывод не попадает в контекст агента без явного чтения.
+- Persistent sessions сохраняют рабочую директорию и окружение между командами.
+- JSON-ответы стабильны для парсинга агентом.
+
+## Ограничения
+
+- `tmux` sessions рассчитаны на Unix-like remote hosts.
+- Установка пакетов неинтерактивная; неподдерживаемые package managers возвращают machine-readable errors.
+- Интерактивные password prompts не поддерживаются в v1.
+- `assh` использует системный OpenSSH client.
+
+## Ручная установка
+
+`npm i -g agent-assh` ставит wrapper, который скачивает подходящий Go-бинарь из GitHub Releases. Архивы можно скачать вручную:
+
+```text
+https://github.com/agent-ssh/assh/releases
+```
 
 ## English
 

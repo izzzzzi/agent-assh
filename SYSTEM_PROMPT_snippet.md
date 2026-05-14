@@ -13,18 +13,16 @@ assh version
 
 ```text
 Need SSH?
-  One command:
-    assh exec -H HOST -u root -i KEY -- "cmd"
-    inspect stdout_lines/stderr_lines
-    assh read --id OUTPUT_ID --limit 20 --offset 0
-    assh read --id OUTPUT_ID --stream stderr --raw
+  First step:
+    assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
+    or, when key login already works:
+    assh connect -H HOST -u root -i KEY -n NAME
 
-  Related commands with shared directory/env:
-    assh session open -H HOST -u root -i KEY -n NAME
-    assh session exec -s SID -- "cd /app"
+  Continue with returned sid:
+    assh session exec -s SID -- "pwd"
+    assh session read -s SID --seq 1 --limit 50
     assh session exec -s SID --timeout 600 -- "git pull"
-    assh session read -s SID --seq 2 --limit 20
-    assh session read -s SID --seq 2 --raw
+    assh session read -s SID --seq 2 --stream stderr --limit 50
     assh session close -s SID
 
   Cleanup:
@@ -36,16 +34,10 @@ Need SSH?
 
 ### JSON Contract
 
-`assh exec` returns metadata and stores output:
+`assh connect` returns a session id and next commands:
 
 ```json
-{"ok":true,"exit_code":0,"output_id":"a1b2c3d4","stdout_lines":4327,"stderr_lines":0}
-```
-
-`assh read` returns paginated content unless `--raw` is used:
-
-```json
-{"ok":true,"output_id":"a1b2c3d4","stream":"stdout","offset":0,"limit":20,"total_lines":4327,"has_more":true,"content":"..."}
+{"ok":true,"sid":"f7a2b3c4","session":"deploy","tmux_name":"assh_f7a2b3c4","next_commands":{"exec":"assh session exec -s f7a2b3c4 -- \"pwd\"","read":"assh session read -s f7a2b3c4 --seq 1 --limit 50","close":"assh session close -s f7a2b3c4"}}
 ```
 
 `assh session exec` returns command metadata:
@@ -59,15 +51,5 @@ Rules:
 - Operational commands emit one JSON value by default.
 - `read --raw` and `session read --raw` print only content.
 - Remote non-zero status is a command result, not a transport failure.
-
-### Errors
-
-```json
-{"ok":false,"error":"auth_failed"}
-{"ok":false,"error":"host_key_failed"}
-{"ok":false,"error":"connection_error"}
-{"ok":false,"error":"timeout"}
-{"ok":false,"error":"tmux_missing"}
-```
-
-Passwords are only accepted through environment variables for `key-deploy`; never put passwords in command arguments. Command text is not written to audit logs.
+- Passwords are only accepted through environment variables; never put passwords in command arguments.
+- Command text is not written to audit logs.

@@ -7,85 +7,121 @@
 
 SSH workflow helper for LLM agents.
 
-`assh` keeps large SSH output out of the agent context. Commands return metadata first, and agents read only the lines they need. Persistent sessions use remote `tmux` so working directory and environment changes survive between related commands.
-
-## Install
-
-```bash
-npm i -g agent-assh
-assh version
-```
-
-GitHub Release archives are available for Linux, macOS, and Windows on amd64/arm64 where supported.
+`assh` bootstraps SSH access, opens a persistent remote `tmux` session, and keeps large SSH output out of the agent context. Commands return compact JSON metadata first; agents read only the lines they need.
 
 ## Quick Start
 
 ```bash
-assh exec -H 10.0.0.1 -u root -i ~/.ssh/id_ed25519 -- "journalctl -p warning"
-assh read --id OUTPUT_ID --limit 20 --offset 0
-assh read --id OUTPUT_ID --stream stderr --raw
+npm i -g agent-assh
+
+export TARGET_PASS="..."
+assh connect -H 203.0.113.10 -u root -E TARGET_PASS -n deploy
+unset TARGET_PASS
 ```
 
-## Persistent Session
+If key login already works, `assh connect` does not read `TARGET_PASS`.
 
 ```bash
-assh session open -H 10.0.0.1 -u root -i ~/.ssh/id_ed25519 -n deploy
-assh session exec -s SID -- "cd /app"
-assh session exec -s SID --timeout 600 -- "git pull"
-assh session read -s SID --seq 2 --limit 20
-assh session read -s SID --seq 2 --stream stderr --raw
-assh session gc --older-than 24h --execute
-assh session close -s SID
+assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_agent_ed25519 -n deploy
 ```
+
+`connect` returns a session id and `next_commands`:
+
+```json
+{
+  "ok": true,
+  "sid": "f7a2b3c4",
+  "session": "deploy",
+  "tmux_name": "assh_f7a2b3c4",
+  "next_commands": {
+    "exec": "assh session exec -s f7a2b3c4 -- \"pwd\"",
+    "read": "assh session read -s f7a2b3c4 --seq 1 --limit 50",
+    "close": "assh session close -s f7a2b3c4"
+  }
+}
+```
+
+Continue through the session API:
+
+```bash
+assh session exec -s f7a2b3c4 -- "pwd"
+assh session read -s f7a2b3c4 --seq 1 --limit 50
+assh session close -s f7a2b3c4
+```
+
+## What connect Does
+
+`assh connect`:
+
+- creates or reuses `~/.ssh/id_agent_ed25519` unless `--identity` is set;
+- tries key login first;
+- uses `--password-env` only when key login fails;
+- deploys the public key and verifies key login;
+- probes remote capabilities;
+- installs `tmux` non-interactively unless `--no-install-tmux` is set;
+- runs safe cleanup for old trusted `assh` sessions unless `--no-gc` is set;
+- opens a trusted `tmux` session and saves local registry metadata.
 
 ## Commands
 
+- `assh connect`: first-contact bootstrap and session open.
+- `assh session exec|read|close|gc`: persistent tmux workflow.
 - `assh exec`: run one remote command and store output locally.
 - `assh read`: read stored output with pagination or `--raw`.
-- `assh session open|exec|read|close|gc`: persistent tmux workflow. `session exec` accepts `--timeout`.
 - `assh capabilities`: inspect remote session support.
 - `assh scan`: return host inventory JSON.
-- `assh key-deploy`: deploy an SSH key using a password from env.
+- `assh key-deploy`: low-level key deployment using a password from env.
 - `assh audit`: read local audit events with `--last`, `--host`, and `--failed`.
 - `assh version`: print version metadata.
 
-## JSON Contract
+## Token Economy
 
-Operational commands emit one JSON value by default. `read --raw` and `session read --raw` print only stored content.
-
-```json
-{"ok":true,"exit_code":0,"output_id":"a1b2c3d4","stdout_lines":4327,"stderr_lines":0}
-```
-
-```json
-{"ok":true,"output_id":"a1b2c3d4","stream":"stdout","offset":0,"limit":20,"total_lines":4327,"has_more":true,"content":"..."}
-```
-
-```json
-{"ok":true,"rc":0,"seq":2,"stdout_lines":15,"stderr_lines":0,"sid":"f7a2b3c4","session":"deploy"}
-```
-
-Errors use:
-
-```json
-{"ok":false,"error":"tmux_missing","message":"tmux is not installed"}
-```
-
-`exec` and `session exec` treat remote non-zero status as command results, not transport failures.
-
-## Agent Workflow
+Use metadata first, then read targeted output windows:
 
 ```bash
-assh audit --last 20 --host HOST --failed
+assh session exec -s f7a2b3c4 -- "journalctl -p warning"
+assh session read -s f7a2b3c4 --seq 1 --limit 50
+assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
 ```
 
-Use `read --raw` for pipes and exact remote output. Use JSON mode when the agent needs pagination metadata.
+Use `--raw` only for piping or exact output:
+
+```bash
+assh session read -s f7a2b3c4 --seq 1 --raw
+```
 
 ## Security
 
-- Passwords are accepted only through environment variables for `key-deploy`.
+- Passwords are accepted only through environment variables. There is no `--password` flag.
+- If key login works, `connect` does not read the password env var.
+- Password values are not written to audit logs.
 - Command text is not written to audit logs; audit entries use command hashes.
+- SSH runs non-interactively and disables pseudo-terminal allocation.
+- `--host-key-policy accept-new` is the default. Use `strict` for hardened environments.
+- `--host-key-policy no-check` is unsafe and should be limited to disposable lab/dev hosts.
 - Remote cleanup only targets sessions with trusted `assh` metadata.
+
+## Advantages
+
+- One command handles first login, key setup, tmux readiness, cleanup, and session open.
+- Large output stays outside the agent context until explicitly paged in.
+- Persistent sessions preserve working directory and environment between commands.
+- JSON responses are stable for agent parsing.
+
+## Limitations
+
+- `tmux` sessions are for Unix-like remotes.
+- Package installation is non-interactive; unsupported package managers return machine-readable errors.
+- Interactive password prompts are not supported in v1.
+- `assh` uses the system OpenSSH client.
+
+## Manual Install
+
+`npm i -g agent-assh` installs a wrapper that downloads the matching Go binary from GitHub Releases. You can also download release archives manually from:
+
+```text
+https://github.com/agent-ssh/assh/releases
+```
 
 ## Russian
 
