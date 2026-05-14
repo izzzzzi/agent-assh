@@ -139,7 +139,7 @@ func TestOpenRemoteCommandRejectsInvalidTmuxNames(t *testing.T) {
 }
 
 func TestExecRemoteCommandWritesSeqFiles(t *testing.T) {
-	got, err := ExecRemoteCommand("abcdef12", "assh_abcdef12", 3, "echo a; echo b")
+	got, err := ExecRemoteCommand("abcdef12", "assh_abcdef12", 3, "echo a; echo b", 120)
 	if err != nil {
 		t.Fatalf("ExecRemoteCommand() error = %v", err)
 	}
@@ -154,6 +154,16 @@ func TestExecRemoteCommandWritesSeqFiles(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("ExecRemoteCommand() = %q, want to contain %q", got, want)
 		}
+	}
+}
+
+func TestExecRemoteCommandUsesConfiguredWaitSeconds(t *testing.T) {
+	cmd, err := ExecRemoteCommand("abcdef12", "assh_abcdef12", 1, "true", 7)
+	if err != nil {
+		t.Fatalf("ExecRemoteCommand() error = %v", err)
+	}
+	if !strings.Contains(cmd, "while [ $i -lt 7 ]") {
+		t.Fatalf("command does not use configured wait: %s", cmd)
 	}
 }
 
@@ -174,10 +184,16 @@ func TestExecRemoteCommandRejectsUnsafeInputs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := ExecRemoteCommand(tt.sid, tt.tmuxName, tt.seq, tt.command); err == nil {
+			if _, err := ExecRemoteCommand(tt.sid, tt.tmuxName, tt.seq, tt.command, 120); err == nil {
 				t.Fatalf("ExecRemoteCommand() error = nil, want error")
 			}
 		})
+	}
+}
+
+func TestExecRemoteCommandRejectsInvalidWaitSeconds(t *testing.T) {
+	if _, err := ExecRemoteCommand("abcdef12", "assh_abcdef12", 1, "pwd", 0); err == nil {
+		t.Fatalf("ExecRemoteCommand() error = nil, want error")
 	}
 }
 

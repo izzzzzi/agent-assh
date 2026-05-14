@@ -136,6 +136,7 @@ func newSessionOpenCommand() *cobra.Command {
 
 func newSessionExecCommand() *cobra.Command {
 	var sid string
+	var timeout int
 
 	cmd := &cobra.Command{
 		Use:           "exec -- command",
@@ -148,18 +149,22 @@ func newSessionExecCommand() *cobra.Command {
 			if len(args) == 0 {
 				return writeInvalidArgs(cmd, "command required", "")
 			}
+			if timeout < 1 {
+				return writeInvalidArgs(cmd, "timeout must be greater than 0", "")
+			}
 			entry, err := session.LoadRegistry(stateBaseDir(), sid)
 			if err != nil {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 			entry.Seq++
-			remoteCommand, err := session.ExecRemoteCommand(entry.SID, entry.TmuxName, entry.Seq, remoteCommand(args))
+			remoteCommand, err := session.ExecRemoteCommand(entry.SID, entry.TmuxName, entry.Seq, remoteCommand(args), timeout)
 			if err != nil {
 				return writeInvalidArgs(cmd, err.Error(), "")
 			}
-			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
+			localTimeout := time.Duration(timeout+5) * time.Second
+			ctx, cancel := context.WithTimeout(cmd.Context(), localTimeout)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, timeout+5, entry.HostKeyPolicy), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -185,6 +190,7 @@ func newSessionExecCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "timeout in seconds")
 	return cmd
 }
 
@@ -194,6 +200,7 @@ func newSessionReadCommand() *cobra.Command {
 	var stream string
 	var offset int
 	var limit int
+	var raw bool
 
 	cmd := &cobra.Command{
 		Use:           "read",
@@ -236,6 +243,10 @@ func newSessionReadCommand() *cobra.Command {
 			if notFound {
 				return writeError(cmd, "output_not_found", "session output not found", "")
 			}
+			if raw {
+				_, err := cmd.OutOrStdout().Write([]byte(content))
+				return err
+			}
 			hasMore := offset+limit < total
 			writeAudit("session_read", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
@@ -258,6 +269,7 @@ func newSessionReadCommand() *cobra.Command {
 	cmd.Flags().StringVar(&stream, "stream", "stdout", "stdout|stderr")
 	cmd.Flags().IntVar(&offset, "offset", 0, "line offset")
 	cmd.Flags().IntVar(&limit, "limit", 50, "line limit")
+	cmd.Flags().BoolVar(&raw, "raw", false, "print only content without JSON")
 	return cmd
 }
 

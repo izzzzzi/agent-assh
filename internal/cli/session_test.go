@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,6 +120,37 @@ func TestSessionExecReturnsJSON(t *testing.T) {
 	}
 }
 
+func TestSessionExecUsesConfiguredTimeout(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Fatalf("context deadline is not set")
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 10*time.Second || remaining > 13*time.Second {
+			t.Fatalf("context timeout = %v, want about 12s", remaining)
+		}
+		if command.TimeoutSecond != 12 {
+			t.Fatalf("ssh timeout = %d, want 12", command.TimeoutSecond)
+		}
+		if !strings.Contains(remoteCommand, "while [ $i -lt 7 ]") {
+			t.Fatalf("remote command does not use configured wait: %s", remoteCommand)
+		}
+		return transport.Result{
+			Stdout:   []byte("__ASSH_RC__=0\n__ASSH_STDOUT_LINES__=0\n__ASSH_STDERR_LINES__=0\n"),
+			ExitCode: 0,
+		}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--timeout", "7", "--", "pwd"})
+	if got["ok"] != true || got["sid"] != "abcdef12" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionReadRequiresSIDAndSeq(t *testing.T) {
 	got := executeSessionJSONError(t, []string{"session", "read", "--seq", "1"})
 	if got["ok"] != false || got["error"] != "invalid_args" || got["message"] != "--sid is required" {
@@ -154,6 +186,46 @@ func TestSessionReadReturnsJSON(t *testing.T) {
 	got := executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "2"})
 	if got["ok"] != true || got["sid"] != "abcdef12" || got["seq"] != float64(2) || got["content"] != "hello\n" || got["total_lines"] != float64(1) {
 		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionReadRawPrintsOnlyContent(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	entry := session.RegistryEntry{
+		SID:           "abcdef12",
+		Label:         "deploy",
+		Host:          "example.com",
+		User:          "root",
+		Port:          22,
+		HostKeyPolicy: "accept-new",
+		TmuxName:      "assh_abcdef12",
+		CreatedAt:     time.Now().UTC(),
+		TTLSeconds:    3600,
+	}
+	if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+		t.Fatalf("SaveRegistry() error = %v", err)
+	}
+
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stdout:   []byte("line-a\nline-b\n\n__ASSH_TOTAL_LINES__=2\n"),
+			ExitCode: 0,
+		}
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--raw"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got := out.String(); got != "line-a\nline-b\n" {
+		t.Fatalf("raw session output = %q", got)
 	}
 }
 

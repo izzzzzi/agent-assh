@@ -75,7 +75,7 @@ func OpenRemoteCommand(metaJSON string, tmuxName string) (string, error) {
 	return strings.Join(parts, " && "), nil
 }
 
-func ExecRemoteCommand(sid, tmuxName string, seq int, command string) (string, error) {
+func ExecRemoteCommand(sid, tmuxName string, seq int, command string, waitSeconds int) (string, error) {
 	if err := validateSessionTarget(sid, tmuxName); err != nil {
 		return "", err
 	}
@@ -85,16 +85,20 @@ func ExecRemoteCommand(sid, tmuxName string, seq int, command string) (string, e
 	if strings.TrimSpace(command) == "" {
 		return "", errors.New("command required")
 	}
+	if waitSeconds < 1 {
+		return "", errors.New("wait seconds must be positive")
+	}
 
 	dir := sessionDir(sid)
 	seqText := strconv.Itoa(seq)
+	waitText := strconv.Itoa(waitSeconds)
 	out := dir + "/" + seqText + ".out"
 	errPath := dir + "/" + seqText + ".err"
 	rc := dir + "/" + seqText + ".rc"
 	wrapped := "{ " + command + "; } > " + out + " 2> " + errPath + "; echo $? > " + rc
 	return "mkdir -p " + dir + " && rm -f " + rc + " && " +
 		"tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter; " +
-		"i=0; while [ $i -lt 120 ] && [ ! -f " + rc + " ]; do i=$((i+1)); sleep 1; done; " +
+		"i=0; while [ $i -lt " + waitText + " ] && [ ! -f " + rc + " ]; do i=$((i+1)); sleep 1; done; " +
 		"test -f " + rc + " || { echo __ASSH_TIMEOUT__; exit 124; }; " +
 		"printf '__ASSH_RC__=%s\\n' \"$(cat " + rc + ")\"; " +
 		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(wc -l < " + out + " 2>/dev/null || echo 0)\"; " +
