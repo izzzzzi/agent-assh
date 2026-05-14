@@ -19,7 +19,12 @@ func newVersionCommand() *cobra.Command {
 		Short:         "Print version information as JSON",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Args:          cobra.NoArgs,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return writeInvalidArgs(cmd, "unexpected positional arguments", "")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return writeJSON(cmd, response.OK{
 				"ok":         true,
