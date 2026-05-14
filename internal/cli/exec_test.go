@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
+	"github.com/agent-ssh/assh/internal/state"
 	"github.com/agent-ssh/assh/internal/transport"
 )
 
@@ -29,6 +31,48 @@ func TestReadMissingIDReturnsJSONError(t *testing.T) {
 	}
 	if got["ok"] != false || got["error"] != "invalid_args" || got["message"] != "id required" {
 		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestReadRawPrintsOnlyContent(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	store := state.NewOutputStore(filepath.Join(stateBaseDir(), "outputs"))
+	if err := store.Write("abcdef12", []byte("one\ntwo\nthree\n"), []byte("err\n")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"read", "--id", "abcdef12", "--offset", "1", "--limit", "1", "--raw"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got := out.String(); got != "two\n" {
+		t.Fatalf("raw output = %q, want %q", got, "two\n")
+	}
+}
+
+func TestReadRawStderr(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	store := state.NewOutputStore(filepath.Join(stateBaseDir(), "outputs"))
+	if err := store.Write("abcdef12", []byte("out\n"), []byte("err-a\nerr-b\n")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"read", "--id", "abcdef12", "--stream", "stderr", "--limit", "2", "--raw"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got := out.String(); got != "err-a\nerr-b\n" {
+		t.Fatalf("raw stderr = %q", got)
 	}
 }
 

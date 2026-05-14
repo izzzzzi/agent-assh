@@ -100,6 +100,7 @@ func newReadCommand() *cobra.Command {
 	var stream string
 	var offset int
 	var limit int
+	var raw bool
 
 	cmd := &cobra.Command{
 		Use:           "read",
@@ -127,6 +128,10 @@ func newReadCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "output_not_found", err.Error(), "")
 			}
+			if raw {
+				_, _ = cmd.OutOrStdout().Write([]byte(page.Content))
+				return nil
+			}
 			return writeJSON(cmd, page)
 		},
 	}
@@ -135,6 +140,7 @@ func newReadCommand() *cobra.Command {
 	cmd.Flags().StringVar(&stream, "stream", "stdout", "output stream")
 	cmd.Flags().IntVar(&offset, "offset", 0, "line offset")
 	cmd.Flags().IntVar(&limit, "limit", 50, "line limit")
+	cmd.Flags().BoolVar(&raw, "raw", false, "print only content without JSON")
 	return cmd
 }
 
