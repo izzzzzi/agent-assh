@@ -2,6 +2,7 @@ package session
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -61,6 +62,35 @@ func TestNewMetadata(t *testing.T) {
 	}
 	if metadata.ClientID != "client-1" {
 		t.Fatalf("ClientID = %q, want %q", metadata.ClientID, "client-1")
+	}
+}
+
+func TestCanCleanupRequiresAsshMarker(t *testing.T) {
+	good := Metadata{CreatedBy: "assh", SID: "abcdef12", TmuxName: "assh_abcdef12"}
+	if !CanCleanup(good) {
+		t.Fatalf("CanCleanup(good) = false, want true")
+	}
+
+	bad := good
+	bad.CreatedBy = "other"
+	if CanCleanup(bad) {
+		t.Fatalf("CanCleanup(bad CreatedBy) = true, want false")
+	}
+}
+
+func TestOpenRemoteCommandUsesDerivedSIDAndQuotedValues(t *testing.T) {
+	metaJSON := `{"sid":"abcdef12","label":"don't/use"}`
+	got := OpenRemoteCommand(metaJSON, "assh_abcdef12")
+
+	for _, want := range []string{
+		"mkdir -p ~/.assh/sessions",
+		"mkdir -p ~/.assh/sessions/abcdef12",
+		`printf %s '{"sid":"abcdef12","label":"don'"'"'t/use"}' > ~/.assh/sessions/abcdef12/meta.json`,
+		"tmux new-session -d -s 'assh_abcdef12'",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("OpenRemoteCommand() = %q, want to contain %q", got, want)
+		}
 	}
 }
 
