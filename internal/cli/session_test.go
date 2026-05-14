@@ -120,6 +120,23 @@ func TestSessionExecReturnsJSON(t *testing.T) {
 	}
 }
 
+func TestSessionExecNonZeroRCIsCommandResult(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stdout:   []byte("__ASSH_RC__=2\n__ASSH_STDOUT_LINES__=3\n__ASSH_STDERR_LINES__=1\n"),
+			ExitCode: 0,
+		}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--", "false"})
+	if got["ok"] != true || got["rc"] != float64(2) || got["stdout_lines"] != float64(3) || got["stderr_lines"] != float64(1) {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionExecUsesConfiguredTimeout(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
 	oldRunSSH := runSSH

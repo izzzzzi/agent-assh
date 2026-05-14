@@ -178,7 +178,7 @@ func newSessionExecCommand() *cobra.Command {
 			writeAudit("session_exec", entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
 
 			return writeJSON(cmd, response.OK{
-				"ok":           rc == 0,
+				"ok":           true,
 				"rc":           rc,
 				"seq":          entry.Seq,
 				"stdout_lines": stdoutLines,
