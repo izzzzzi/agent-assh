@@ -7,6 +7,12 @@
     "type": "git",
     "url": "git+https://github.com/agent-ssh/assh.git"
   },
+  "keywords": [
+    "ssh",
+    "llm",
+    "agent",
+    "cli"
+  ],
   "bin": {
     "assh": "bin/assh.js"
   },
