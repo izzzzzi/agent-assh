@@ -181,16 +181,53 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 	command.Env = append(os.Environ(), "SSH_ASKPASS="+askpass, "SSH_ASKPASS_REQUIRE=force", "DISPLAY="+display)
 	output, err := command.CombinedOutput()
 	if err != nil {
-		return errors.New(strings.TrimSpace(string(output)))
+		return passwordSSHError{output: output, err: err}
 	}
 	return nil
+}
+
+type passwordSSHError struct {
+	output []byte
+	err    error
+}
+
+func (e passwordSSHError) Error() string {
+	text := strings.TrimSpace(string(e.output))
+	if text != "" {
+		return text
+	}
+	if e.err != nil {
+		return e.err.Error()
+	}
+	return "ssh command failed"
 }
 
 func passwordSSHErrorCode(err error) string {
 	if err == nil {
 		return ""
 	}
-	text := strings.ToLower(err.Error())
+	var passwordErr passwordSSHError
+	if errors.As(err, &passwordErr) {
+		if errors.Is(passwordErr.err, context.DeadlineExceeded) || errors.Is(passwordErr.err, context.Canceled) {
+			return "timeout"
+		}
+		var execErr *exec.Error
+		if errors.As(passwordErr.err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
+			return "ssh_missing"
+		}
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return "timeout"
+	}
+	var execErr *exec.Error
+	if errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
+		return "ssh_missing"
+	}
+	return passwordSSHTextErrorCode(err.Error())
+}
+
+func passwordSSHTextErrorCode(text string) string {
+	text = strings.ToLower(text)
 	switch {
 	case strings.Contains(text, "permission denied"), strings.Contains(text, "authentication failed"):
 		return "auth_failed"

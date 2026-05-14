@@ -215,9 +215,11 @@ func TestPasswordSSHErrorCodeClassifiesFailures(t *testing.T) {
 		want string
 	}{
 		{name: "nil", err: nil, want: ""},
-		{name: "auth", err: errors.New("Permission denied, please try again."), want: "auth_failed"},
-		{name: "host key", err: errors.New("Host key verification failed."), want: "host_key_failed"},
-		{name: "generic", err: errors.New("ssh exited with status 255"), want: "connection_error"},
+		{name: "missing ssh", err: passwordSSHError{err: &exec.Error{Name: "ssh", Err: exec.ErrNotFound}}, want: "ssh_missing"},
+		{name: "timeout", err: passwordSSHError{err: context.DeadlineExceeded}, want: "timeout"},
+		{name: "auth", err: passwordSSHError{output: []byte("Permission denied, please try again.")}, want: "auth_failed"},
+		{name: "host key", err: passwordSSHError{output: []byte("Host key verification failed.")}, want: "host_key_failed"},
+		{name: "generic", err: passwordSSHError{err: errors.New("ssh exited with status 255")}, want: "connection_error"},
 	}
 
 	for _, test := range tests {
