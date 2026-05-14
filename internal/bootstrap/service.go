@@ -2,13 +2,27 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/agent-ssh/assh/internal/capabilities"
+	"github.com/agent-ssh/assh/internal/session"
 )
 
 const keyCheckCommand = "true"
+
+var probeCommand = capabilities.ProbeCommand()
+
+const installTmuxRemoteCommand = "if command -v apt >/dev/null 2>&1; then sudo -n apt update >/dev/null 2>&1 && sudo -n apt install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v dnf >/dev/null 2>&1; then sudo -n dnf install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v yum >/dev/null 2>&1; then sudo -n yum install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v apk >/dev/null 2>&1; then sudo -n apk add tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v pacman >/dev/null 2>&1; then sudo -n pacman -Sy --noconfirm tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v brew >/dev/null 2>&1; then brew install tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+	"else echo tmux_missing >&2; exit 127; fi"
 
 type Request struct {
 	Host            string
@@ -146,22 +160,89 @@ func (s Service) Run(ctx context.Context, req Request) (Result, error) {
 	return s.finishAfterAuth(ctx, req, target, keyDeployed)
 }
 
-func (s Service) finishAfterAuth(_ context.Context, req Request, _ SSHTarget, keyDeployed bool) (Result, error) {
+func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTarget, keyDeployed bool) (Result, error) {
+	probeResult := s.RunSSH(ctx, target, probeCommand)
+	if code := sshErrorCode(ctx.Err(), probeResult); code != "" {
+		return Result{}, Error{Code: code, Message: sshErrorMessage(ctx.Err(), probeResult)}
+	}
+	probe := capabilities.ParseProbe(probeResult.Stdout)
+	if probe.SessionBackend != "tmux" {
+		return Result{}, Error{Code: "tmux_missing", Message: "unsupported remote session backend"}
+	}
+
+	tmuxInstalled := probe.TmuxInstalled
+	if !probe.TmuxInstalled {
+		if req.SkipTmuxInstall {
+			return Result{}, Error{Code: "tmux_missing", Message: "tmux is not installed"}
+		}
+		installResult := s.RunSSH(ctx, target, installTmuxRemoteCommand)
+		if code := sshErrorCode(ctx.Err(), installResult); code != "" {
+			return Result{}, Error{Code: installErrorCode(code), Message: sshErrorMessage(ctx.Err(), installResult)}
+		}
+		tmuxInstalled = true
+	}
+
 	sid, err := s.NewID()
 	if err != nil {
 		return Result{}, Error{Code: "internal_error", Message: err.Error()}
 	}
+	metadata := session.NewMetadata(sid, req.SessionName, req.TTL, "")
+	metaJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return Result{}, Error{Code: "internal_error", Message: err.Error()}
+	}
+	openCommand, err := session.OpenRemoteCommand(string(metaJSON), metadata.TmuxName)
+	if err != nil {
+		return Result{}, Error{Code: "internal_error", Message: err.Error()}
+	}
+	openResult := s.RunSSH(ctx, target, openCommand)
+	if code := sshErrorCode(ctx.Err(), openResult); code != "" {
+		return Result{}, Error{Code: code, Message: sshErrorMessage(ctx.Err(), openResult)}
+	}
+
+	entry := session.RegistryEntry{
+		SID:           metadata.SID,
+		Label:         metadata.Label,
+		Host:          req.Host,
+		User:          req.User,
+		Port:          req.Port,
+		Identity:      req.Identity,
+		HostKeyPolicy: req.HostKeyPolicy,
+		TmuxName:      metadata.TmuxName,
+		CreatedAt:     metadata.CreatedAt,
+		TTLSeconds:    metadata.TTLSeconds,
+		Seq:           0,
+	}
+	if err := session.SaveRegistry(req.StateDir, entry); err != nil {
+		return Result{}, Error{Code: "internal_error", Message: err.Error()}
+	}
+
 	return Result{
-		OK:          true,
-		Host:        req.Host,
-		User:        req.User,
-		Identity:    req.Identity,
-		KeyDeployed: keyDeployed,
-		KeyVerified: true,
-		SID:         sid,
-		Session:     req.SessionName,
-		TmuxName:    "assh_" + sid,
+		OK:            true,
+		Host:          req.Host,
+		User:          req.User,
+		Identity:      req.Identity,
+		KeyDeployed:   keyDeployed,
+		KeyVerified:   true,
+		TmuxInstalled: tmuxInstalled,
+		SID:           sid,
+		Session:       req.SessionName,
+		TmuxName:      metadata.TmuxName,
+		NextCommands: map[string]string{
+			"exec":  `assh session exec -s ` + sid + ` -- "pwd"`,
+			"read":  "assh session read -s " + sid + " --seq 1 --limit 50",
+			"close": "assh session close -s " + sid,
+		},
 	}, nil
+}
+
+func installErrorCode(code string) string {
+	switch code {
+	case "tmux_missing", "command_failed", "connection_error":
+		return "tmux_install_failed"
+	default:
+		return code
+	}
 }
 
 func sshErrorCode(ctxErr error, result SSHResult) string {
