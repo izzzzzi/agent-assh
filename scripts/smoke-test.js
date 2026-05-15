@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { target } = require('./platform');
+const { expectedArchives, verifyArtifactFiles } = require('./release-contract-test');
 
 const root = path.join(__dirname, '..');
 const nativeDir = path.join(root, 'native');
@@ -30,6 +31,26 @@ assert.deepEqual(target('win32', 'x64'), {
 assert.throws(() => target('win32', 'arm64'), /windows\/arm64/);
 assert.throws(() => target('freebsd', 'x64'), /Unsupported platform/);
 assert.throws(() => target('linux', 'ia32'), /Unsupported architecture/);
+
+assert.deepEqual(expectedArchives('1.0.0'), [
+  'assh_1.0.0_linux_amd64.tar.gz',
+  'assh_1.0.0_linux_arm64.tar.gz',
+  'assh_1.0.0_darwin_amd64.tar.gz',
+  'assh_1.0.0_darwin_arm64.tar.gz',
+  'assh_1.0.0_windows_amd64.zip',
+]);
+verifyArtifactFiles([
+  'assh_1.0.0_linux_amd64.tar.gz',
+  'assh_1.0.0_linux_arm64.tar.gz',
+  'assh_1.0.0_darwin_amd64.tar.gz',
+  'assh_1.0.0_darwin_arm64.tar.gz',
+  'assh_1.0.0_windows_amd64.zip',
+  'checksums.txt',
+], '1.0.0');
+assert.throws(() => verifyArtifactFiles([
+  'assh_0.0.0_linux_amd64.tar.gz',
+  'checksums.txt',
+], '1.0.0'), /missing snapshot archive/);
 
 const info = target();
 const binaryPath = path.join(nativeDir, `assh${info.ext}`);

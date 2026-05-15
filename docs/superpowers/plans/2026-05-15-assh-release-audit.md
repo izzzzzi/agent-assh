@@ -21,6 +21,7 @@
 - Read `scripts/install.js`: binary download, checksum verification, archive extraction, destination path.
 - Read `scripts/platform.js`: Node platform/arch to GoReleaser target mapping.
 - Read `scripts/smoke-test.js`: network-free npm wrapper smoke coverage.
+- Read `scripts/release-contract-test.js`: release-equivalent snapshot artifact contract check.
 - Modify only the files above, Go source/tests under `cmd/` and `internal/`, or release-facing docs when a check exposes a concrete defect.
 
 ---
@@ -205,6 +206,7 @@ Expected: commit only when Task 2 produced code, test, or doc changes. Skip the 
 - Modify on failure: `scripts/install.js`
 - Modify on failure: `scripts/platform.js`
 - Modify on failure: `scripts/smoke-test.js`
+- Modify on failure: `scripts/release-contract-test.js`
 
 - [ ] **Step 1: Check package file list includes runtime dependencies**
 
@@ -263,49 +265,10 @@ Expected: PASS and creates archives under `dist/` without publishing. If it fail
 Run:
 
 ```bash
-find dist -maxdepth 2 -type f | sort
-node - <<'NODE'
-const fs = require('node:fs');
-const path = require('node:path');
-const pkg = require('./package.json');
-const { target } = require('./scripts/platform');
-
-const combos = [
-  ['linux', 'x64'],
-  ['linux', 'arm64'],
-  ['darwin', 'x64'],
-  ['darwin', 'arm64'],
-  ['win32', 'x64'],
-];
-
-const files = [];
-function walk(dir) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walk(full);
-    } else {
-      files.push(path.basename(full));
-    }
-  }
-}
-walk('dist');
-
-for (const [platform, arch] of combos) {
-  const info = target(platform, arch);
-  const archive = `assh_${pkg.version}_${info.os}_${info.arch}${info.archiveExt}`;
-  if (!files.includes(archive)) {
-    throw new Error(`missing snapshot archive matching installer expectation: ${archive}`);
-  }
-}
-if (!files.includes('checksums.txt')) {
-  throw new Error('missing checksums.txt');
-}
-console.log('release artifact contract ok');
-NODE
+npm run release:contract
 ```
 
-Expected: PASS and prints `release artifact contract ok`. If it fails, align `.goreleaser.yaml`, `scripts/install.js`, or `scripts/platform.js`, then rerun Step 4 and Step 5.
+Expected: PASS and prints `release artifact contract ok`. This script must run GoReleaser snapshot with a temporary local `v<package.json version>` tag when needed, then remove temporary git metadata. If it fails, align `.goreleaser.yaml`, `scripts/install.js`, `scripts/platform.js`, or `scripts/release-contract-test.js`, then rerun Step 4 and Step 5.
 
 - [ ] **Step 6: Verify release tag/version gate syntax locally**
 
@@ -323,7 +286,7 @@ Run after all Task 3 checks pass:
 
 ```bash
 git status --short
-git add .github/workflows/release.yml .github/workflows/ci.yml .goreleaser.yaml package.json bin scripts
+git add .github/workflows/release.yml .github/workflows/ci.yml .goreleaser.yaml package.json scripts bin/assh.js
 git commit -m "fix: resolve release packaging audit findings"
 ```
 
@@ -346,6 +309,7 @@ go vet ./...
 go test ./...
 go test -race ./...
 npm run smoke
+npm run release:contract
 npm pack --dry-run
 ```
 
