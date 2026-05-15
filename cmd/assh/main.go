@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/agent-ssh/assh/internal/cli"
+	"github.com/izzzzzi/agent-assh/internal/cli"
 )
 
 func main() {

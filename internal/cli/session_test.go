@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/session"
-	"github.com/agent-ssh/assh/internal/transport"
+	"github.com/izzzzzi/agent-assh/internal/session"
+	"github.com/izzzzzi/agent-assh/internal/transport"
 )
 
 func TestSessionOpenRequiresHost(t *testing.T) {

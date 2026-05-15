@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agent-ssh/assh/internal/ids"
+	"github.com/izzzzzi/agent-assh/internal/ids"
 )
 
 type OutputPage struct {

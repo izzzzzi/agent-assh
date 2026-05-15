@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/remote"
+	"github.com/izzzzzi/agent-assh/internal/remote"
 )
 
 type Metadata struct {

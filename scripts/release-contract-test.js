@@ -7,7 +7,7 @@ const pkg = require('../package.json');
 const { target } = require('./platform');
 
 const root = path.join(__dirname, '..');
-const releaseRemote = 'https://github.com/agent-ssh/assh.git';
+const releaseRemote = 'https://github.com/izzzzzi/agent-assh.git';
 
 function expectedArchives(version) {
   return [

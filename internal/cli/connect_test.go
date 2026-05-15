@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-ssh/assh/internal/bootstrap"
+	"github.com/izzzzzi/agent-assh/internal/bootstrap"
 )
 
 func TestRootIncludesConnectCommand(t *testing.T) {

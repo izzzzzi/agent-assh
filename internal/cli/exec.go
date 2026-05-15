@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/audit"
-	"github.com/agent-ssh/assh/internal/ids"
-	"github.com/agent-ssh/assh/internal/response"
-	"github.com/agent-ssh/assh/internal/state"
-	"github.com/agent-ssh/assh/internal/transport"
+	"github.com/izzzzzi/agent-assh/internal/audit"
+	"github.com/izzzzzi/agent-assh/internal/ids"
+	"github.com/izzzzzi/agent-assh/internal/response"
+	"github.com/izzzzzi/agent-assh/internal/state"
+	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
 )
 

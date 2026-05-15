@@ -24,9 +24,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/agent-ssh/assh/internal/cli.version={{.Version}}
-      - -X github.com/agent-ssh/assh/internal/cli.commit={{.Commit}}
-      - -X github.com/agent-ssh/assh/internal/cli.date={{.Date}}
+      - -X github.com/izzzzzi/agent-assh/internal/cli.version={{.Version}}
+      - -X github.com/izzzzzi/agent-assh/internal/cli.commit={{.Commit}}
+      - -X github.com/izzzzzi/agent-assh/internal/cli.date={{.Date}}
 
 archives:
   - id: default
@@ -46,8 +46,8 @@ checksum:
 
 release:
   github:
-    owner: agent-ssh
-    name: assh
+    owner: izzzzzi
+    name: agent-assh
 
 snapshot:
   version_template: "{{ .Version }}"

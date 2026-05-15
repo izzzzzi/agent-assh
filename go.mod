@@ -1,4 +1,4 @@
-module github.com/agent-ssh/assh
+module github.com/izzzzzi/agent-assh
 
 go 1.22
 

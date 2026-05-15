@@ -147,7 +147,7 @@ async function main() {
 
   const version = `v${pkg.version}`;
   const archive = `assh_${pkg.version}_${info.os}_${info.arch}${info.archiveExt}`;
-  const baseUrl = `https://github.com/agent-ssh/assh/releases/download/${version}`;
+  const baseUrl = `https://github.com/izzzzzi/agent-assh/releases/download/${version}`;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-assh-'));
   const archivePath = path.join(tmp, archive);
   const checksumsPath = path.join(tmp, 'checksums.txt');

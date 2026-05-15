@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/state"
-	"github.com/agent-ssh/assh/internal/transport"
+	"github.com/izzzzzi/agent-assh/internal/state"
+	"github.com/izzzzzi/agent-assh/internal/transport"
 )
 
 func TestReadMissingIDReturnsJSONError(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/capabilities"
-	"github.com/agent-ssh/assh/internal/transport"
+	"github.com/izzzzzi/agent-assh/internal/capabilities"
+	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
 )
 

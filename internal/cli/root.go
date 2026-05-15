@@ -3,7 +3,7 @@ package cli
 import (
 	"errors"
 
-	"github.com/agent-ssh/assh/internal/response"
+	"github.com/izzzzzi/agent-assh/internal/response"
 	"github.com/spf13/cobra"
 )
 

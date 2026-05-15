@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agent-ssh/assh/internal/audit"
+	"github.com/izzzzzi/agent-assh/internal/audit"
 )
 
 func TestAuditCommandFiltersHostAndFailed(t *testing.T) {

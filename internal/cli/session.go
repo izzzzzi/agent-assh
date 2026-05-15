@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/ids"
-	"github.com/agent-ssh/assh/internal/remote"
-	"github.com/agent-ssh/assh/internal/response"
-	"github.com/agent-ssh/assh/internal/session"
-	"github.com/agent-ssh/assh/internal/transport"
+	"github.com/izzzzzi/agent-assh/internal/ids"
+	"github.com/izzzzzi/agent-assh/internal/remote"
+	"github.com/izzzzzi/agent-assh/internal/response"
+	"github.com/izzzzzi/agent-assh/internal/session"
+	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
 )
 

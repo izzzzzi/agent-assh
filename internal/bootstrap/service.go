@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/capabilities"
-	"github.com/agent-ssh/assh/internal/session"
+	"github.com/izzzzzi/agent-assh/internal/capabilities"
+	"github.com/izzzzzi/agent-assh/internal/session"
 )
 
 const keyCheckCommand = "true"

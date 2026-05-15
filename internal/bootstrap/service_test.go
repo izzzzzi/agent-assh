@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agent-ssh/assh/internal/session"
+	"github.com/izzzzzi/agent-assh/internal/session"
 )
 
 var errFakeSSH = errors.New("ssh failed")

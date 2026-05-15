@@ -1,7 +1,7 @@
 # assh
 
-[![CI](https://github.com/agent-ssh/assh/actions/workflows/ci.yml/badge.svg)](https://github.com/agent-ssh/assh/actions/workflows/ci.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/agent-ssh/assh)](https://github.com/agent-ssh/assh/releases)
+[![CI](https://github.com/izzzzzi/agent-assh/actions/workflows/ci.yml/badge.svg)](https://github.com/izzzzzi/agent-assh/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/izzzzzi/agent-assh)](https://github.com/izzzzzi/agent-assh/releases)
 [![npm](https://img.shields.io/npm/v/agent-assh)](https://www.npmjs.com/package/agent-assh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -120,7 +120,7 @@ assh session read -s f7a2b3c4 --seq 1 --raw
 `npm i -g agent-assh` installs a wrapper that downloads the matching Go binary from GitHub Releases. You can also download release archives manually from:
 
 ```text
-https://github.com/agent-ssh/assh/releases
+https://github.com/izzzzzi/agent-assh/releases
 ```
 
 ## Russian
