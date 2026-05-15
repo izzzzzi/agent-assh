@@ -87,10 +87,13 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Check GoReleaser config
+      - name: Install GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
-          args: check
+          install-only: true
+
+      - name: Check GoReleaser config
+        run: goreleaser check
 
       - name: Check release artifact contract
         run: npm run release:contract

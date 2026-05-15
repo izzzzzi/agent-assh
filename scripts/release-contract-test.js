@@ -91,11 +91,6 @@ function ensureReleaseGitState(version = pkg.version) {
     if (!hasGitRef(`refs/tags/${tag}`)) {
       git(['tag', tag, 'HEAD']);
       addedTag = true;
-    } else {
-      const pointsAtHead = git(['tag', '--points-at', 'HEAD']).split(/\r?\n/).includes(tag);
-      if (!pointsAtHead) {
-        throw new Error(`tag ${tag} exists but does not point at HEAD`);
-      }
     }
 
     return cleanup;
