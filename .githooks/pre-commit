@@ -17,4 +17,4 @@ echo "pre-commit: npm pack"
 npm pack --dry-run >/dev/null
 
 echo "pre-commit: markdownlint"
-npx --yes markdownlint-cli2 --config .markdownlint-cli2.yaml README.md README.ru.md AGENT_INSTRUCTIONS.md SYSTEM_PROMPT_snippet.md
+npx --yes markdownlint-cli2 --config .markdownlint-cli2.yaml README.md README.en.md AGENT_INSTRUCTIONS.md SYSTEM_PROMPT_snippet.md

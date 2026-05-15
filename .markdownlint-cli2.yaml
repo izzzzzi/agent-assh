@@ -6,6 +6,6 @@ config:
   MD041: false
 globs:
   - "README.md"
-  - "README.ru.md"
+  - "README.en.md"
   - "AGENT_INSTRUCTIONS.md"
   - "SYSTEM_PROMPT_snippet.md"
