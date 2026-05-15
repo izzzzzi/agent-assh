@@ -5,6 +5,8 @@
 [![npm](https://img.shields.io/npm/v/agent-assh)](https://www.npmjs.com/package/agent-assh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+Язык: Русский | [English](README.md)
+
 SSH-инструмент для LLM-агентов.
 
 `assh` подготавливает SSH-доступ, открывает persistent `tmux`-сессию на сервере и не тащит большой вывод в контекст агента. Команды сначала возвращают компактный JSON с метаданными, а агент читает только нужные строки.

@@ -9,5 +9,3 @@ globs:
   - "README.ru.md"
   - "AGENT_INSTRUCTIONS.md"
   - "SYSTEM_PROMPT_snippet.md"
-ignores:
-  - "docs/superpowers/**"
