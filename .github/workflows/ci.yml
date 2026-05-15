@@ -58,7 +58,7 @@ jobs:
       - name: Go lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.12.2
 
       - name: Markdown lint
         uses: DavidAnson/markdownlint-cli2-action@v17
