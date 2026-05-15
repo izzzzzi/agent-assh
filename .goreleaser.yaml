@@ -44,8 +44,13 @@ archives:
 checksum:
   name_template: checksums.txt
 
+release:
+  github:
+    owner: agent-ssh
+    name: assh
+
 snapshot:
-  version_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ .Version }}"
 
 changelog:
   sort: asc
