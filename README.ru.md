@@ -27,6 +27,12 @@ unset TARGET_PASS
 assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_agent_ed25519 -n deploy
 ```
 
+Если есть блок с данными сервера от провайдера, сохраните его в локальный файл и дайте `assh` распарсить его:
+
+```bash
+assh connect-info --file server.txt -n deploy
+```
+
 `connect` возвращает session id и `next_commands`:
 
 ```json
@@ -67,6 +73,7 @@ assh session close -s f7a2b3c4
 ## Команды
 
 - `assh connect`: первый bootstrap и открытие session.
+- `assh connect-info`: распарсить provider server-info block и подключиться.
 - `assh session exec|read|close|gc`: persistent workflow через tmux.
 - `assh exec`: выполнить одну remote-команду и сохранить вывод локально.
 - `assh read`: прочитать сохранённый вывод с пагинацией или через `--raw`.
@@ -92,9 +99,42 @@ assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
 assh session read -s f7a2b3c4 --seq 1 --raw
 ```
 
+## Примеры для agent CLI
+
+Вставьте эту инструкцию в Codex, Claude Code, OpenCode или другой terminal agent перед передачей SSH-данных:
+
+```text
+Используй `assh` для SSH-задач.
+
+Если я вставляю provider server-info block, сохрани весь блок во временный файл с mode 0600, выполни:
+assh connect-info --file TMP -n NAME
+затем удали TMP.
+
+Если `connect-info` не смог распарсить блок, извлеки host, user и password сам. Пароль положи во временную environment variable и выполни:
+assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
+затем удали переменную.
+
+Никогда не печатай, не логируй, не пересказывай и не повторяй пароли. Для всей remote-работы используй возвращенный sid и `next_commands`.
+```
+
+Короткие варианты для популярных CLI:
+
+```text
+Codex: Используй `assh` для всего SSH-доступа. Для вставленного server info сначала пробуй `assh connect-info --file TMP -n NAME`; не передавай секреты в command arguments и ответы.
+```
+
+```text
+Claude Code: Перед SSH-работой установи/запусти `assh`. Если вставлены server credentials, сохрани их в 0600 temp file, выполни `assh connect-info --file TMP -n NAME`, удали файл и продолжай через returned sid.
+```
+
+```text
+OpenCode: Используй `assh connect-info` для provider server-info blocks и `assh session exec/read` после connect. Никогда не echo пароли.
+```
+
 ## Безопасность
 
 - Пароли принимаются только через env-переменные. Флага `--password` нет.
+- `connect-info` читает пароли только из stdin или локального файла, но не из command arguments.
 - Если вход по ключу работает, `connect` не читает password env var.
 - Значения паролей не пишутся в audit logs.
 - Текст команд не пишется в audit logs; сохраняются hashes.

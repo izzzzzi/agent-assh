@@ -13,6 +13,12 @@ assh version
 
 ```text
 Need SSH?
+  If the user pasted provider server info:
+    save it to a 0600 temp file
+    assh connect-info --file TMP -n NAME
+    delete TMP after connect
+    if parsing fails, extract host/user/password, put password in env, then use connect
+
   First step:
     assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
     or, when key login already works:

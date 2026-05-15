@@ -19,6 +19,9 @@
   "scripts": {
     "test": "node scripts/smoke-test.js",
     "postinstall": "node scripts/install.js",
+    "hooks:install": "node scripts/install-git-hooks.js",
+    "check": "test -z \"$(gofmt -l .)\" && go vet ./... && go test ./... && npm run smoke && npm pack --dry-run && npx --yes markdownlint-cli2 --config .markdownlint-cli2.yaml README.md README.ru.md AGENT_INSTRUCTIONS.md SYSTEM_PROMPT_snippet.md",
+    "check:release": "npm run check && npm run release:contract && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run && go run github.com/goreleaser/goreleaser/v2@latest check",
     "smoke": "node scripts/smoke-test.js",
     "release:contract": "node scripts/release-contract-test.js",
     "pack:dry": "npm pack --dry-run"

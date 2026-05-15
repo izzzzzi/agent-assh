@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+echo "pre-commit: gofmt"
+test -z "$(gofmt -l .)"
+
+echo "pre-commit: go vet"
+go vet ./...
+
+echo "pre-commit: go test"
+go test ./...
+
+echo "pre-commit: npm smoke"
+npm run smoke
+
+echo "pre-commit: npm pack"
+npm pack --dry-run >/dev/null
+
+echo "pre-commit: markdownlint"
+npx --yes markdownlint-cli2 --config .markdownlint-cli2.yaml README.md README.ru.md AGENT_INSTRUCTIONS.md SYSTEM_PROMPT_snippet.md

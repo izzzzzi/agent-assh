@@ -29,6 +29,7 @@ func NewRootCommand() *cobra.Command {
 	})
 	cmd.AddCommand(
 		newConnectCommand(),
+		newConnectInfoCommand(),
 		newExecCommand(),
 		newReadCommand(),
 		newCapabilitiesCommand(),

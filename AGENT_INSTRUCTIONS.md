@@ -11,6 +11,14 @@ assh version
 
 ## First SSH Step
 
+If the user pasted a provider server-info block, write the block to a temporary file with mode `0600`, run:
+
+```bash
+assh connect-info --file /path/to/tmp-server-info -n NAME
+```
+
+Then delete the temporary file. Server-info formats vary; if parsing fails, extract host, user, and password yourself, put the password in an environment variable, and use `assh connect -E PASSWORD_ENV`.
+
 If first-contact password access may be needed:
 
 ```bash
@@ -65,6 +73,7 @@ If `stdout_lines` or `stderr_lines` is large, do not read all output. Use target
 
 - Never put passwords in command arguments.
 - Passwords are passed only through env vars named by `--password-env`.
+- For pasted server-info blocks, prefer `connect-info --file`; remove the temporary file after connect.
 - If key login works, `connect` does not read the password env var.
 - Prefer `--host-key-policy strict` when host keys are already managed.
 - Treat `--host-key-policy no-check` as unsafe and only for disposable lab/dev hosts.

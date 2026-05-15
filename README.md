@@ -27,6 +27,12 @@ If key login already works, `assh connect` does not read `TARGET_PASS`.
 assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_agent_ed25519 -n deploy
 ```
 
+If you have a provider server-info block, save it to a local file and let `assh` parse it:
+
+```bash
+assh connect-info --file server.txt -n deploy
+```
+
 `connect` returns a session id and `next_commands`:
 
 ```json
@@ -67,6 +73,7 @@ assh session close -s f7a2b3c4
 ## Commands
 
 - `assh connect`: first-contact bootstrap and session open.
+- `assh connect-info`: parse a pasted provider server-info block and connect.
 - `assh session exec|read|close|gc`: persistent tmux workflow.
 - `assh exec`: run one remote command and store output locally.
 - `assh read`: read stored output with pagination or `--raw`.
@@ -92,9 +99,42 @@ Use `--raw` only for piping or exact output:
 assh session read -s f7a2b3c4 --seq 1 --raw
 ```
 
+## Agent CLI Examples
+
+Paste this instruction into Codex, Claude Code, OpenCode, or another terminal agent before sharing SSH details:
+
+```text
+Use `assh` for SSH work.
+
+If I paste a provider server-info block, save the exact block to a temporary file with mode 0600, run:
+assh connect-info --file TMP -n NAME
+then delete TMP.
+
+If `connect-info` cannot parse the block, extract host, user, and password yourself. Put the password in a temporary environment variable and run:
+assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
+then unset the variable.
+
+Never print, log, summarize, or repeat passwords. Use the returned sid and `next_commands` for all remote work.
+```
+
+Minimal per-tool prompts:
+
+```text
+Codex: Use `assh` for all SSH access. For pasted server info, prefer `assh connect-info --file TMP -n NAME`; keep secrets out of command arguments and replies.
+```
+
+```text
+Claude Code: Before SSH work, install/run `assh`. If server credentials are pasted, store them in a 0600 temp file, run `assh connect-info --file TMP -n NAME`, delete the file, and continue with the returned sid.
+```
+
+```text
+OpenCode: Use `assh connect-info` for provider server-info blocks and `assh session exec/read` after connect. Never echo passwords.
+```
+
 ## Security
 
 - Passwords are accepted only through environment variables. There is no `--password` flag.
+- `connect-info` reads passwords only from stdin or a local file and never from command arguments.
 - If key login works, `connect` does not read the password env var.
 - Password values are not written to audit logs.
 - Command text is not written to audit logs; audit entries use command hashes.
