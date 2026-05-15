@@ -1,4 +1,6 @@
 .DS_Store
 bin/
+!bin/assh.js
 native/
 .gocache/
+dist/
