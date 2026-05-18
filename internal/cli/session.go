@@ -20,6 +20,9 @@ func newSessionCommand() *cobra.Command {
 		Use:           "session",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return writeInvalidArgs(cmd, "session subcommand required", "run assh session --help")
+		},
 	}
 
 	cmd.AddCommand(
@@ -165,16 +168,19 @@ func newSessionExecCommand() *cobra.Command {
 			localTimeout := time.Duration(timeout+5) * time.Second
 			ctx, cancel := context.WithTimeout(cmd.Context(), localTimeout)
 			defer cancel()
+			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+				return writeError(cmd, "internal_error", err.Error(), "")
+			}
 			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, timeout+5, entry.HostKeyPolicy), remoteCommand)
-			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+			if strings.Contains(string(result.Stdout), "__ASSH_TIMEOUT__") {
+				return writeError(cmd, "timeout", "session command timed out", "")
+			}
+			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 			rc, stdoutLines, stderrLines, timedOut := parseSessionExec(result.Stdout)
 			if timedOut {
 				return writeError(cmd, "timeout", "session command timed out", "")
-			}
-			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
-				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			writeAudit("session_exec", entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
 
@@ -412,7 +418,7 @@ func installTmuxCommand() string {
 
 func parseSessionRead(stdout []byte) (string, int, bool) {
 	text := string(stdout)
-	if strings.Contains(text, "__ASSH_NOT_FOUND__") {
+	if strings.TrimSpace(text) == "__ASSH_NOT_FOUND__" {
 		return "", 0, true
 	}
 	marker := "\n__ASSH_TOTAL_LINES__="

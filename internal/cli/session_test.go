@@ -169,6 +169,25 @@ func TestSessionExecNonZeroRCIsCommandResult(t *testing.T) {
 	}
 }
 
+func TestSessionExecTimeoutMarkerReturnsTimeout(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{
+			Stdout:   []byte("__ASSH_TIMEOUT__\n"),
+			Stderr:   []byte("timeout"),
+			ExitCode: 124,
+			Err:      &exec.ExitError{},
+		}
+	}
+
+	got := executeSessionJSONError(t, []string{"session", "exec", "--sid", "abcdef12", "--timeout", "1", "--", "sleep", "10"})
+	if got["ok"] != false || got["error"] != "timeout" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionExecUsesConfiguredTimeout(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
 	oldRunSSH := runSSH
@@ -275,6 +294,16 @@ func TestSessionReadRawPrintsOnlyContent(t *testing.T) {
 	}
 	if got := out.String(); got != "line-a\nline-b\n" {
 		t.Fatalf("raw session output = %q", got)
+	}
+}
+
+func TestSessionReadAllowsMarkerInUserContent(t *testing.T) {
+	content, total, notFound := parseSessionRead([]byte("__ASSH_NOT_FOUND__\n\n__ASSH_TOTAL_LINES__=1\n"))
+	if notFound {
+		t.Fatalf("parseSessionRead treated user content as missing output")
+	}
+	if content != "__ASSH_NOT_FOUND__\n" || total != 1 {
+		t.Fatalf("content=%q total=%d", content, total)
 	}
 }
 

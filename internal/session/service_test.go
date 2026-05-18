@@ -149,6 +149,9 @@ func TestExecRemoteCommandWritesSeqFiles(t *testing.T) {
 		"~/.assh/sessions/abcdef12/3.err",
 		"~/.assh/sessions/abcdef12/3.rc",
 		"{ echo a; echo b; } > ~/.assh/sessions/abcdef12/3.out 2> ~/.assh/sessions/abcdef12/3.err",
+		"exit() { return",
+		"command -v tmux",
+		"tmux has-session",
 		"tmux send-keys",
 	} {
 		if !strings.Contains(got, want) {
@@ -275,7 +278,7 @@ func TestGCRemoteCommandValidatesMetadataBeforeDelete(t *testing.T) {
 	}
 	for _, want := range []string{
 		"meta.json",
-		"json.load",
+		"grep -Eq",
 		"created_by",
 		"sid",
 		"tmux_name",

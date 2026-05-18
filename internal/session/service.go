@@ -95,14 +95,18 @@ func ExecRemoteCommand(sid, tmuxName string, seq int, command string, waitSecond
 	out := dir + "/" + seqText + ".out"
 	errPath := dir + "/" + seqText + ".err"
 	rc := dir + "/" + seqText + ".rc"
-	wrapped := "{ " + command + "; } > " + out + " 2> " + errPath + "; echo $? > " + rc
-	return "mkdir -p " + dir + " && rm -f " + rc + " && " +
-		"tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter; " +
+	lineCount := lineCountCommand()
+	wrapped := "__assh_exit_defined=0; exit() { return \"$1\"; } 2>/dev/null && __assh_exit_defined=1; { " + command + "; } > " + out + " 2> " + errPath + "; __assh_rc=$?; if [ \"$__assh_exit_defined\" = 1 ]; then unset -f exit 2>/dev/null || true; fi; echo \"$__assh_rc\" > " + rc
+	return "mkdir -p " + dir + " || exit $?; " +
+		"rm -f " + rc + " || exit $?; " +
+		"command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }; " +
+		"tmux has-session -t " + remote.SingleQuote(tmuxName) + " 2>/dev/null || { echo session_not_found >&2; exit 3; }; " +
+		"tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter || { echo tmux_send_failed >&2; exit 3; }; " +
 		"i=0; while [ $i -lt " + waitText + " ] && [ ! -f " + rc + " ]; do i=$((i+1)); sleep 1; done; " +
 		"test -f " + rc + " || { echo __ASSH_TIMEOUT__; exit 124; }; " +
 		"printf '__ASSH_RC__=%s\\n' \"$(cat " + rc + ")\"; " +
-		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(wc -l < " + out + " 2>/dev/null || echo 0)\"; " +
-		"printf '__ASSH_STDERR_LINES__=%s\\n' \"$(wc -l < " + errPath + " 2>/dev/null || echo 0)\"", nil
+		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(" + lineCount + " " + out + ")\"; " +
+		"printf '__ASSH_STDERR_LINES__=%s\\n' \"$(" + lineCount + " " + errPath + ")\"", nil
 }
 
 func ReadRemoteCommand(sid string, seq int, stream string, offset int, limit int) (string, error) {
@@ -126,7 +130,7 @@ func ReadRemoteCommand(sid string, seq int, stream string, offset int, limit int
 	file := sessionDir(sid) + "/" + strconv.Itoa(seq) + "." + ext
 	start := offset + 1
 	return "test -f " + file + " || { echo __ASSH_NOT_FOUND__; exit 0; }; " +
-		"total=$(wc -l < " + file + "); " +
+		"total=$(" + lineCountCommand() + " " + file + "); " +
 		"tail -n +" + strconv.Itoa(start) + " " + file + " | head -n " + strconv.Itoa(limit) + "; " +
 		"printf '\\n__ASSH_TOTAL_LINES__=%s\\n' \"$total\"", nil
 }
@@ -141,7 +145,7 @@ func CloseRemoteCommand(sid, tmuxName string) (string, error) {
 	quotedTmuxName := remote.SingleQuote(tmuxName)
 	return "test -f " + metaPath + " || exit 0; " +
 		"command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }; " +
-		"grep -q '\"created_by\":\"assh\"' " + metaPath + " || exit 3; " +
+		metadataValidationCommand(metaPath, sid, tmuxName) + "; " +
 		"if tmux has-session -t " + quotedTmuxName + " 2>/dev/null; then tmux kill-session -t " + quotedTmuxName + " || exit $?; fi; " +
 		"rm -rf " + dir, nil
 }
@@ -154,14 +158,21 @@ func GCRemoteCommand(sid, tmuxName string) (string, error) {
 	dir := sessionDir(sid)
 	metaPath := dir + "/meta.json"
 	quotedTmuxName := remote.SingleQuote(tmuxName)
-	validateMeta := "py=$(command -v python3 2>/dev/null || command -v python 2>/dev/null) || { echo metadata_validator_missing >&2; exit 3; }; " +
-		"\"$py\" -c " + remote.SingleQuote(`import json,sys;p,sid,tmux=sys.argv[1:4];m=json.load(open(p,encoding="utf-8"));sys.exit(0 if m.get("created_by")=="assh" and m.get("sid")==sid and m.get("tmux_name")==tmux else 3)`) +
-		" " + metaPath + " " + sid + " " + remote.SingleQuote(tmuxName) + " || { echo metadata_validation_failed >&2; exit 3; }"
 	return "test -f " + metaPath + " || exit 0; " +
 		"command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }; " +
-		validateMeta + "; " +
+		metadataValidationCommand(metaPath, sid, tmuxName) + "; " +
 		"if tmux has-session -t " + quotedTmuxName + " 2>/dev/null; then tmux kill-session -t " + quotedTmuxName + " || exit $?; fi; " +
 		"rm -rf " + dir, nil
+}
+
+func metadataValidationCommand(metaPath, sid, tmuxName string) string {
+	return "grep -Eq " + remote.SingleQuote(`"created_by"[[:space:]]*:[[:space:]]*"assh"`) + " " + metaPath + " && " +
+		"grep -Eq " + remote.SingleQuote(`"sid"[[:space:]]*:[[:space:]]*"`+sid+`"`) + " " + metaPath + " && " +
+		"grep -Eq " + remote.SingleQuote(`"tmux_name"[[:space:]]*:[[:space:]]*"`+tmuxName+`"`) + " " + metaPath + " || { echo metadata_validation_failed >&2; exit 3; }"
+}
+
+func lineCountCommand() string {
+	return `awk 'END{print NR}'`
 }
 
 func validateSessionTarget(sid, tmuxName string) error {

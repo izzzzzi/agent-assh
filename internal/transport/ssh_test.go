@@ -34,6 +34,9 @@ func TestSSHCommandBuildsArgvWithoutShell(t *testing.T) {
 	if containsSubsequence(args, "sh", "-c") {
 		t.Fatalf("Args() = %#v, must not use sh -c", args)
 	}
+	if !containsSubsequence(args, "--", "root@example.com", "echo hello") {
+		t.Fatalf("Args() = %#v, want -- before destination to stop SSH option parsing", args)
+	}
 }
 
 func TestRunUsesMockSSH(t *testing.T) {

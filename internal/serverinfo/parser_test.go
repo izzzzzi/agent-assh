@@ -48,6 +48,25 @@ IPv6: 2001:db8::1`
 	}
 }
 
+func TestParseStopsPasswordAtUnknownLabelAndReadsPort(t *testing.T) {
+	block := `Host: 203.0.113.10
+User: root
+Password: backupcopy
+Panel URL: https://panel.example
+SSH Port: 2222`
+
+	info, err := Parse(block)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if info.Password != "backupcopy" {
+		t.Fatalf("Password=%q, want backupcopy", info.Password)
+	}
+	if info.Port != 2222 {
+		t.Fatalf("Port=%d, want 2222", info.Port)
+	}
+}
+
 func TestParseRequiresHostUserAndPassword(t *testing.T) {
 	_, err := Parse("User: root\nPassword: secret")
 	if err == nil {

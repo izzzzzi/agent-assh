@@ -22,6 +22,7 @@ func newScanCommand() *cobra.Command {
 		Use:           "scan",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if host == "" {
 				return writeInvalidArgs(cmd, "host required", "")
@@ -57,6 +58,7 @@ func newKeyDeployCommand() *cobra.Command {
 		Use:           "key-deploy",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if host == "" {
 				return writeInvalidArgs(cmd, "host required", "")
@@ -114,6 +116,7 @@ func newAuditCommand() *cobra.Command {
 		Use:           "audit",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if last < 1 {
 				return writeInvalidArgs(cmd, "--last must be greater than 0", "")
@@ -149,7 +152,14 @@ func homeDir() string {
 
 func ensureKeyPair(identity string) error {
 	if _, err := os.Stat(identity); err == nil {
-		return nil
+		if _, pubErr := os.Stat(identity + ".pub"); pubErr == nil {
+			return nil
+		}
+		output, pubErr := exec.Command("ssh-keygen", "-y", "-f", identity).Output()
+		if pubErr != nil {
+			return pubErr
+		}
+		return os.WriteFile(identity+".pub", output, 0o600)
 	}
 	if err := os.MkdirAll(filepath.Dir(identity), 0o700); err != nil {
 		return err
@@ -164,7 +174,7 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	askpass := filepath.Join(dir, "askpass.sh")
-	if err := os.WriteFile(askpass, []byte("#!/bin/sh\nprintf '%s\\n' "+remote.SingleQuote(password)+"\n"), 0o700); err != nil {
+	if err := os.WriteFile(askpass, []byte("#!/bin/sh\nprintf '%s\\n' "+remote.SingleQuote(password)+"\n"), 0o500); err != nil {
 		return err
 	}
 	command := exec.CommandContext(ctx, "ssh", args...)
@@ -172,7 +182,7 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 	if display == "" {
 		display = ":0"
 	}
-	command.Env = append(os.Environ(), "SSH_ASKPASS="+askpass, "SSH_ASKPASS_REQUIRE=force", "DISPLAY="+display)
+	command.Env = sshAskpassEnv(askpass, display)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -181,6 +191,17 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 		return passwordSSHError{output: output, err: err}
 	}
 	return nil
+}
+
+func sshAskpassEnv(askpass string, display string) []string {
+	keys := []string{"PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TERM"}
+	env := make([]string, 0, len(keys)+3)
+	for _, key := range keys {
+		if value, ok := os.LookupEnv(key); ok {
+			env = append(env, key+"="+value)
+		}
+	}
+	return append(env, "SSH_ASKPASS="+askpass, "SSH_ASKPASS_REQUIRE=force", "DISPLAY="+display)
 }
 
 type passwordSSHError struct {

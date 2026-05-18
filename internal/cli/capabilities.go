@@ -19,6 +19,7 @@ func newCapabilitiesCommand() *cobra.Command {
 		Use:           "capabilities",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if host == "" {
 				return writeInvalidArgs(cmd, "host required", "")

@@ -66,7 +66,7 @@ func newConnectInfoCommand() *cobra.Command {
 		Short:         "Parse pasted server info and open an agent tmux session",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		Args:          cobra.NoArgs,
+		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input, err := readServerInfoInput(cmd, file)
 			if err != nil {
@@ -79,6 +79,9 @@ func newConnectInfoCommand() *cobra.Command {
 
 			req.Host = info.Host
 			req.User = info.User
+			if info.Port != 0 && !cmd.Flags().Changed("port") {
+				req.Port = info.Port
+			}
 			req.PasswordEnv = "__ASSH_CONNECT_INFO_PASSWORD"
 			req.Timeout = time.Duration(timeoutSeconds) * time.Second
 			service := newBootstrapService()

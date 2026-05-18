@@ -41,7 +41,7 @@ func (c SSHCommand) Args(remoteCommand string) []string {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)
 	}
 
-	args = append(args, c.target(), remoteCommand)
+	args = append(args, "--", c.target(), remoteCommand)
 	return args
 }
 

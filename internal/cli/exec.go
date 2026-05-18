@@ -106,6 +106,7 @@ func newReadCommand() *cobra.Command {
 		Use:           "read",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if outputID == "" {
 				return writeInvalidArgs(cmd, "id required", "")

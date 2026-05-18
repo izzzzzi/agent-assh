@@ -27,7 +27,8 @@ func TestConnectInfoParsesFileAndUsesInMemoryPassword(t *testing.T) {
 	infoFile := t.TempDir() + "/server.txt"
 	if err := os.WriteFile(infoFile, []byte(`IPv4-адрес сервера: 203.0.113.10 copy icon
 Пользователь: root copy icon
-Пароль: example\npassword$1 copy icon`), 0o600); err != nil {
+Пароль: example\npassword$1 copy icon
+SSH Port: 2222`), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -46,7 +47,7 @@ func TestConnectInfoParsesFileAndUsesInMemoryPassword(t *testing.T) {
 			},
 			DeployPassword: func(_ context.Context, password string, target bootstrap.SSHTarget, _ string) error {
 				deployPassword = password
-				if target.Host != "203.0.113.10" || target.User != "root" {
+				if target.Host != "203.0.113.10" || target.User != "root" || target.Port != 2222 {
 					t.Fatalf("target=%#v", target)
 				}
 				return errors.New("stop after capture")

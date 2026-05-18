@@ -23,7 +23,8 @@ func NewRootCommand() *cobra.Command {
 			return writeInvalidArgs(cmd, "command required", "run assh --help")
 		},
 	}
-	cmd.PersistentFlags().Bool("json", true, "emit JSON output")
+	cmd.PersistentFlags().Bool("json", true, "emit JSON output (deprecated; JSON is always emitted for operational commands)")
+	_ = cmd.PersistentFlags().MarkHidden("json")
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return writeInvalidArgs(cmd, err.Error(), "run assh --help")
 	})
@@ -44,6 +45,13 @@ func NewRootCommand() *cobra.Command {
 
 func Execute() error {
 	return NewRootCommand().Execute()
+}
+
+func noPositionalArgs(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return writeInvalidArgs(cmd, "unexpected positional arguments", "")
+	}
+	return nil
 }
 
 func writeInvalidArgs(cmd *cobra.Command, message, hint string) error {

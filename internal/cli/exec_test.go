@@ -113,6 +113,7 @@ func TestReadInvalidArgsReturnsJSONError(t *testing.T) {
 		args []string
 	}{
 		{name: "id", args: []string{"read", "--id", "../bad"}},
+		{name: "extra", args: []string{"read", "extra", "--id", "abcdef12"}},
 		{name: "stream", args: []string{"read", "--id", "abcdef12", "--stream", "bad"}},
 		{name: "limit", args: []string{"read", "--id", "abcdef12", "--limit", "0"}},
 		{name: "offset", args: []string{"read", "--id", "abcdef12", "--offset", "-1"}},

@@ -2,6 +2,7 @@ package serverinfo
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 )
 
@@ -10,6 +11,7 @@ type Info struct {
 	IPv6     string
 	User     string
 	Password string
+	Port     int
 }
 
 func Parse(input string) (Info, error) {
@@ -33,9 +35,7 @@ func Parse(input string) (Info, error) {
 
 		field := fieldName(key)
 		if field == "" {
-			if active == "password" {
-				passwordLines = append(passwordLines, stripCopyMarker(line))
-			}
+			active = ""
 			continue
 		}
 		active = field
@@ -49,6 +49,12 @@ func Parse(input string) (Info, error) {
 			info.User = stripCopyMarker(value)
 		case "password":
 			passwordLines = []string{stripCopyMarker(value)}
+		case "port":
+			port, err := strconv.Atoi(stripCopyMarker(value))
+			if err != nil || port < 1 || port > 65535 {
+				return Info{}, errors.New("server info has invalid SSH port")
+			}
+			info.Port = port
 		}
 	}
 
@@ -85,6 +91,8 @@ func fieldName(key string) string {
 		return "user"
 	case "пароль", "password", "pass":
 		return "password"
+	case "порт", "ssh port", "ssh-порт", "ssh порт", "port":
+		return "port"
 	default:
 		return ""
 	}
@@ -92,8 +100,15 @@ func fieldName(key string) string {
 
 func stripCopyMarker(value string) string {
 	value = strings.TrimSpace(value)
-	value = strings.TrimSuffix(value, "copy icon")
-	value = strings.TrimSuffix(value, "copy")
+	for _, marker := range []string{"copy icon", "copy"} {
+		if value == marker {
+			return ""
+		}
+		suffix := " " + marker
+		if strings.HasSuffix(value, suffix) {
+			value = strings.TrimSuffix(value, suffix)
+		}
+	}
 	return strings.TrimSpace(value)
 }
 
