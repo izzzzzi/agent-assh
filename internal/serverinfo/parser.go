@@ -105,9 +105,7 @@ func stripCopyMarker(value string) string {
 			return ""
 		}
 		suffix := " " + marker
-		if strings.HasSuffix(value, suffix) {
-			value = strings.TrimSuffix(value, suffix)
-		}
+		value = strings.TrimSuffix(value, suffix)
 	}
 	return strings.TrimSpace(value)
 }
