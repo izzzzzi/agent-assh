@@ -28,7 +28,11 @@ func NewRootCommand() *cobra.Command {
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return writeInvalidArgs(cmd, err.Error(), "run assh --help")
 	})
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		writeAgentHelp(cmd.Root())
+	})
 	cmd.AddCommand(
+		newPromptCommand(),
 		newConnectCommand(),
 		newConnectInfoCommand(),
 		newExecCommand(),
