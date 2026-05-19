@@ -159,3 +159,48 @@ func TestRootHelpManifestIncludesWorkflowCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestPromptCommandPrintsAgentInstructions(t *testing.T) {
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"prompt"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	body := out.String()
+	for _, want := range []string{
+		"Use `assh` for SSH work.",
+		"assh connect-info --file TMP -n NAME",
+		"Never put passwords in command arguments",
+		"Use the returned sid and next_commands",
+		"assh session read -s SID --seq 1 --limit 50",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("prompt missing %q in %s", want, body)
+		}
+	}
+}
+
+func TestPromptCommandRejectsArgsWithJSONError(t *testing.T) {
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"prompt", "extra"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error")
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("expected json output, got %q", out.String())
+	}
+	if got["ok"] != false || got["error"] != "invalid_args" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
