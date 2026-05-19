@@ -160,6 +160,26 @@ func TestRootHelpManifestIncludesWorkflowCommands(t *testing.T) {
 	}
 }
 
+func TestSessionHelpReturnsCommandUsage(t *testing.T) {
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"session", "--help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	body := out.String()
+	if !strings.Contains(body, "Usage:") || !strings.Contains(body, "assh session") {
+		t.Fatalf("expected session usage help, got %q", body)
+	}
+	if strings.Contains(body, `"audience":"llm_agent"`) {
+		t.Fatalf("expected command usage help, got agent manifest %q", body)
+	}
+}
+
 func TestPromptCommandPrintsAgentInstructions(t *testing.T) {
 	var out bytes.Buffer
 	cmd := NewRootCommand()

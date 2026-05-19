@@ -44,6 +44,7 @@ func NewRootCommand() *cobra.Command {
 		newAuditCommand(),
 		newVersionCommand(),
 	)
+	setCommandHelp(cmd)
 	return cmd
 }
 
@@ -74,6 +75,17 @@ func writeJSON(cmd *cobra.Command, v any) error {
 	}
 	_, _ = cmd.OutOrStdout().Write(body)
 	return nil
+}
+
+func writeCommandHelp(cmd *cobra.Command, args []string) {
+	_, _ = cmd.OutOrStdout().Write([]byte(cmd.UsageString()))
+}
+
+func setCommandHelp(cmd *cobra.Command) {
+	for _, child := range cmd.Commands() {
+		child.SetHelpFunc(writeCommandHelp)
+		setCommandHelp(child)
+	}
 }
 
 func writeError(cmd *cobra.Command, code, message, hint string) error {
