@@ -8,7 +8,11 @@ const { target } = require('./platform');
 const { expectedArchives, verifyArtifactFiles } = require('./release-contract-test');
 
 const root = path.join(__dirname, '..');
+const pkg = require(path.join(root, 'package.json'));
 const nativeDir = path.join(root, 'native');
+
+assert.ok(pkg.files.includes('AGENT_INSTRUCTIONS.md'), 'package files must include AGENT_INSTRUCTIONS.md');
+assert.ok(pkg.files.includes('SYSTEM_PROMPT_snippet.md'), 'package files must include SYSTEM_PROMPT_snippet.md');
 
 assert.deepEqual(target('linux', 'x64'), {
   os: 'linux',
