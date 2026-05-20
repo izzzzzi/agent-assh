@@ -4,3 +4,4 @@ bin/
 native/
 .gocache/
 dist/
+docs/superpowers/
