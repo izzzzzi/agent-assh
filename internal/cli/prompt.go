@@ -20,6 +20,7 @@ Use the returned sid and next_commands for all remote work:
 assh session exec -s SID -- "pwd"
 assh session read -s SID --seq 1 --limit 50
 assh session read -s SID --seq 1 --stream stderr --limit 50
+assh session read -s SID --seq 1 --limit 50 --raw
 assh session close -s SID
 
 Keep large remote output out of context. Read bounded windows with --limit, --offset, and --stream. Use --raw only for piping or exact output.
@@ -70,7 +71,9 @@ func agentHelpManifest() response.OK {
 }
 
 func writeAgentHelp(cmd *cobra.Command) {
-	_ = writeJSON(cmd, agentHelpManifest())
+	if err := writeJSON(cmd, agentHelpManifest()); err != nil {
+		_, _ = cmd.ErrOrStderr().Write([]byte("failed to write agent help: " + err.Error() + "\n"))
+	}
 }
 
 func newPromptCommand() *cobra.Command {

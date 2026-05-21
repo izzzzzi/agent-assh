@@ -73,12 +73,14 @@ func writeJSON(cmd *cobra.Command, v any) error {
 	if err != nil {
 		return err
 	}
-	_, _ = cmd.OutOrStdout().Write(body)
-	return nil
+	_, err = cmd.OutOrStdout().Write(body)
+	return err
 }
 
 func writeCommandHelp(cmd *cobra.Command, args []string) {
-	_, _ = cmd.OutOrStdout().Write([]byte(cmd.UsageString()))
+	if _, err := cmd.OutOrStdout().Write([]byte(cmd.UsageString())); err != nil {
+		_, _ = cmd.ErrOrStderr().Write([]byte("failed to write help: " + err.Error() + "\n"))
+	}
 }
 
 func setCommandHelp(cmd *cobra.Command) {

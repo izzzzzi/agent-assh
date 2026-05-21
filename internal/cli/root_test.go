@@ -198,6 +198,7 @@ func TestPromptCommandPrintsAgentInstructions(t *testing.T) {
 		"Never put passwords in command arguments",
 		"Use the returned sid and next_commands",
 		"assh session read -s SID --seq 1 --limit 50",
+		"assh session read -s SID --seq 1 --limit 50 --raw",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("prompt missing %q in %s", want, body)
