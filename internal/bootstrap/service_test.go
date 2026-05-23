@@ -371,11 +371,13 @@ func TestRunGCOldMatchingEntryBeforeOpeningNewSession(t *testing.T) {
 		User:          req.User,
 		Port:          req.Port,
 		Identity:      req.Identity,
+		Jump:          "stored-bastion.example.com",
 		HostKeyPolicy: req.HostKeyPolicy,
 		TmuxName:      "assh_deadbeef",
 		CreatedAt:     now.Add(-2 * req.GCOlderThan),
 		TTLSeconds:    int64(req.TTL.Seconds()),
 	}
+	req.Jump = ""
 	recentEntry := oldEntry
 	recentEntry.SID = "cafebabe"
 	recentEntry.TmuxName = "assh_cafebabe"
@@ -400,8 +402,8 @@ func TestRunGCOldMatchingEntryBeforeOpeningNewSession(t *testing.T) {
 				return SSHResult{ExitCode: 0, Stdout: []byte("os=linux\ntmux=installed\npkg=apt\ninstall=noninteractive\n")}
 			case strings.Contains(command, "deadbeef") && strings.Contains(command, "metadata_validation_failed") && strings.Contains(command, "tmux kill-session"):
 				gcCalled = true
-				if target.Identity != oldEntry.Identity || target.HostKeyPolicy != oldEntry.HostKeyPolicy {
-					t.Fatalf("gc target identity=%q policy=%q", target.Identity, target.HostKeyPolicy)
+				if target.Identity != oldEntry.Identity || target.HostKeyPolicy != oldEntry.HostKeyPolicy || target.Jump != oldEntry.Jump {
+					t.Fatalf("gc target identity=%q policy=%q jump=%q", target.Identity, target.HostKeyPolicy, target.Jump)
 				}
 				return SSHResult{ExitCode: 0}
 			case strings.Contains(command, "cafebabe"):

@@ -274,6 +274,7 @@ func (s Service) runGC(ctx context.Context, req Request, target SSHTarget) ([]st
 		}
 		gcTarget := target
 		gcTarget.Identity = entry.Identity
+		gcTarget.Jump = entry.Jump
 		gcTarget.HostKeyPolicy = entry.HostKeyPolicy
 		result := s.RunSSH(ctx, gcTarget, command)
 		if code := sshErrorCode(ctx.Err(), result); code != "" {
