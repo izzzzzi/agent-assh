@@ -20,6 +20,7 @@ func validRequest(t *testing.T) Request {
 		User:          "root",
 		Port:          22,
 		Identity:      t.TempDir() + "/id_agent_ed25519",
+		Jump:          "bastion.example.com",
 		SessionName:   "deploy",
 		TTL:           12 * time.Hour,
 		Timeout:       time.Minute,
@@ -163,6 +164,38 @@ func TestRunDeploysAndVerifiesKeyWhenPasswordEnvIsProvided(t *testing.T) {
 	}
 	if !result.KeyDeployed || !result.KeyVerified {
 		t.Fatalf("key flags = deployed:%v verified:%v", result.KeyDeployed, result.KeyVerified)
+	}
+}
+
+func TestRunPassesJumpToDeployPassword(t *testing.T) {
+	req := validRequest(t)
+	req.PasswordEnv = "TARGET_PASS"
+	keyChecks := 0
+	service := Service{
+		EnsureKeyPair: func(string) error { return nil },
+		RunSSH: func(_ context.Context, _ SSHTarget, command string) SSHResult {
+			if command == keyCheckCommand {
+				keyChecks++
+				if keyChecks == 1 {
+					return SSHResult{ExitCode: 255, Err: errFakeSSH, Stderr: []byte("Permission denied")}
+				}
+				return SSHResult{ExitCode: 0}
+			}
+			return SSHResult{ExitCode: 0, Stdout: []byte("os=linux\ntmux=installed\npkg=apt\ninstall=noninteractive\n")}
+		},
+		DeployPassword: func(_ context.Context, _ string, target SSHTarget, _ string) error {
+			if target.Jump != req.Jump {
+				t.Fatalf("target.Jump=%q want %q", target.Jump, req.Jump)
+			}
+			return nil
+		},
+		LookupEnv: func(string) (string, bool) { return "secret", true },
+		NewID:     func() (string, error) { return "abc12345", nil },
+	}
+
+	_, err := service.Run(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
 	}
 }
 

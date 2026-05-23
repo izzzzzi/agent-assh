@@ -18,7 +18,8 @@ import (
 
 func newConnectCommand() *cobra.Command {
 	var req bootstrap.Request
-	var timeoutSeconds int
+	ssh := defaultSSHOptions()
+	ssh.Identity = filepath.Join(homeDir(), ".ssh", "id_agent_ed25519")
 
 	cmd := &cobra.Command{
 		Use:           "connect",
@@ -36,20 +37,16 @@ func newConnectCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			req.Timeout = time.Duration(timeoutSeconds) * time.Second
+			ssh.applyToBootstrapRequest(&req)
+			req.Timeout = time.Duration(ssh.TimeoutSecond) * time.Second
 			return runConnect(cmd, req)
 		},
 	}
 
-	cmd.Flags().StringVarP(&req.Host, "host", "H", "", "SSH host")
-	cmd.Flags().StringVarP(&req.User, "user", "u", "root", "SSH user")
-	cmd.Flags().IntVarP(&req.Port, "port", "p", 22, "SSH port")
-	cmd.Flags().StringVarP(&req.Identity, "identity", "i", filepath.Join(homeDir(), ".ssh", "id_agent_ed25519"), "identity file")
+	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
 	cmd.Flags().StringVarP(&req.PasswordEnv, "password-env", "E", "", "password environment variable for first login")
 	cmd.Flags().StringVarP(&req.SessionName, "name", "n", "", "session label")
 	cmd.Flags().DurationVar(&req.TTL, "ttl", 12*time.Hour, "session ttl")
-	cmd.Flags().IntVarP(&timeoutSeconds, "timeout", "t", 300, "timeout in seconds")
-	cmd.Flags().StringVar(&req.HostKeyPolicy, "host-key-policy", "accept-new", "host key policy: accept-new, strict, no-check")
 	cmd.Flags().DurationVar(&req.GCOlderThan, "gc-older-than", 24*time.Hour, "cleanup sessions older than duration")
 	cmd.Flags().BoolVar(&req.SkipGC, "no-gc", false, "skip bootstrap cleanup")
 	cmd.Flags().BoolVar(&req.SkipTmuxInstall, "no-install-tmux", false, "do not install tmux if missing")
@@ -58,7 +55,8 @@ func newConnectCommand() *cobra.Command {
 
 func newConnectInfoCommand() *cobra.Command {
 	var req bootstrap.Request
-	var timeoutSeconds int
+	ssh := defaultSSHOptions()
+	ssh.Identity = filepath.Join(homeDir(), ".ssh", "id_agent_ed25519")
 	var file string
 
 	cmd := &cobra.Command{
@@ -82,8 +80,12 @@ func newConnectInfoCommand() *cobra.Command {
 			if info.Port != 0 && !cmd.Flags().Changed("port") {
 				req.Port = info.Port
 			}
+			ssh.Host = req.Host
+			ssh.User = req.User
+			ssh.Port = req.Port
+			ssh.applyToBootstrapRequest(&req)
 			req.PasswordEnv = "__ASSH_CONNECT_INFO_PASSWORD"
-			req.Timeout = time.Duration(timeoutSeconds) * time.Second
+			req.Timeout = time.Duration(ssh.TimeoutSecond) * time.Second
 			service := newBootstrapService()
 			service.LookupEnv = func(name string) (string, bool) {
 				if name == req.PasswordEnv {
@@ -96,12 +98,9 @@ func newConnectInfoCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&file, "file", "", "server info file; reads stdin when omitted")
-	cmd.Flags().IntVarP(&req.Port, "port", "p", 22, "SSH port")
-	cmd.Flags().StringVarP(&req.Identity, "identity", "i", filepath.Join(homeDir(), ".ssh", "id_agent_ed25519"), "identity file")
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{port: true, identity: true, jump: true, timeout: true, hostKeyPolicy: true})
 	cmd.Flags().StringVarP(&req.SessionName, "name", "n", "", "session label")
 	cmd.Flags().DurationVar(&req.TTL, "ttl", 12*time.Hour, "session ttl")
-	cmd.Flags().IntVarP(&timeoutSeconds, "timeout", "t", 300, "timeout in seconds")
-	cmd.Flags().StringVar(&req.HostKeyPolicy, "host-key-policy", "accept-new", "host key policy: accept-new, strict, no-check")
 	cmd.Flags().DurationVar(&req.GCOlderThan, "gc-older-than", 24*time.Hour, "cleanup sessions older than duration")
 	cmd.Flags().BoolVar(&req.SkipGC, "no-gc", false, "skip bootstrap cleanup")
 	cmd.Flags().BoolVar(&req.SkipTmuxInstall, "no-install-tmux", false, "do not install tmux if missing")
@@ -157,6 +156,7 @@ func runBootstrapSSH(ctx context.Context, target bootstrap.SSHTarget, remoteComm
 		User:          target.User,
 		Port:          target.Port,
 		Identity:      target.Identity,
+		Jump:          target.Jump,
 		TimeoutSecond: target.TimeoutSecond,
 		HostKeyPolicy: target.HostKeyPolicy,
 	}, remoteCommand)
@@ -177,8 +177,9 @@ func deployPublicKeyWithPassword(ctx context.Context, password string, target bo
 		Host:          target.Host,
 		User:          target.User,
 		Port:          target.Port,
+		Jump:          target.Jump,
 		TimeoutSecond: target.TimeoutSecond,
 		HostKeyPolicy: target.HostKeyPolicy,
 	}
-	return runSSHWithPassword(ctx, password, ssh.Args(keyDeployRemoteCommand(strings.TrimSpace(string(pubKey)))))
+	return runSSHWithPassword(ctx, password, ssh, keyDeployRemoteCommand(strings.TrimSpace(string(pubKey))))
 }

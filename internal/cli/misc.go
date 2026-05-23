@@ -16,27 +16,24 @@ import (
 )
 
 func newScanCommand() *cobra.Command {
-	var host, user, identity string
-	var port int
+	ssh := defaultSSHOptions()
+	ssh.TimeoutSecond = 30
 	cmd := &cobra.Command{
 		Use:           "scan",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if host == "" {
-				return writeInvalidArgs(cmd, "host required", "")
-			}
-			if port < 1 || port > 65535 {
-				return writeInvalidArgs(cmd, "port must be between 1 and 65535", "")
+			if err := ssh.validate(true); err != nil {
+				return writeInvalidArgs(cmd, err.Error(), "")
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, transport.SSHCommand{Host: host, User: user, Port: port, Identity: identity, TimeoutSecond: 30, HostKeyPolicy: "accept-new"}, scanRemoteCommand())
+			result := runSSH(ctx, ssh.command(), scanRemoteCommand())
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
-			writeAudit("scan", host, user, scanRemoteCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("scan", ssh.Host, ssh.User, scanRemoteCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			_, _ = cmd.OutOrStdout().Write(result.Stdout)
 			if len(result.Stdout) == 0 || result.Stdout[len(result.Stdout)-1] != '\n' {
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
@@ -44,67 +41,54 @@ func newScanCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&host, "host", "H", "", "SSH host")
-	cmd.Flags().StringVarP(&user, "user", "u", "root", "SSH user")
-	cmd.Flags().IntVarP(&port, "port", "p", 22, "SSH port")
-	cmd.Flags().StringVarP(&identity, "identity", "i", "", "SSH identity file")
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{host: true, user: true, port: true, identity: true, jump: true})
 	return cmd
 }
 
 func newKeyDeployCommand() *cobra.Command {
-	var host, user, envName, identity string
-	var port int
+	ssh := defaultSSHOptions()
+	ssh.Identity = filepath.Join(homeDir(), ".ssh", "id_agent_ed25519")
+	ssh.TimeoutSecond = 60
+	var envName string
 	cmd := &cobra.Command{
 		Use:           "key-deploy",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if host == "" {
-				return writeInvalidArgs(cmd, "host required", "")
-			}
 			if envName == "" {
 				return writeInvalidArgs(cmd, "--password-env required", "")
 			}
 			if os.Getenv(envName) == "" {
 				return writeInvalidArgs(cmd, "password env is empty", "")
 			}
-			if port < 1 || port > 65535 {
-				return writeInvalidArgs(cmd, "port must be between 1 and 65535", "")
+			if err := ssh.validate(true); err != nil {
+				return writeInvalidArgs(cmd, err.Error(), "")
 			}
-			if err := ensureKeyPair(identity); err != nil {
+			if err := ensureKeyPair(ssh.Identity); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			pubKey, err := os.ReadFile(identity + ".pub")
+			pubKey, err := os.ReadFile(ssh.Identity + ".pub")
 			if err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
 			defer cancel()
-			err = runSSHWithPassword(ctx, os.Getenv(envName), transport.SSHCommand{
-				Host:          host,
-				User:          user,
-				Port:          port,
-				TimeoutSecond: 60,
-				HostKeyPolicy: "accept-new",
-			}.Args(keyDeployRemoteCommand(strings.TrimSpace(string(pubKey)))))
+			err = runSSHWithPassword(ctx, os.Getenv(envName), ssh.command(), keyDeployRemoteCommand(strings.TrimSpace(string(pubKey))))
 			if err != nil {
 				return writeError(cmd, passwordSSHErrorCode(err), err.Error(), "")
 			}
-			writeAudit("key_deploy", host, user, "key-deploy", 0, 0, 0)
+			writeAudit("key_deploy", ssh.Host, ssh.User, "key-deploy", 0, 0, 0)
 			return writeJSON(cmd, map[string]any{
 				"ok":       true,
-				"host":     host,
-				"user":     user,
-				"identity": identity,
+				"host":     ssh.Host,
+				"user":     ssh.User,
+				"identity": ssh.Identity,
 			})
 		},
 	}
-	cmd.Flags().StringVarP(&host, "host", "H", "", "SSH host")
-	cmd.Flags().StringVarP(&user, "user", "u", "root", "SSH user")
-	cmd.Flags().IntVarP(&port, "port", "p", 22, "SSH port")
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{host: true, user: true, port: true, identity: true, jump: true})
 	cmd.Flags().StringVarP(&envName, "password-env", "E", "", "password environment variable")
-	cmd.Flags().StringVarP(&identity, "identity", "i", filepath.Join(homeDir(), ".ssh", "id_agent_ed25519"), "identity file")
 	return cmd
 }
 
@@ -167,7 +151,7 @@ func ensureKeyPair(identity string) error {
 	return exec.Command("ssh-keygen", "-t", "ed25519", "-f", identity, "-N", "").Run()
 }
 
-func runSSHWithPassword(ctx context.Context, password string, args []string) error {
+func runSSHWithPassword(ctx context.Context, password string, command transport.SSHCommand, remoteCommand string) error {
 	dir, err := os.MkdirTemp("", "assh-askpass-*")
 	if err != nil {
 		return err
@@ -177,13 +161,13 @@ func runSSHWithPassword(ctx context.Context, password string, args []string) err
 	if err := os.WriteFile(askpass, []byte("#!/bin/sh\nprintf '%s\\n' "+remote.SingleQuote(password)+"\n"), 0o500); err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, "ssh", args...)
+	execCommand := exec.CommandContext(ctx, "ssh", command.Args(remoteCommand)...)
 	display := os.Getenv("DISPLAY")
 	if display == "" {
 		display = ":0"
 	}
-	command.Env = sshAskpassEnv(askpass, display)
-	output, err := command.CombinedOutput()
+	execCommand.Env = sshAskpassEnv(askpass, display)
+	output, err := execCommand.CombinedOutput()
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return passwordSSHError{output: output, err: ctxErr}

@@ -29,6 +29,7 @@ type Request struct {
 	User            string
 	Port            int
 	Identity        string
+	Jump            string
 	PasswordEnv     string
 	SessionName     string
 	TTL             time.Duration
@@ -80,6 +81,7 @@ type SSHTarget struct {
 	User          string
 	Port          int
 	Identity      string
+	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
 }
@@ -115,6 +117,7 @@ func (s Service) Run(ctx context.Context, req Request) (Result, error) {
 		User:          req.User,
 		Port:          req.Port,
 		Identity:      req.Identity,
+		Jump:          req.Jump,
 		TimeoutSecond: int(req.Timeout.Seconds()),
 		HostKeyPolicy: req.HostKeyPolicy,
 	}

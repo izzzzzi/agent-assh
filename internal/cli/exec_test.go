@@ -150,6 +150,27 @@ func TestExecInvalidFlagsReturnJSONError(t *testing.T) {
 	}
 }
 
+func TestExecAcceptsJumpHost(t *testing.T) {
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(_ context.Context, command transport.SSHCommand, _ string) transport.Result {
+		if command.Jump != "bastion.example.com" {
+			t.Fatalf("command.Jump=%q want bastion.example.com", command.Jump)
+		}
+		return transport.Result{ExitCode: 0}
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"exec", "--host", "example.com", "--jump", "bastion.example.com", "--", "true"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
 func TestSSHErrorCodeClassifiesLocalFailures(t *testing.T) {
 	if got := sshErrorCode(context.DeadlineExceeded, nil); got != "timeout" {
 		t.Fatalf("timeout code = %q, want timeout", got)
@@ -249,7 +270,7 @@ func TestRunSSHWithPasswordClassifiesContextTimeout(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	err := runSSHWithPassword(ctx, "password", []string{"example.com", "true"})
+	err := runSSHWithPassword(ctx, "password", transport.SSHCommand{Host: "example.com"}, "true")
 	if err == nil {
 		t.Fatalf("runSSHWithPassword() error = nil, want timeout")
 	}
@@ -269,7 +290,7 @@ func TestRunSSHWithPasswordClassifiesRemoteCommandFailure(t *testing.T) {
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	err := runSSHWithPassword(context.Background(), "password", []string{"example.com", "true"})
+	err := runSSHWithPassword(context.Background(), "password", transport.SSHCommand{Host: "example.com"}, "true")
 	if err == nil {
 		t.Fatalf("runSSHWithPassword() error = nil, want command failure")
 	}
@@ -289,7 +310,7 @@ func TestRunSSHWithPasswordPrioritizesRemoteExitOverAuthText(t *testing.T) {
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	err := runSSHWithPassword(context.Background(), "password", []string{"example.com", "true"})
+	err := runSSHWithPassword(context.Background(), "password", transport.SSHCommand{Host: "example.com"}, "true")
 	if err == nil {
 		t.Fatalf("runSSHWithPassword() error = nil, want command failure")
 	}

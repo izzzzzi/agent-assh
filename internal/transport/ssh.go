@@ -13,6 +13,7 @@ type SSHCommand struct {
 	User          string
 	Port          int
 	Identity      string
+	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
 }
@@ -33,6 +34,9 @@ func (c SSHCommand) Args(remoteCommand string) []string {
 	}
 	if c.Identity != "" {
 		args = append(args, "-i", c.Identity)
+	}
+	if c.Jump != "" {
+		args = append(args, "-J", c.Jump)
 	}
 	if c.TimeoutSecond > 0 {
 		args = append(args, "-o", "ConnectTimeout="+strconv.Itoa(c.TimeoutSecond))

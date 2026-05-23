@@ -20,12 +20,7 @@ import (
 )
 
 func newExecCommand() *cobra.Command {
-	var host string
-	var user string
-	var port int
-	var identity string
-	var timeout int
-	var hostKeyPolicy string
+	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
 		Use:           "exec -- command",
@@ -33,20 +28,11 @@ func newExecCommand() *cobra.Command {
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if host == "" {
-				return writeInvalidArgs(cmd, "host required", "")
-			}
 			if len(args) == 0 {
 				return writeInvalidArgs(cmd, "command required", "")
 			}
-			if timeout < 1 {
-				return writeInvalidArgs(cmd, "timeout must be greater than 0", "")
-			}
-			if port < 1 || port > 65535 {
-				return writeInvalidArgs(cmd, "port must be between 1 and 65535", "")
-			}
-			if !validHostKeyPolicy(hostKeyPolicy) {
-				return writeInvalidArgs(cmd, "invalid host key policy", "")
+			if err := ssh.validate(true); err != nil {
+				return writeInvalidArgs(cmd, err.Error(), "")
 			}
 
 			outputID, err := ids.New()
@@ -54,17 +40,10 @@ func newExecCommand() *cobra.Command {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 
-			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeout)*time.Second)
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
 
-			result := runSSH(ctx, transport.SSHCommand{
-				Host:          host,
-				User:          user,
-				Port:          port,
-				Identity:      identity,
-				TimeoutSecond: timeout,
-				HostKeyPolicy: hostKeyPolicy,
-			}, remoteCommand(args))
+			result := runSSH(ctx, ssh.command(), remoteCommand(args))
 
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -74,7 +53,7 @@ func newExecCommand() *cobra.Command {
 			if err := store.Write(outputID, result.Stdout, result.Stderr); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("exec", host, user, remoteCommand(args), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("exec", ssh.Host, ssh.User, remoteCommand(args), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -86,12 +65,7 @@ func newExecCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&host, "host", "H", "", "SSH host")
-	cmd.Flags().StringVarP(&user, "user", "u", "root", "SSH user")
-	cmd.Flags().IntVarP(&port, "port", "p", 22, "SSH port")
-	cmd.Flags().StringVarP(&identity, "identity", "i", "", "SSH identity file")
-	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "timeout in seconds")
-	cmd.Flags().StringVar(&hostKeyPolicy, "host-key-policy", "accept-new", "host key policy")
+	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
 	return cmd
 }
 

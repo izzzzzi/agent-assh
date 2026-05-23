@@ -37,15 +37,10 @@ func newSessionCommand() *cobra.Command {
 }
 
 func newSessionOpenCommand() *cobra.Command {
-	var host string
-	var user string
-	var port int
-	var identity string
+	ssh := defaultSSHOptions()
 	var label string
 	var installTmux bool
-	var timeout int
 	var ttl time.Duration
-	var hostKeyPolicy string
 
 	cmd := &cobra.Command{
 		Use:           "open",
@@ -58,20 +53,11 @@ func newSessionOpenCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if host == "" {
-				return writeInvalidArgs(cmd, "host required", "")
-			}
-			if port < 1 || port > 65535 {
-				return writeInvalidArgs(cmd, "port must be between 1 and 65535", "")
-			}
-			if timeout < 1 {
-				return writeInvalidArgs(cmd, "timeout must be greater than 0", "")
+			if err := ssh.validate(true); err != nil {
+				return writeInvalidArgs(cmd, err.Error(), "")
 			}
 			if ttl <= 0 {
 				return writeInvalidArgs(cmd, "ttl must be greater than 0", "")
-			}
-			if !validHostKeyPolicy(hostKeyPolicy) {
-				return writeInvalidArgs(cmd, "invalid host key policy", "")
 			}
 
 			sid, err := ids.New()
@@ -91,9 +77,9 @@ func newSessionOpenCommand() *cobra.Command {
 				remoteCommand = "command -v tmux >/dev/null 2>&1 || " + installTmuxCommand() + "; " + remoteCommand
 			}
 
-			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeout)*time.Second)
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(host, user, port, identity, timeout, hostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, ssh.command(), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -101,11 +87,11 @@ func newSessionOpenCommand() *cobra.Command {
 			entry := session.RegistryEntry{
 				SID:           sid,
 				Label:         label,
-				Host:          host,
-				User:          user,
-				Port:          port,
-				Identity:      identity,
-				HostKeyPolicy: hostKeyPolicy,
+				Host:          ssh.Host,
+				User:          ssh.User,
+				Port:          ssh.Port,
+				Identity:      ssh.Identity,
+				HostKeyPolicy: ssh.HostKeyPolicy,
 				TmuxName:      metadata.TmuxName,
 				CreatedAt:     metadata.CreatedAt,
 				TTLSeconds:    metadata.TTLSeconds,
@@ -113,7 +99,7 @@ func newSessionOpenCommand() *cobra.Command {
 			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("session_open", host, user, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("session_open", ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -121,27 +107,23 @@ func newSessionOpenCommand() *cobra.Command {
 				"session":      label,
 				"sid":          sid,
 				"tmux_name":    metadata.TmuxName,
-				"host":         host,
-				"user":         user,
+				"host":         ssh.Host,
+				"user":         ssh.User,
 			})
 		},
 	}
 
-	cmd.Flags().StringVarP(&host, "host", "H", "", "SSH host")
-	cmd.Flags().StringVarP(&user, "user", "u", "root", "SSH user")
-	cmd.Flags().IntVarP(&port, "port", "p", 22, "SSH port")
-	cmd.Flags().StringVarP(&identity, "identity", "i", "", "SSH identity file")
+	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
 	cmd.Flags().StringVarP(&label, "name", "n", "", "session label")
 	cmd.Flags().BoolVar(&installTmux, "install-tmux", false, "install tmux if missing")
-	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "timeout in seconds")
 	cmd.Flags().DurationVar(&ttl, "ttl", 12*time.Hour, "session ttl")
-	cmd.Flags().StringVar(&hostKeyPolicy, "host-key-policy", "accept-new", "host key policy")
 	return cmd
 }
 
 func newSessionExecCommand() *cobra.Command {
 	var sid string
 	var timeout int
+	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
 		Use:           "exec -- command",
@@ -172,7 +154,7 @@ func newSessionExecCommand() *cobra.Command {
 			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, timeout+5, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, timeout+5, entry.HostKeyPolicy), remoteCommand)
 			if strings.Contains(string(result.Stdout), "__ASSH_TIMEOUT__") {
 				return writeError(cmd, "timeout", "session command timed out", "")
 			}
@@ -199,6 +181,7 @@ func newSessionExecCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "timeout in seconds")
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }
 
@@ -209,6 +192,7 @@ func newSessionReadCommand() *cobra.Command {
 	var offset int
 	var limit int
 	var raw bool
+	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
 		Use:           "read",
@@ -243,7 +227,7 @@ func newSessionReadCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 300, entry.HostKeyPolicy), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -278,11 +262,13 @@ func newSessionReadCommand() *cobra.Command {
 	cmd.Flags().IntVar(&offset, "offset", 0, "line offset")
 	cmd.Flags().IntVar(&limit, "limit", 50, "line limit")
 	cmd.Flags().BoolVar(&raw, "raw", false, "print only content without JSON")
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }
 
 func newSessionCloseCommand() *cobra.Command {
 	var sid string
+	ssh := defaultSSHOptions()
 	cmd := &cobra.Command{
 		Use:           "close",
 		SilenceUsage:  true,
@@ -307,7 +293,7 @@ func newSessionCloseCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 300, entry.HostKeyPolicy), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -319,6 +305,7 @@ func newSessionCloseCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }
 
@@ -367,7 +354,7 @@ func newSessionGCCommand() *cobra.Command {
 					continue
 				}
 				ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
-				result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, 300, entry.HostKeyPolicy), remoteCommand)
+				result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, "", 300, entry.HostKeyPolicy), remoteCommand)
 				code := lifecycleResultErrorCode(ctx.Err(), result)
 				cancel()
 				if code != "" {
@@ -396,12 +383,13 @@ func newSessionGCCommand() *cobra.Command {
 	return cmd
 }
 
-func sessionSSH(host, user string, port int, identity string, timeout int, policy string) transport.SSHCommand {
+func sessionSSH(host, user string, port int, identity string, jump string, timeout int, policy string) transport.SSHCommand {
 	return transport.SSHCommand{
 		Host:          host,
 		User:          user,
 		Port:          port,
 		Identity:      identity,
+		Jump:          jump,
 		TimeoutSecond: timeout,
 		HostKeyPolicy: policy,
 	}

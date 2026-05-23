@@ -39,6 +39,28 @@ func TestSSHCommandBuildsArgvWithoutShell(t *testing.T) {
 	}
 }
 
+func TestSSHCommandArgsIncludesJump(t *testing.T) {
+	cmd := SSHCommand{
+		Host: "example.com",
+		User: "root",
+		Jump: "bastion.example.com",
+	}
+
+	args := cmd.Args("echo hello")
+
+	if !containsSubsequence(args, "-J", "bastion.example.com") {
+		t.Fatalf("Args() = %#v, want -J bastion.example.com", args)
+	}
+	if !containsSubsequence(args, "--", "root@example.com", "echo hello") {
+		t.Fatalf("Args() = %#v, want target after --", args)
+	}
+	jumpIndex := indexOf(args, "-J")
+	hostIndex := indexOf(args, "root@example.com")
+	if jumpIndex == -1 || hostIndex == -1 || jumpIndex > hostIndex {
+		t.Fatalf("Args() = %#v, want jump before target host", args)
+	}
+}
+
 func TestRunUsesMockSSH(t *testing.T) {
 	dir := t.TempDir()
 	name := "ssh"
@@ -79,4 +101,13 @@ func containsSubsequence(values []string, subsequence ...string) bool {
 		}
 	}
 	return false
+}
+
+func indexOf(values []string, target string) int {
+	for i, value := range values {
+		if value == target {
+			return i
+		}
+	}
+	return -1
 }

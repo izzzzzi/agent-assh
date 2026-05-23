@@ -44,6 +44,23 @@ func TestSessionOpenReturnsPlaceholderJSON(t *testing.T) {
 	}
 }
 
+func TestSessionOpenAcceptsJumpHost(t *testing.T) {
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(_ context.Context, command transport.SSHCommand, _ string) transport.Result {
+		if command.Jump != "bastion.example.com" {
+			t.Fatalf("command.Jump=%q want bastion.example.com", command.Jump)
+		}
+		return transport.Result{ExitCode: 0, Stdout: []byte("os=linux\ntmux=installed\npkg=apt\ninstall=noninteractive\n")}
+	}
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+
+	got := executeSessionJSON(t, []string{"session", "open", "--host", "example.com", "--jump", "bastion.example.com"})
+	if got["ok"] != true {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionOpenInstallTmuxFailureReturnsStableError(t *testing.T) {
 	t.Setenv("ASSH_STATE_DIR", t.TempDir())
 	oldRunSSH := runSSH
@@ -107,6 +124,23 @@ func TestSessionCloseRequiresSID(t *testing.T) {
 	}
 }
 
+func TestSessionCloseAcceptsJumpHost(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(_ context.Context, command transport.SSHCommand, _ string) transport.Result {
+		if command.Jump != "bastion.example.com" {
+			t.Fatalf("command.Jump=%q want bastion.example.com", command.Jump)
+		}
+		return transport.Result{ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "close", "--sid", "abcdef12", "--jump", "bastion.example.com"})
+	if got["ok"] != true {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionCloseTmuxMissingKeepsRegistry(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
 	oldRunSSH := runSSH
@@ -148,6 +182,23 @@ func TestSessionExecReturnsJSON(t *testing.T) {
 
 	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--", "pwd"})
 	if got["ok"] != true || got["sid"] != "abcdef12" || got["seq"] != float64(1) {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionExecAcceptsJumpHost(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(_ context.Context, command transport.SSHCommand, _ string) transport.Result {
+		if command.Jump != "bastion.example.com" {
+			t.Fatalf("command.Jump=%q want bastion.example.com", command.Jump)
+		}
+		return transport.Result{Stdout: []byte("__ASSH_RC__=0\n__ASSH_STDOUT_LINES__=0\n__ASSH_STDERR_LINES__=0\n"), ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--jump", "bastion.example.com", "--", "pwd"})
+	if got["ok"] != true {
 		t.Fatalf("unexpected response: %#v", got)
 	}
 }
@@ -253,6 +304,23 @@ func TestSessionReadReturnsJSON(t *testing.T) {
 
 	got := executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "2"})
 	if got["ok"] != true || got["sid"] != "abcdef12" || got["seq"] != float64(2) || got["content"] != "hello\n" || got["total_lines"] != float64(1) {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionReadAcceptsJumpHost(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(_ context.Context, command transport.SSHCommand, _ string) transport.Result {
+		if command.Jump != "bastion.example.com" {
+			t.Fatalf("command.Jump=%q want bastion.example.com", command.Jump)
+		}
+		return transport.Result{Stdout: []byte("hello\n\n__ASSH_TOTAL_LINES__=1\n"), ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--jump", "bastion.example.com"})
+	if got["ok"] != true {
 		t.Fatalf("unexpected response: %#v", got)
 	}
 }
