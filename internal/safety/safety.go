@@ -13,17 +13,24 @@ type token struct {
 	Quoted bool
 }
 
+const maxShellDepth = 4
+
 func CheckCommand(command string) Result {
+	return checkCommand(command, 0)
+}
+
+func checkCommand(command string, depth int) Result {
 	for _, segment := range splitSegments(command) {
 		tokens := shellFields(segment)
-		if result := checkSegment(tokens); result.Dangerous {
+		if result := checkSegment(tokens, depth); result.Dangerous {
 			return result
 		}
 	}
 	return Result{}
 }
 
-func checkSegment(tokens []token) Result {
+func checkSegment(tokens []token, depth int) Result {
+	tokens = groupCommandTokens(tokens)
 	tokens = commandTokens(tokens)
 	if len(tokens) == 0 {
 		return Result{}
@@ -32,6 +39,23 @@ func checkSegment(tokens []token) Result {
 	args := tokens[1:]
 
 	switch {
+	case name == "env":
+		if depth < maxShellDepth {
+			if script, ok := envSplitString(args); ok {
+				return checkCommand(script, depth+1)
+			}
+		}
+		tokens = envCommandTokens(args)
+		if len(tokens) == 0 {
+			return Result{}
+		}
+		return checkSegment(tokens, depth)
+	case name == "bash" || name == "sh":
+		if depth < maxShellDepth {
+			if script, ok := shellCommandScript(args); ok {
+				return checkCommand(script, depth+1)
+			}
+		}
 	case name == "rm":
 		if hasRecursiveFlag(args) {
 			return danger("rm_recursive")
@@ -70,11 +94,39 @@ func danger(rule string) Result {
 }
 
 func commandName(value string) string {
+	value = strings.TrimLeft(value, "{(")
+	value = strings.TrimRight(value, "})")
 	value = strings.TrimRight(value, "/")
 	if index := strings.LastIndex(value, "/"); index >= 0 {
 		return value[index+1:]
 	}
 	return value
+}
+
+func groupCommandTokens(tokens []token) []token {
+	if len(tokens) == 0 || tokens[0].Quoted {
+		return tokens
+	}
+	switch tokens[0].Value {
+	case "{", "(":
+		tokens = tokens[1:]
+	default:
+		value := tokens[0].Value
+		if strings.HasPrefix(value, "(") && value != "(" {
+			tokens = append([]token{{Value: strings.TrimPrefix(value, "("), Quoted: tokens[0].Quoted}}, tokens[1:]...)
+		}
+	}
+	if len(tokens) == 0 {
+		return tokens
+	}
+	last := len(tokens) - 1
+	if !tokens[last].Quoted && (tokens[last].Value == "}" || tokens[last].Value == ")") {
+		return tokens[:last]
+	}
+	if !tokens[last].Quoted && strings.HasSuffix(tokens[last].Value, ")") && tokens[last].Value != ")" {
+		tokens[last].Value = strings.TrimSuffix(tokens[last].Value, ")")
+	}
+	return tokens
 }
 
 func commandTokens(tokens []token) []token {
@@ -103,9 +155,43 @@ func commandTokens(tokens []token) []token {
 			}
 		case "command", "builtin":
 			tokens = tokens[1:]
+		case "env":
+			if _, ok := envSplitString(tokens[1:]); ok {
+				return tokens
+			}
+			return envCommandTokens(tokens[1:])
 		default:
+			if isEnvAssignment(tokens[0]) {
+				tokens = tokens[1:]
+				continue
+			}
 			return tokens
 		}
+	}
+	return tokens
+}
+
+func envCommandTokens(tokens []token) []token {
+	for len(tokens) > 0 {
+		value := tokens[0].Value
+		if isEnvAssignment(tokens[0]) {
+			tokens = tokens[1:]
+			continue
+		}
+		if value == "--" {
+			return tokens[1:]
+		}
+		if !strings.HasPrefix(value, "-") {
+			return tokens
+		}
+		if envOptionTakesOperand(value) {
+			tokens = tokens[1:]
+			if len(tokens) > 0 {
+				tokens = tokens[1:]
+			}
+			continue
+		}
+		tokens = tokens[1:]
 	}
 	return tokens
 }
@@ -118,6 +204,108 @@ func sudoOptionTakesOperand(value string) bool {
 	default:
 		return false
 	}
+}
+
+func envOptionTakesOperand(value string) bool {
+	switch value {
+	case "-u", "--unset", "-C", "--chdir":
+		return true
+	default:
+		return false
+	}
+}
+
+func isEnvAssignment(tok token) bool {
+	index := strings.IndexByte(tok.Value, '=')
+	if index <= 0 {
+		return false
+	}
+	for i, r := range tok.Value[:index] {
+		if i == 0 {
+			if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && r != '_' {
+				return false
+			}
+			continue
+		}
+		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
+			return false
+		}
+	}
+	return true
+}
+
+func shellCommandScript(tokens []token) (string, bool) {
+	for i := 0; i < len(tokens); i++ {
+		value := tokens[i].Value
+		if value == "--" {
+			continue
+		}
+		if shellOptionTakesOperand(value) {
+			i++
+			continue
+		}
+		if shellOptionRunsCommand(value) {
+			if i+1 < len(tokens) {
+				return tokens[i+1].Value, true
+			}
+			return "", false
+		}
+		if strings.HasPrefix(value, "-") {
+			continue
+		}
+		return "", false
+	}
+	return "", false
+}
+
+func shellOptionTakesOperand(value string) bool {
+	switch value {
+	case "-o", "-O", "--option", "--shopt":
+		return true
+	default:
+		return false
+	}
+}
+
+func shellOptionRunsCommand(value string) bool {
+	if value == "-c" {
+		return true
+	}
+	return strings.HasPrefix(value, "-") && !strings.HasPrefix(value, "--") && strings.Contains(value[1:], "c")
+}
+
+func envSplitString(tokens []token) (string, bool) {
+	for len(tokens) > 0 {
+		value := tokens[0].Value
+		if isEnvAssignment(tokens[0]) {
+			tokens = tokens[1:]
+			continue
+		}
+		if value == "--" {
+			return "", false
+		}
+		if value == "-S" || value == "--split-string" {
+			if len(tokens) > 1 {
+				return tokens[1].Value, true
+			}
+			return "", false
+		}
+		if strings.HasPrefix(value, "--split-string=") {
+			return strings.TrimPrefix(value, "--split-string="), true
+		}
+		if !strings.HasPrefix(value, "-") {
+			return "", false
+		}
+		if envOptionTakesOperand(value) {
+			tokens = tokens[1:]
+			if len(tokens) > 0 {
+				tokens = tokens[1:]
+			}
+			continue
+		}
+		tokens = tokens[1:]
+	}
+	return "", false
 }
 
 func splitSegments(command string) []string {
@@ -354,7 +542,7 @@ func hasDangerousRedirect(tokens []token) bool {
 			target = attachedRedirectTarget(tok.Value)
 		}
 
-		if strings.HasPrefix(target, "/") {
+		if target != "" && criticalPath(target) {
 			return true
 		}
 	}
