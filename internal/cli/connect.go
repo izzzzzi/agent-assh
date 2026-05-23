@@ -77,7 +77,7 @@ func newConnectInfoCommand() *cobra.Command {
 
 			req.Host = info.Host
 			req.User = info.User
-			if info.Port != 0 {
+			if info.Port != 0 && !cmd.Flags().Changed("port") {
 				ssh.Port = info.Port
 			}
 			ssh.Host = req.Host
