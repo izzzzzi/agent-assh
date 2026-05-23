@@ -5,3 +5,4 @@ native/
 .gocache/
 dist/
 docs/superpowers/
+.worktrees/
