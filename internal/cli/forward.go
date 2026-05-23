@@ -78,7 +78,7 @@ func newForwardStartCommand() *cobra.Command {
 			if err := state.NewForwardStore(stateBaseDir()).Save(record); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("forward_start", ssh.Host, ssh.User, "forward start", result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("forward_start", "", ssh.Host, ssh.User, "forward start", result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			return writeJSON(cmd, forwardResponse(record, true, response.OK{"stopped": false}))
 		},
 	}
@@ -147,7 +147,7 @@ func newForwardStopCommand() *cobra.Command {
 			if err := store.Delete(name); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("forward_stop", record.Host, record.User, "forward stop", result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("forward_stop", "", record.Host, record.User, "forward stop", result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			return writeJSON(cmd, forwardResponse(record, false, response.OK{"stopped": true}))
 		},
 	}

@@ -80,18 +80,44 @@ func TestSessionReadCachesOutputForExport(t *testing.T) {
 	}
 }
 
+func TestSessionReadCachesMultiplePagesForExport(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(context.Context, transport.SSHCommand, string) transport.Result {
+		return transport.Result{Stdout: []byte("line-a\nline-b\nline-c\n\n__ASSH_TOTAL_LINES__=3\n"), ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--stream", "stdout", "--offset", "0", "--limit", "2"})
+	if got["ok"] != true {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	got = executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--stream", "stdout", "--offset", "2", "--limit", "1"})
+	if got["ok"] != true {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	pages, err := state.NewSessionOutputStore(stateBaseDir()).List("abcdef12")
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("expected two cached pages, got %#v", pages)
+	}
+	if pages[0].Offset != 0 || pages[1].Offset != 2 {
+		t.Fatalf("unexpected cached page offsets: %#v", pages)
+	}
+}
+
 func TestSessionExportArchiveContainsCachedRead(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
-	if err := state.NewSessionOutputStore(stateBaseDir()).Write(state.SessionOutputPage{
-		SID:        "abcdef12",
-		Seq:        1,
-		Stream:     "stdout",
-		Offset:     0,
-		Limit:      50,
-		TotalLines: 1,
-		Content:    "hello\n",
-	}); err != nil {
-		t.Fatalf("Write() error = %v", err)
+	store := state.NewSessionOutputStore(stateBaseDir())
+	for _, page := range []state.SessionOutputPage{
+		{SID: "abcdef12", Seq: 1, Stream: "stdout", Offset: 0, Limit: 50, TotalLines: 3, Content: "hello\n"},
+		{SID: "abcdef12", Seq: 1, Stream: "stdout", Offset: 2, Limit: 1, TotalLines: 3, Content: "world\n"},
+	} {
+		if err := store.Write(page); err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
 	}
 	archivePath := filepath.Join(t.TempDir(), "session.tar.gz")
 
@@ -101,8 +127,8 @@ func TestSessionExportArchiveContainsCachedRead(t *testing.T) {
 	}
 
 	files := readCLITarGz(t, archivePath)
-	if !strings.Contains(files["outputs/seq-1-stdout.json"], `"content": "hello\n"`) {
-		t.Fatalf("archive missing cached output: %#v", files)
+	if !strings.Contains(files["outputs/seq-1-stdout-offset-0-limit-50.json"], `"content": "hello\n"`) || !strings.Contains(files["outputs/seq-1-stdout-offset-2-limit-1.json"], `"content": "world\n"`) {
+		t.Fatalf("archive missing cached outputs: %#v", files)
 	}
 }
 

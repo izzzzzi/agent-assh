@@ -45,7 +45,7 @@ func newExecCommand() *cobra.Command {
 
 			result := runSSH(ctx, ssh.command(), remoteCommand(args))
 
-			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
+			if code := remoteCommandResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
@@ -53,7 +53,7 @@ func newExecCommand() *cobra.Command {
 			if err := store.Write(outputID, result.Stdout, result.Stderr); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("exec", ssh.Host, ssh.User, remoteCommand(args), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("exec", "", ssh.Host, ssh.User, remoteCommand(args), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -149,6 +149,14 @@ func sshErrorCode(ctxErr, runErr error) string {
 }
 
 func sshResultErrorCode(ctxErr error, result transport.Result) string {
+	return sshResultErrorCodeWithPolicy(ctxErr, result, false)
+}
+
+func remoteCommandResultErrorCode(ctxErr error, result transport.Result) string {
+	return sshResultErrorCodeWithPolicy(ctxErr, result, true)
+}
+
+func sshResultErrorCodeWithPolicy(ctxErr error, result transport.Result, allowRemoteExit255 bool) string {
 	if ctxErr != nil {
 		return "timeout"
 	}
@@ -172,11 +180,14 @@ func sshResultErrorCode(ctxErr error, result transport.Result) string {
 			strings.Contains(stderr, "network is unreachable"):
 			return "connection_error"
 		default:
-			return ""
+			if allowRemoteExit255 {
+				var exitErr *exec.ExitError
+				if result.Err == nil || errors.As(result.Err, &exitErr) {
+					return ""
+				}
+			}
+			return "connection_error"
 		}
-	}
-	if result.Err != nil && result.ExitCode == 255 {
-		return "connection_error"
 	}
 	if code := sshErrorCode(nil, result.Err); code != "" {
 		return code
@@ -234,7 +245,7 @@ func countLines(data []byte) int {
 	return lines
 }
 
-func writeAudit(action, host, user, command string, exitCode int, stdoutLines int, stderrLines int) {
+func writeAudit(action, sid, host, user, command string, exitCode int, stdoutLines int, stderrLines int) {
 	hash := ""
 	if command != "" {
 		sum := sha256.Sum256([]byte(command))
@@ -242,6 +253,7 @@ func writeAudit(action, host, user, command string, exitCode int, stdoutLines in
 	}
 	_ = audit.Write(filepath.Join(stateBaseDir(), "audit", "audit.jsonl"), audit.Event{
 		Action:      action,
+		SID:         sid,
 		Host:        host,
 		User:        user,
 		CommandHash: hash,

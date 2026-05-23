@@ -214,8 +214,8 @@ func TestSSHResultErrorCodeClassifiesSSHExit255(t *testing.T) {
 	}
 }
 
-func TestSSHResultErrorCodeAllowsRemoteNonZero(t *testing.T) {
-	got := sshResultErrorCode(nil, transport.Result{
+func TestRemoteCommandResultErrorCodeAllowsRemoteNonZero(t *testing.T) {
+	got := remoteCommandResultErrorCode(nil, transport.Result{
 		Stderr:   []byte("remote command failed"),
 		ExitCode: 2,
 		Err:      &exec.ExitError{},
@@ -224,13 +224,24 @@ func TestSSHResultErrorCodeAllowsRemoteNonZero(t *testing.T) {
 		t.Fatalf("sshResultErrorCode() = %q, want empty", got)
 	}
 
-	got = sshResultErrorCode(nil, transport.Result{
+	got = remoteCommandResultErrorCode(nil, transport.Result{
 		Stderr:   []byte("application returned 255"),
 		ExitCode: 255,
 		Err:      &exec.ExitError{},
 	})
 	if got != "" {
-		t.Fatalf("sshResultErrorCode(remote 255) = %q, want empty", got)
+		t.Fatalf("remoteCommandResultErrorCode(remote 255) = %q, want empty", got)
+	}
+}
+
+func TestSSHResultErrorCodeFallsBackToConnectionErrorForUnknown255Failure(t *testing.T) {
+	got := sshResultErrorCode(nil, transport.Result{
+		Stderr:   []byte("ssh failed without classification"),
+		ExitCode: 255,
+		Err:      &exec.ExitError{},
+	})
+	if got != "connection_error" {
+		t.Fatalf("sshResultErrorCode() = %q, want connection_error", got)
 	}
 }
 

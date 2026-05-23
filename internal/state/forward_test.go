@@ -34,7 +34,7 @@ func TestForwardStoreSaveLoadListDelete(t *testing.T) {
 	if loaded.Name != record.Name || loaded.Host != record.Host || loaded.Jump != record.Jump || loaded.ControlSocket != record.ControlSocket {
 		t.Fatalf("loaded record = %#v, want %#v", loaded, record)
 	}
-	if len(loaded.Local) != 1 || loaded.Local[0] != record.Local[0] || len(loaded.Dynamic) != 1 {
+	if len(loaded.Local) != 1 || loaded.Local[0] != record.Local[0] || len(loaded.Remote) != 1 || loaded.Remote[0] != record.Remote[0] || len(loaded.Dynamic) != 1 || loaded.Dynamic[0] != record.Dynamic[0] {
 		t.Fatalf("loaded rules = %#v", loaded)
 	}
 

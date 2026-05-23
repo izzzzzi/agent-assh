@@ -56,6 +56,28 @@ func TestReadFiltersAuditEvents(t *testing.T) {
 	}
 }
 
+func TestReadFiltersAuditEventsBySID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.jsonl")
+	events := []Event{
+		{Action: "session_exec", SID: "abcdef12", Host: "a.example"},
+		{Action: "session_exec", SID: "abcdef13", Host: "a.example"},
+		{Action: "session_exec", Host: "a.example"},
+	}
+	for _, event := range events {
+		if err := Write(path, event); err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
+	}
+
+	got, err := Read(path, Filter{SID: "abcdef12"})
+	if err != nil {
+		t.Fatalf("Read() error = %v", err)
+	}
+	if len(got) != 1 || got[0].SID != "abcdef12" {
+		t.Fatalf("unexpected events: %#v", got)
+	}
+}
+
 func TestReadMissingAndEmptyFilesReturnEmptySlice(t *testing.T) {
 	tests := []struct {
 		name  string

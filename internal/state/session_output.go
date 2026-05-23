@@ -46,7 +46,7 @@ func (s *SessionOutputStore) Write(page SessionOutputPage) error {
 	if err != nil {
 		return err
 	}
-	return writePrivateFile(filepath.Join(dir, sessionOutputFileName(page.Seq, page.Stream)), body)
+	return writePrivateFile(filepath.Join(dir, sessionOutputFileName(page)), body)
 }
 
 func (s *SessionOutputStore) List(sid string) ([]SessionOutputPage, error) {
@@ -86,7 +86,13 @@ func (s *SessionOutputStore) List(sid string) ([]SessionOutputPage, error) {
 		if pages[i].Seq != pages[j].Seq {
 			return pages[i].Seq < pages[j].Seq
 		}
-		return pages[i].Stream < pages[j].Stream
+		if pages[i].Stream != pages[j].Stream {
+			return pages[i].Stream < pages[j].Stream
+		}
+		if pages[i].Offset != pages[j].Offset {
+			return pages[i].Offset < pages[j].Offset
+		}
+		return pages[i].Limit < pages[j].Limit
 	})
 	return pages, nil
 }
@@ -113,6 +119,6 @@ func validateSessionOutputPage(page SessionOutputPage) error {
 	return nil
 }
 
-func sessionOutputFileName(seq int, stream string) string {
-	return "seq-" + strconv.Itoa(seq) + "-" + stream + ".json"
+func sessionOutputFileName(page SessionOutputPage) string {
+	return "seq-" + strconv.Itoa(page.Seq) + "-" + page.Stream + "-offset-" + strconv.Itoa(page.Offset) + "-limit-" + strconv.Itoa(page.Limit) + ".json"
 }

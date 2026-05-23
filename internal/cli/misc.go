@@ -33,7 +33,7 @@ func newScanCommand() *cobra.Command {
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
-			writeAudit("scan", ssh.Host, ssh.User, scanRemoteCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("scan", "", ssh.Host, ssh.User, scanRemoteCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			_, _ = cmd.OutOrStdout().Write(result.Stdout)
 			if len(result.Stdout) == 0 || result.Stdout[len(result.Stdout)-1] != '\n' {
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
@@ -78,7 +78,7 @@ func newKeyDeployCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, passwordSSHErrorCode(err), err.Error(), "")
 			}
-			writeAudit("key_deploy", ssh.Host, ssh.User, "key-deploy", 0, 0, 0)
+			writeAudit("key_deploy", "", ssh.Host, ssh.User, "key-deploy", 0, 0, 0)
 			return writeJSON(cmd, map[string]any{
 				"ok":       true,
 				"host":     ssh.Host,

@@ -30,7 +30,7 @@ func newCapabilitiesCommand() *cobra.Command {
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
-			writeAudit("capabilities", ssh.Host, ssh.User, capabilities.ProbeCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("capabilities", "", ssh.Host, ssh.User, capabilities.ProbeCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, capabilities.ParseProbe(result.Stdout))
 		},

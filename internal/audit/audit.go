@@ -11,6 +11,7 @@ import (
 type Event struct {
 	Timestamp   time.Time `json:"ts"`
 	Action      string    `json:"action"`
+	SID         string    `json:"sid,omitempty"`
 	Host        string    `json:"host,omitempty"`
 	User        string    `json:"user,omitempty"`
 	CommandHash string    `json:"command_hash,omitempty"`
@@ -51,6 +52,7 @@ func Write(path string, event Event) (err error) {
 
 type Filter struct {
 	Last   int
+	SID    string
 	Host   string
 	Failed bool
 }
@@ -74,6 +76,9 @@ func Read(path string, filter Filter) ([]Event, error) {
 			return nil, err
 		}
 		if filter.Host != "" && event.Host != filter.Host {
+			continue
+		}
+		if filter.SID != "" && event.SID != filter.SID {
 			continue
 		}
 		if filter.Failed && event.ExitCode == 0 {

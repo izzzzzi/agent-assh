@@ -102,7 +102,7 @@ func newSessionOpenCommand() *cobra.Command {
 			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("session_open", ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("session_open", sid, ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -168,7 +168,7 @@ func newSessionExecCommand() *cobra.Command {
 			if timedOut {
 				return writeError(cmd, "timeout", "session command timed out", "")
 			}
-			writeAudit("session_exec", entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
+			writeAudit("session_exec", entry.SID, entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -254,7 +254,7 @@ func newSessionReadCommand() *cobra.Command {
 				return err
 			}
 			hasMore := offset+limit < total
-			writeAudit("session_read", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("session_read", entry.SID, entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":          true,
@@ -314,7 +314,7 @@ func newSessionCloseCommand() *cobra.Command {
 			if err := session.DeleteRegistry(stateBaseDir(), sid); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("session_close", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("session_close", entry.SID, entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			return writeJSON(cmd, response.OK{"ok": true, "sid": sid, "session": entry.Label})
 		},
 	}
@@ -380,7 +380,7 @@ func newSessionGCCommand() *cobra.Command {
 					continue
 				}
 				deleted = append(deleted, entry.SID)
-				writeAudit("session_gc", entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+				writeAudit("session_gc", entry.SID, entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			}
 			return writeJSON(cmd, response.OK{
 				"ok":         true,

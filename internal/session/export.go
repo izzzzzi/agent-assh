@@ -154,7 +154,7 @@ func writeExportArchive(file *os.File, entry RegistryEntry, events []audit.Event
 }
 
 func exportAuditEvents(baseDir string, entry RegistryEntry) ([]audit.Event, error) {
-	events, err := audit.Read(filepath.Join(baseDir, "audit", "audit.jsonl"), audit.Filter{Host: entry.Host})
+	events, err := audit.Read(filepath.Join(baseDir, "audit", "audit.jsonl"), audit.Filter{SID: entry.SID, Host: entry.Host})
 	if err != nil {
 		return nil, err
 	}
@@ -208,5 +208,5 @@ func writeTarFile(tw *tar.Writer, name string, body []byte) error {
 }
 
 func outputArchiveName(page state.SessionOutputPage) string {
-	return "outputs/seq-" + strconv.Itoa(page.Seq) + "-" + page.Stream + ".json"
+	return "outputs/seq-" + strconv.Itoa(page.Seq) + "-" + page.Stream + "-offset-" + strconv.Itoa(page.Offset) + "-limit-" + strconv.Itoa(page.Limit) + ".json"
 }

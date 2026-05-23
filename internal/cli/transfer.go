@@ -75,7 +75,7 @@ func newTransferLeafCommand(use string, direction transport.SCPDirection) *cobra
 					return writeError(cmd, "transfer_failed", err.Error(), "")
 				}
 			}
-			writeAudit("transfer_"+use, ssh.Host, ssh.User, "transfer "+use, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("transfer_"+use, "", ssh.Host, ssh.User, "transfer "+use, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":          true,

@@ -135,7 +135,7 @@ func runConnectWithService(cmd *cobra.Command, req bootstrap.Request, service bo
 		return writeError(cmd, "internal_error", err.Error(), "")
 	}
 
-	writeAudit("connect", req.Host, req.User, "connect", 0, 0, 0)
+	writeAudit("connect", "", req.Host, req.User, "connect", 0, 0, 0)
 	return writeJSON(cmd, result)
 }
 

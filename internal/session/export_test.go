@@ -35,6 +35,7 @@ func TestSessionExportBuildsTarGzArchive(t *testing.T) {
 	if err := audit.Write(filepath.Join(baseDir, "audit", "audit.jsonl"), audit.Event{
 		Timestamp:   time.Now().UTC(),
 		Action:      "session_exec",
+		SID:         sid,
 		Host:        "example.com",
 		User:        "root",
 		CommandHash: "hash",
@@ -62,7 +63,7 @@ func TestSessionExportBuildsTarGzArchive(t *testing.T) {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	files := readTarGz(t, archivePath)
-	for _, name := range []string{"manifest.json", "session.json", "audit.jsonl", "outputs/seq-1-stdout.json", "outputs/seq-1-stderr.json"} {
+	for _, name := range []string{"manifest.json", "session.json", "audit.jsonl", "outputs/seq-1-stdout-offset-0-limit-50.json", "outputs/seq-1-stderr-offset-0-limit-50.json"} {
 		if _, ok := files[name]; !ok {
 			t.Fatalf("archive missing %q; files=%v", name, keys(files))
 		}
@@ -76,8 +77,46 @@ func TestSessionExportBuildsTarGzArchive(t *testing.T) {
 	if !strings.Contains(files["audit.jsonl"], `"action":"session_exec"`) {
 		t.Fatalf("audit.jsonl missing session audit event: %s", files["audit.jsonl"])
 	}
-	if !strings.Contains(files["outputs/seq-1-stdout.json"], `"content": "hello\n"`) {
-		t.Fatalf("stdout page missing content: %s", files["outputs/seq-1-stdout.json"])
+	if !strings.Contains(files["outputs/seq-1-stdout-offset-0-limit-50.json"], `"content": "hello\n"`) {
+		t.Fatalf("stdout page missing content: %s", files["outputs/seq-1-stdout-offset-0-limit-50.json"])
+	}
+}
+
+func TestSessionExportDoesNotIncludeOtherSessionAudit(t *testing.T) {
+	baseDir := t.TempDir()
+	sid := "abcdef12"
+	entry := RegistryEntry{
+		SID:           sid,
+		Label:         "deploy",
+		Host:          "example.com",
+		User:          "root",
+		Port:          22,
+		HostKeyPolicy: "accept-new",
+		TmuxName:      "assh_" + sid,
+		CreatedAt:     time.Now().UTC(),
+		TTLSeconds:    3600,
+	}
+	if err := SaveRegistry(baseDir, entry); err != nil {
+		t.Fatalf("SaveRegistry() error = %v", err)
+	}
+	body := `{"ts":"2026-05-23T00:00:00Z","action":"session_exec","sid":"abcdef13","host":"example.com","user":"root","command_hash":"hash-a","exit_code":0}` + "\n"
+	if err := os.MkdirAll(filepath.Join(baseDir, "audit"), 0o700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "audit", "audit.jsonl"), []byte(body), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	archivePath := filepath.Join(baseDir, "exports", "session.tar.gz")
+	result, err := Export(baseDir, sid, archivePath)
+	if err != nil {
+		t.Fatalf("Export() error = %v", err)
+	}
+	if result.OK != true {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	files := readTarGz(t, archivePath)
+	if strings.Contains(files["audit.jsonl"], "abcdef13") {
+		t.Fatalf("audit.jsonl contains other session sid: %s", files["audit.jsonl"])
 	}
 }
 
