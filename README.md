@@ -141,6 +141,7 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 - SSH запускается неинтерактивно и отключает pseudo-terminal allocation.
 - `--host-key-policy accept-new` используется по умолчанию. Для hardened окружений используйте `strict`.
 - `--host-key-policy no-check` небезопасен и подходит только для одноразовых lab/dev хостов.
+- `session exec` блокирует явно destructive-команды вроде `rm -rf`, `find ... -delete`, `mkfs`, `wipefs`, опасный `dd` и recursive permission changes; для намеренного запуска нужен `--confirm-danger`.
 - Remote cleanup удаляет только sessions с доверенной metadata `assh`.
 
 ## Плюсы

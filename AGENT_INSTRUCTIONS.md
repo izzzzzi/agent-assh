@@ -77,3 +77,4 @@ If `stdout_lines` or `stderr_lines` is large, do not read all output. Use target
 - If key login works, `connect` does not read the password env var.
 - Prefer `--host-key-policy strict` when host keys are already managed.
 - Treat `--host-key-policy no-check` as unsafe and only for disposable lab/dev hosts.
+- If `session exec` returns `dangerous_command_requires_confirmation`, do not add `--confirm-danger` unless the user explicitly intended the destructive action.

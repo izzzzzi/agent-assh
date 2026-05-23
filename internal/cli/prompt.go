@@ -28,6 +28,7 @@ assh transfer get -H HOST REMOTE_PATH LOCAL_PATH
 assh forward status --name NAME
 assh session close -s SID
 
+If session exec returns dangerous_command_requires_confirmation, do not add --confirm-danger unless the user explicitly intended the destructive action.
 Keep large remote output out of context. Read bounded windows with --limit, --offset, and --stream. Use --raw only for piping or exact output.
 `
 
@@ -50,6 +51,7 @@ func agentHelpManifest() response.OK {
 			"Remove temporary server-info files after connect.",
 			"Use returned sid and next_commands for remote work.",
 			"Read large output with bounded session read windows.",
+			"Do not add --confirm-danger unless the user explicitly intended the destructive action.",
 		},
 		"workflow": []string{
 			"For pasted provider server-info, write the full block to a mode 0600 temporary file.",
