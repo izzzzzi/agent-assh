@@ -22,6 +22,7 @@ assh session read -s SID --seq 1 --limit 50
 assh session read -s SID --seq 1 --stream stderr --limit 50
 assh session read -s SID --seq 1 --limit 50 --raw
 assh session list
+assh session export -s SID --output session.tar.gz
 assh transfer put -H HOST LOCAL_PATH REMOTE_PATH
 assh transfer get -H HOST REMOTE_PATH LOCAL_PATH
 assh forward status --name NAME
@@ -59,16 +60,17 @@ func agentHelpManifest() response.OK {
 			"Use assh session exec and assh session read with explicit limits.",
 		},
 		"commands": response.OK{
-			"prompt":        "assh prompt",
-			"connect_info":  "assh connect-info --file TMP -n NAME",
-			"connect":       "assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME",
-			"session_exec":  "assh session exec -s SID -- \"pwd\"",
-			"session_read":  "assh session read -s SID --seq 1 --limit 50",
-			"session_list":  "assh session list",
-			"transfer_put":  "assh transfer put -H HOST LOCAL_PATH REMOTE_PATH",
-			"transfer_get":  "assh transfer get -H HOST REMOTE_PATH LOCAL_PATH",
-			"forward":       "assh forward status --name NAME",
-			"session_close": "assh session close -s SID",
+			"prompt":         "assh prompt",
+			"connect_info":   "assh connect-info --file TMP -n NAME",
+			"connect":        "assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME",
+			"session_exec":   "assh session exec -s SID -- \"pwd\"",
+			"session_read":   "assh session read -s SID --seq 1 --limit 50",
+			"session_list":   "assh session list",
+			"session_export": "assh session export -s SID --output session.tar.gz",
+			"transfer_put":   "assh transfer put -H HOST LOCAL_PATH REMOTE_PATH",
+			"transfer_get":   "assh transfer get -H HOST REMOTE_PATH LOCAL_PATH",
+			"forward":        "assh forward status --name NAME",
+			"session_close":  "assh session close -s SID",
 		},
 		"json_contract": response.OK{
 			"operational_commands_emit_json": true,

@@ -11,6 +11,7 @@ import (
 	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/izzzzzi/agent-assh/internal/response"
 	"github.com/izzzzzi/agent-assh/internal/session"
+	"github.com/izzzzzi/agent-assh/internal/state"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
 )
@@ -31,6 +32,7 @@ func newSessionCommand() *cobra.Command {
 		newSessionReadCommand(),
 		newSessionCloseCommand(),
 		newSessionListCommand(),
+		newSessionExportCommand(),
 		newSessionGCCommand(),
 	)
 	return cmd
@@ -235,6 +237,17 @@ func newSessionReadCommand() *cobra.Command {
 			content, total, notFound := parseSessionRead(result.Stdout)
 			if notFound {
 				return writeError(cmd, "output_not_found", "session output not found", "")
+			}
+			if err := state.NewSessionOutputStore(stateBaseDir()).Write(state.SessionOutputPage{
+				SID:        sid,
+				Seq:        seq,
+				Stream:     stream,
+				Offset:     offset,
+				Limit:      limit,
+				TotalLines: total,
+				Content:    content,
+			}); err != nil {
+				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			if raw {
 				_, err := cmd.OutOrStdout().Write([]byte(content))
