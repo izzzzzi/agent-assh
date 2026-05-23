@@ -24,6 +24,7 @@ assh session read -s SID --seq 1 --limit 50 --raw
 assh session list
 assh transfer put -H HOST LOCAL_PATH REMOTE_PATH
 assh transfer get -H HOST REMOTE_PATH LOCAL_PATH
+assh forward status --name NAME
 assh session close -s SID
 
 Keep large remote output out of context. Read bounded windows with --limit, --offset, and --stream. Use --raw only for piping or exact output.
@@ -66,6 +67,7 @@ func agentHelpManifest() response.OK {
 			"session_list":  "assh session list",
 			"transfer_put":  "assh transfer put -H HOST LOCAL_PATH REMOTE_PATH",
 			"transfer_get":  "assh transfer get -H HOST REMOTE_PATH LOCAL_PATH",
+			"forward":       "assh forward status --name NAME",
 			"session_close": "assh session close -s SID",
 		},
 		"json_contract": response.OK{

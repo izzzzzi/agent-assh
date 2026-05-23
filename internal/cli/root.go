@@ -40,6 +40,7 @@ func NewRootCommand() *cobra.Command {
 		newCapabilitiesCommand(),
 		newSessionCommand(),
 		newTransferCommand(),
+		newForwardCommand(),
 		newScanCommand(),
 		newKeyDeployCommand(),
 		newAuditCommand(),
