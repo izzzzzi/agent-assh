@@ -65,7 +65,7 @@ func Parse(input string) (Info, error) {
 		}
 	}
 	if info.Host == "" {
-		return Info{}, errors.New("server info is missing IPv4 host")
+		return Info{}, errors.New("server info is missing host")
 	}
 	if info.User == "" {
 		return Info{}, errors.New("server info is missing user")

@@ -206,6 +206,23 @@ func TestPromptCommandPrintsAgentInstructions(t *testing.T) {
 	}
 }
 
+func TestPromptCommandMentionsSessionList(t *testing.T) {
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	body := out.String()
+	if !strings.Contains(body, "assh session list") {
+		t.Fatalf("prompt manifest missing session list in %s", body)
+	}
+}
+
 func TestPromptCommandRejectsArgsWithJSONError(t *testing.T) {
 	var out bytes.Buffer
 	cmd := NewRootCommand()

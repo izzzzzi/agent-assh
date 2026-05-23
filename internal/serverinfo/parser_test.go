@@ -90,3 +90,13 @@ func TestParseRequiresHostUserAndPassword(t *testing.T) {
 		t.Fatal("expected missing host error")
 	}
 }
+
+func TestParseReportsHostNeutralMissingError(t *testing.T) {
+	_, err := Parse("User: root\nPassword: secret")
+	if err == nil {
+		t.Fatal("expected missing host error")
+	}
+	if err.Error() != "server info is missing host" {
+		t.Fatalf("err=%q, want host-neutral message", err.Error())
+	}
+}
