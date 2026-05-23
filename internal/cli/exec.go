@@ -149,31 +149,39 @@ func sshErrorCode(ctxErr, runErr error) string {
 }
 
 func sshResultErrorCode(ctxErr error, result transport.Result) string {
-	if code := sshErrorCode(ctxErr, result.Err); code != "" {
+	if ctxErr != nil {
+		return "timeout"
+	}
+	if result.ExitCode == 255 {
+		stderr := strings.ToLower(string(result.Stderr))
+		switch {
+		case strings.Contains(stderr, "permission denied"), strings.Contains(stderr, "authentication failed"):
+			return "auth_failed"
+		case strings.Contains(stderr, "scp: permission denied"):
+			return "auth_failed"
+		case strings.Contains(stderr, "host key verification failed"), strings.Contains(stderr, "remote host identification has changed"):
+			return "host_key_failed"
+		case strings.Contains(stderr, "connection refused"),
+			strings.Contains(stderr, "could not resolve hostname"),
+			strings.Contains(stderr, "no route to host"),
+			strings.Contains(stderr, "connection timed out"),
+			strings.Contains(stderr, "operation timed out"),
+			strings.Contains(stderr, "connection closed"),
+			strings.Contains(stderr, "kex_exchange_identification"),
+			strings.Contains(stderr, "banner exchange"),
+			strings.Contains(stderr, "network is unreachable"):
+			return "connection_error"
+		default:
+			return ""
+		}
+	}
+	if result.Err != nil && result.ExitCode == 255 {
+		return "connection_error"
+	}
+	if code := sshErrorCode(nil, result.Err); code != "" {
 		return code
 	}
-	if result.Err == nil || result.ExitCode != 255 {
-		return ""
-	}
-	stderr := strings.ToLower(string(result.Stderr))
-	switch {
-	case strings.Contains(stderr, "permission denied"), strings.Contains(stderr, "authentication failed"):
-		return "auth_failed"
-	case strings.Contains(stderr, "host key verification failed"), strings.Contains(stderr, "remote host identification has changed"):
-		return "host_key_failed"
-	case strings.Contains(stderr, "connection refused"),
-		strings.Contains(stderr, "could not resolve hostname"),
-		strings.Contains(stderr, "no route to host"),
-		strings.Contains(stderr, "connection timed out"),
-		strings.Contains(stderr, "operation timed out"),
-		strings.Contains(stderr, "connection closed"),
-		strings.Contains(stderr, "kex_exchange_identification"),
-		strings.Contains(stderr, "banner exchange"),
-		strings.Contains(stderr, "network is unreachable"):
-		return "connection_error"
-	default:
-		return ""
-	}
+	return ""
 }
 
 func lifecycleResultErrorCode(ctxErr error, result transport.Result) string {
