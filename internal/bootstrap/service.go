@@ -215,6 +215,7 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		User:          req.User,
 		Port:          req.Port,
 		Identity:      req.Identity,
+		Jump:          req.Jump,
 		HostKeyPolicy: req.HostKeyPolicy,
 		TmuxName:      metadata.TmuxName,
 		CreatedAt:     metadata.CreatedAt,

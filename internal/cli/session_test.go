@@ -203,6 +203,32 @@ func TestSessionExecAcceptsJumpHost(t *testing.T) {
 	}
 }
 
+func TestSessionExecUsesStoredJumpHost(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	entry, err := session.LoadRegistry(stateBaseDir(), "abcdef12")
+	if err != nil {
+		t.Fatalf("LoadRegistry() error = %v", err)
+	}
+	entry.Jump = "bastion.example.com"
+	if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+		t.Fatalf("SaveRegistry() error = %v", err)
+	}
+
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(_ context.Context, command transport.SSHCommand, _ string) transport.Result {
+		if command.Jump != "bastion.example.com" {
+			t.Fatalf("command.Jump=%q want stored jump host", command.Jump)
+		}
+		return transport.Result{Stdout: []byte("__ASSH_RC__=0\n__ASSH_STDOUT_LINES__=0\n__ASSH_STDERR_LINES__=0\n"), ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--", "pwd"})
+	if got["ok"] != true {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionExecNonZeroRCIsCommandResult(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
 	oldRunSSH := runSSH

@@ -125,3 +125,45 @@ func TestConnectInfoUsesIPv6WhenIPv4Missing(t *testing.T) {
 		t.Fatal("expected key deploy error")
 	}
 }
+
+func TestConnectInfoDefaultsToPort22WhenMissing(t *testing.T) {
+	infoFile := t.TempDir() + "/server.txt"
+	if err := os.WriteFile(infoFile, []byte(`IPv4-адрес сервера: 203.0.113.10 copy icon
+Пользователь: root copy icon
+Пароль: example copy icon`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	original := newBootstrapService
+	t.Cleanup(func() { newBootstrapService = original })
+	newBootstrapService = func() bootstrap.Service {
+		return bootstrap.Service{
+			EnsureKeyPair: func(string) error { return nil },
+			RunSSH: func(_ context.Context, _ bootstrap.SSHTarget, _ string) bootstrap.SSHResult {
+				return bootstrap.SSHResult{
+					Stderr:   []byte("Permission denied"),
+					ExitCode: 255,
+					Err:      errors.New("ssh failed"),
+				}
+			},
+			DeployPassword: func(_ context.Context, _ string, target bootstrap.SSHTarget, _ string) error {
+				if target.Port != 22 {
+					t.Fatalf("target.Port=%d, want default 22", target.Port)
+				}
+				return errors.New("stop after capture")
+			},
+			NewID: func() (string, error) { return "abc12345", nil },
+		}
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"connect-info", "--file", infoFile, "-n", "deploy"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected key deploy error")
+	}
+}

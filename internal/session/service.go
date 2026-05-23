@@ -29,6 +29,7 @@ type RegistryEntry struct {
 	User          string    `json:"user"`
 	Port          int       `json:"port"`
 	Identity      string    `json:"identity,omitempty"`
+	Jump          string    `json:"jump,omitempty"`
 	HostKeyPolicy string    `json:"host_key_policy"`
 	TmuxName      string    `json:"tmux_name"`
 	CreatedAt     time.Time `json:"created_at"`

@@ -77,12 +77,11 @@ func newConnectInfoCommand() *cobra.Command {
 
 			req.Host = info.Host
 			req.User = info.User
-			if info.Port != 0 && !cmd.Flags().Changed("port") {
-				req.Port = info.Port
+			if info.Port != 0 {
+				ssh.Port = info.Port
 			}
 			ssh.Host = req.Host
 			ssh.User = req.User
-			ssh.Port = req.Port
 			ssh.applyToBootstrapRequest(&req)
 			req.PasswordEnv = "__ASSH_CONNECT_INFO_PASSWORD"
 			req.Timeout = time.Duration(ssh.TimeoutSecond) * time.Second

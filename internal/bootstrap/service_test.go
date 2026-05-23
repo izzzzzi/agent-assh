@@ -296,6 +296,9 @@ func TestRunInstallsTmuxWhenProbeReportsMissing(t *testing.T) {
 	if entry.SID != "abc12345" || entry.Label != "deploy" || entry.TmuxName != "assh_abc12345" {
 		t.Fatalf("registry entry = sid:%q label:%q tmux:%q", entry.SID, entry.Label, entry.TmuxName)
 	}
+	if entry.Jump != req.Jump {
+		t.Fatalf("registry jump=%q want %q", entry.Jump, req.Jump)
+	}
 }
 
 func commandKinds(commands []string) []string {
