@@ -30,6 +30,7 @@ func newSessionCommand() *cobra.Command {
 		newSessionExecCommand(),
 		newSessionReadCommand(),
 		newSessionCloseCommand(),
+		newSessionListCommand(),
 		newSessionGCCommand(),
 	)
 	return cmd

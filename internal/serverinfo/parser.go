@@ -60,6 +60,11 @@ func Parse(input string) (Info, error) {
 
 	info.Password = decodeEscapedNewlines(strings.TrimSpace(strings.Join(passwordLines, "\n")))
 	if info.Host == "" {
+		if info.IPv6 != "" {
+			info.Host = info.IPv6
+		}
+	}
+	if info.Host == "" {
 		return Info{}, errors.New("server info is missing IPv4 host")
 	}
 	if info.User == "" {

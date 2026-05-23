@@ -29,6 +29,23 @@ IPv6-адрес сервера: 2001:db8::51 copy icon
 	}
 }
 
+func TestParseFallsBackToIPv6Host(t *testing.T) {
+	block := `IPv6-адрес сервера: 2001:db8::51 copy icon
+Пользователь: root copy icon
+Пароль: example copy icon`
+
+	info, err := Parse(block)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if info.Host != "2001:db8::51" {
+		t.Fatalf("Host=%q want IPv6 fallback", info.Host)
+	}
+	if info.IPv6 != "2001:db8::51" {
+		t.Fatalf("IPv6=%q", info.IPv6)
+	}
+}
+
 func TestParseMultilinePasswordUntilNextKnownLabel(t *testing.T) {
 	block := `Host: 203.0.113.10
 User: root

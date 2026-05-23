@@ -370,6 +370,7 @@ func TestSessionReadRawRemoteFailureReturnsJSONError(t *testing.T) {
 }
 
 func TestSessionGCReturnsDryRunCandidates(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
 	got := executeSessionJSON(t, []string{"session", "gc"})
 
 	candidates, ok := got["candidates"].([]any)
@@ -378,6 +379,59 @@ func TestSessionGCReturnsDryRunCandidates(t *testing.T) {
 	}
 	if got["ok"] != true || got["dry_run"] != true || len(candidates) != 0 {
 		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestSessionListReturnsEmptyRegistryJSON(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+
+	got := executeSessionJSON(t, []string{"session", "list"})
+
+	if got["ok"] != true || got["count"] != float64(0) {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	sessions, ok := got["sessions"].([]any)
+	if !ok || len(sessions) != 0 {
+		t.Fatalf("sessions = %#v", got["sessions"])
+	}
+}
+
+func TestSessionListReturnsSortedSessions(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	now := time.Now().UTC()
+	entries := []session.RegistryEntry{
+		{SID: "aaaaaaaa", Label: "tie-a", Host: "a.example", User: "root", Port: 22, HostKeyPolicy: "accept-new", TmuxName: "assh_aaaaaaaa", CreatedAt: now.Add(-2 * time.Second), TTLSeconds: 3600, Seq: 1},
+		{SID: "cccccccc", Label: "tie-c", Host: "c.example", User: "root", Port: 22, HostKeyPolicy: "accept-new", TmuxName: "assh_cccccccc", CreatedAt: now.Add(-2 * time.Second), TTLSeconds: 1, Seq: 3},
+		{SID: "bbbbbbbb", Label: "older", Host: "b.example", User: "root", Port: 22, HostKeyPolicy: "accept-new", TmuxName: "assh_bbbbbbbb", CreatedAt: now.Add(-time.Hour), TTLSeconds: 7200, Seq: 2},
+	}
+	for _, entry := range entries {
+		if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+			t.Fatalf("SaveRegistry() error = %v", err)
+		}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "list"})
+
+	if got["ok"] != true || got["count"] != float64(3) {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	sessions := got["sessions"].([]any)
+	if len(sessions) != 3 {
+		t.Fatalf("sessions = %#v", got["sessions"])
+	}
+
+	first := sessions[0].(map[string]any)
+	second := sessions[1].(map[string]any)
+	third := sessions[2].(map[string]any)
+
+	if first["sid"] != "aaaaaaaa" || second["sid"] != "cccccccc" || third["sid"] != "bbbbbbbb" {
+		t.Fatalf("unexpected order: %#v", got["sessions"])
+	}
+	if first["expired"] != false || second["expired"] != true || third["expired"] != false {
+		t.Fatalf("unexpected expired flags: %#v", got["sessions"])
+	}
+	if first["seq"] != float64(1) || first["tmux_name"] != "assh_aaaaaaaa" {
+		t.Fatalf("unexpected session payload: %#v", first)
 	}
 }
 
