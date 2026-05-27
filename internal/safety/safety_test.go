@@ -29,10 +29,14 @@ func TestCheckCommandBlocksDangerousCommands(t *testing.T) {
 		{name: "assignment env split string rm recursive", command: "VAR=x env -S 'rm -rf /tmp/build'", rule: "rm_recursive"},
 		{name: "sudo env split string rm recursive", command: "sudo env -S 'rm -rf /tmp/build'", rule: "rm_recursive"},
 		{name: "command env split string find delete", command: "command env --split-string='find /tmp -delete'", rule: "find_delete"},
+		{name: "dollar command substitution rm recursive", command: "echo $(rm -rf /tmp/build)", rule: "rm_recursive"},
+		{name: "backtick command substitution rm recursive", command: "echo `rm -rf /tmp/build`", rule: "rm_recursive"},
 		{name: "bash c rm recursive", command: "bash -c 'rm -rf /tmp/build'", rule: "rm_recursive"},
 		{name: "bash combined c rm recursive", command: "bash -lc 'rm -rf /tmp/build'", rule: "rm_recursive"},
 		{name: "bash option operand rm recursive", command: "bash -o pipefail -c 'rm -rf /tmp/build'", rule: "rm_recursive"},
 		{name: "bash shopt option operand rm recursive", command: "bash -O extglob -c 'rm -rf /tmp/build'", rule: "rm_recursive"},
+		{name: "bash rcfile operand rm recursive", command: "bash --rcfile /dev/null -c 'rm -rf /tmp/build'", rule: "rm_recursive"},
+		{name: "bash init file operand rm recursive", command: "bash --init-file /dev/null -c 'rm -rf /tmp/build'", rule: "rm_recursive"},
 		{name: "sh c find delete", command: "sh -c 'find /tmp -delete'", rule: "find_delete"},
 		{name: "sh combined c find delete", command: "sh -ec 'find /tmp -delete'", rule: "find_delete"},
 		{name: "sh option operand find delete", command: "sh -o pipefail -c 'find /tmp -delete'", rule: "find_delete"},
@@ -102,6 +106,7 @@ func TestCheckCommandAllowsSafeCommands(t *testing.T) {
 		"journalctl -p warning",
 		"printf '> /etc/passwd\n'",
 		"echo ok > /tmp/probe",
+		"echo '$(rm -rf /)'",
 	}
 
 	for _, command := range tests {

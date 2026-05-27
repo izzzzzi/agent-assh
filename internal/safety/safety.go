@@ -21,6 +21,13 @@ func CheckCommand(command string) Result {
 
 func checkCommand(command string, depth int) Result {
 	for _, segment := range splitSegments(command) {
+		if depth < maxShellDepth {
+			for _, script := range commandSubstitutionScripts(segment) {
+				if result := checkCommand(script, depth+1); result.Dangerous {
+					return result
+				}
+			}
+		}
 		tokens := shellFields(segment)
 		if result := checkSegment(tokens, depth); result.Dangerous {
 			return result
@@ -260,7 +267,7 @@ func shellCommandScript(tokens []token) (string, bool) {
 
 func shellOptionTakesOperand(value string) bool {
 	switch value {
-	case "-o", "-O", "--option", "--shopt":
+	case "-o", "-O", "--option", "--shopt", "--rcfile", "--init-file":
 		return true
 	default:
 		return false
@@ -306,6 +313,71 @@ func envSplitString(tokens []token) (string, bool) {
 		tokens = tokens[1:]
 	}
 	return "", false
+}
+
+func commandSubstitutionScripts(segment string) []string {
+	var scripts []string
+	var quote rune
+	escaped := false
+	for i := 0; i < len(segment); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if segment[i] == '\\' {
+			escaped = true
+			continue
+		}
+		if quote != 0 {
+			if rune(segment[i]) == quote {
+				quote = 0
+			}
+			continue
+		}
+		if segment[i] == '\'' || segment[i] == '"' {
+			quote = rune(segment[i])
+			continue
+		}
+		if i+1 < len(segment) && segment[i] == '$' && segment[i+1] == '(' {
+			if script, end, ok := dollarCommandSubstitution(segment, i+2); ok {
+				scripts = append(scripts, script)
+				i = end
+			}
+			continue
+		}
+		if segment[i] == '`' {
+			if script, end, ok := backtickCommandSubstitution(segment, i+1); ok {
+				scripts = append(scripts, script)
+				i = end
+			}
+		}
+	}
+	return scripts
+}
+
+func dollarCommandSubstitution(value string, start int) (string, int, bool) {
+	depth := 1
+	for i := start; i < len(value); i++ {
+		switch value[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return value[start:i], i, true
+			}
+		}
+	}
+	return "", 0, false
+}
+
+func backtickCommandSubstitution(value string, start int) (string, int, bool) {
+	for i := start; i < len(value); i++ {
+		if value[i] == '`' {
+			return value[start:i], i, true
+		}
+	}
+	return "", 0, false
 }
 
 func splitSegments(command string) []string {
