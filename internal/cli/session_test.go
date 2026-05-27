@@ -176,6 +176,68 @@ func TestSessionExecRequiresSIDAndCommand(t *testing.T) {
 	}
 }
 
+func TestSessionExecBlocksDangerousCommandWithoutConfirmation(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(context.Context, transport.SSHCommand, string) transport.Result {
+		t.Fatalf("runSSH called for blocked dangerous command")
+		return transport.Result{}
+	}
+
+	got := executeSessionJSONError(t, []string{"session", "exec", "--sid", "abcdef12", "--", "rm", "-rf", "/tmp/build"})
+	if got["error"] != "dangerous_command_requires_confirmation" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	if got["hint"] != "matched destructive pattern: rm_recursive" {
+		t.Fatalf("unexpected hint: %#v", got)
+	}
+
+	entry, err := session.LoadRegistry(stateBaseDir(), "abcdef12")
+	if err != nil {
+		t.Fatalf("LoadRegistry() error = %v", err)
+	}
+	if entry.Seq != 0 {
+		t.Fatalf("blocked command incremented seq to %d", entry.Seq)
+	}
+}
+
+func TestSessionExecConfirmDangerAllowsDangerousCommand(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	called := false
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(_ context.Context, _ transport.SSHCommand, remoteCommand string) transport.Result {
+		called = true
+		if !strings.Contains(remoteCommand, "rm -rf /tmp/build") {
+			t.Fatalf("remote command missing user command: %s", remoteCommand)
+		}
+		return transport.Result{Stdout: []byte("__ASSH_RC__=0\n__ASSH_STDOUT_LINES__=0\n__ASSH_STDERR_LINES__=0\n"), ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--confirm-danger", "--", "rm", "-rf", "/tmp/build"})
+	if got["ok"] != true || got["seq"] != float64(1) {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	if !called {
+		t.Fatalf("runSSH was not called")
+	}
+}
+
+func TestSessionExecDoesNotBlockQuotedDangerousText(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(context.Context, transport.SSHCommand, string) transport.Result {
+		return transport.Result{Stdout: []byte("__ASSH_RC__=0\n__ASSH_STDOUT_LINES__=1\n__ASSH_STDERR_LINES__=0\n"), ExitCode: 0}
+	}
+
+	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--", "echo", `"rm -rf /"`})
+	if got["ok"] != true {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
 func TestSessionExecReturnsJSON(t *testing.T) {
 	setMockSSH(t, "exit 0\n")
 	writeTestSessionRegistry(t, "abcdef12")

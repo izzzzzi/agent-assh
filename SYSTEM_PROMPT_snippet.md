@@ -59,3 +59,4 @@ Rules:
 - Remote non-zero status is a command result, not a transport failure.
 - Passwords are only accepted through environment variables; never put passwords in command arguments.
 - Command text is not written to audit logs.
+- If `session exec` returns `dangerous_command_requires_confirmation`, ask for explicit user intent before rerunning with `--confirm-danger`.

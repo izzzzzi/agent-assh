@@ -10,6 +10,7 @@ import (
 	"github.com/izzzzzi/agent-assh/internal/ids"
 	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/izzzzzi/agent-assh/internal/response"
+	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/izzzzzi/agent-assh/internal/session"
 	"github.com/izzzzzi/agent-assh/internal/state"
 	"github.com/izzzzzi/agent-assh/internal/transport"
@@ -126,6 +127,7 @@ func newSessionOpenCommand() *cobra.Command {
 func newSessionExecCommand() *cobra.Command {
 	var sid string
 	var timeout int
+	var confirmDanger bool
 	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
@@ -146,8 +148,12 @@ func newSessionExecCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
+			userCommand := remoteCommand(args)
+			if result := safety.CheckCommand(userCommand); result.Dangerous && !confirmDanger {
+				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; rerun with --confirm-danger if intentional", result.Message)
+			}
 			entry.Seq++
-			remoteCommand, err := session.ExecRemoteCommand(entry.SID, entry.TmuxName, entry.Seq, remoteCommand(args), timeout)
+			remoteCommand, err := session.ExecRemoteCommand(entry.SID, entry.TmuxName, entry.Seq, userCommand, timeout)
 			if err != nil {
 				return writeInvalidArgs(cmd, err.Error(), "")
 			}
@@ -184,6 +190,7 @@ func newSessionExecCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "timeout in seconds")
+	cmd.Flags().BoolVar(&confirmDanger, "confirm-danger", false, "allow a command that matches destructive safety rules")
 	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }

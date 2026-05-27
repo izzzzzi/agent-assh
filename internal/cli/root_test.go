@@ -150,6 +150,8 @@ func TestRootHelpManifestIncludesWorkflowCommands(t *testing.T) {
 		"assh prompt",
 		"assh connect-info --file TMP -n NAME",
 		"assh session exec -s SID --",
+		"dangerous_command_requires_confirmation",
+		"--confirm-danger",
 		"assh session read -s SID --seq 1 --limit 50",
 		"AGENT_INSTRUCTIONS.md",
 		"SYSTEM_PROMPT_snippet.md",
@@ -199,6 +201,8 @@ func TestPromptCommandPrintsAgentInstructions(t *testing.T) {
 		"Use the returned sid and next_commands",
 		"assh session read -s SID --seq 1 --limit 50",
 		"assh session read -s SID --seq 1 --limit 50 --raw",
+		"dangerous_command_requires_confirmation",
+		"--confirm-danger",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("prompt missing %q in %s", want, body)

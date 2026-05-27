@@ -141,6 +141,7 @@ OpenCode: Use `assh connect-info` for provider server-info blocks and `assh sess
 - SSH runs non-interactively and disables pseudo-terminal allocation.
 - `--host-key-policy accept-new` is the default. Use `strict` for hardened environments.
 - `--host-key-policy no-check` is unsafe and should be limited to disposable lab/dev hosts.
+- `session exec` blocks clearly destructive commands such as `rm -rf`, `find ... -delete`, `mkfs`, `wipefs`, dangerous `dd`, and recursive permission changes; intentional runs require `--confirm-danger`.
 - Remote cleanup only targets sessions with trusted `assh` metadata.
 
 ## Advantages
