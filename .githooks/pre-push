@@ -1,0 +1,42 @@
+#!/bin/sh
+set -eu
+
+# Check: if pushing a tag vX.Y.Z, package.json version must match X.Y.Z
+# This catches the most common CI failure before it reaches GitHub.
+ref=$(git symbolic-ref HEAD 2>/dev/null || true)
+if [ -z "$ref" ]; then
+  echo "pre-push: detached HEAD, skipping version check"
+  exit 0
+fi
+
+branch=$(basename "$ref")
+# Only check on main branch
+if [ "$branch" != "main" ]; then
+  exit 0
+fi
+
+# Check if any new tags are being pushed
+current_commit=$(git rev-parse HEAD)
+pkg_version=$(node -p "require('./package.json').version" 2>/dev/null || echo "")
+
+if [ -z "$pkg_version" ]; then
+  echo "pre-push: WARNING — could not read package.json version"
+  exit 0
+fi
+
+# Verify that a tag v{pkg_version} exists on the current commit
+# or warn if it would be the wrong version
+expected_tag="v${pkg_version}"
+if git rev-parse "refs/tags/${expected_tag}" >/dev/null 2>&1; then
+  tag_commit=$(git rev-parse "refs/tags/${expected_tag}")
+  if [ "$tag_commit" != "$current_commit" ]; then
+    echo ""
+    echo "ERROR: tag ${expected_tag} points to ${tag_commit}"
+    echo "       but HEAD is ${current_commit}"
+    echo "       Either move the tag or bump package.json version."
+    echo ""
+    exit 1
+  fi
+fi
+
+echo "pre-push: version ok (${expected_tag})"
