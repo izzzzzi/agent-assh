@@ -19,7 +19,6 @@ type Server struct {
 	in       *bufio.Reader
 	out      io.Writer
 	mu       sync.Mutex
-	nextID   int
 	tools    []Tool
 	handlers map[string]ToolHandler
 }

@@ -135,13 +135,13 @@ func readTarGz(t *testing.T, path string) map[string]string {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	gz, err := gzip.NewReader(file)
 	if err != nil {
 		t.Fatalf("gzip.NewReader() error = %v", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	files := map[string]string{}
 	tr := tar.NewReader(gz)

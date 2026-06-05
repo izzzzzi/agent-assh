@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -94,7 +95,9 @@ func applySSHConfigEntry(opts *sshOptions, entry sshConfigEntry) {
 		opts.User = entry.User
 	}
 	if entry.Port != "" {
-		// Port is already validated as int in the caller
+		if p, err := strconv.Atoi(entry.Port); err == nil && p > 0 && p < 65536 {
+			opts.Port = p
+		}
 	}
 	if entry.IdentityFile != "" {
 		opts.Identity = entry.IdentityFile

@@ -157,7 +157,7 @@ func readCLITarGz(t *testing.T, path string) map[string]string {
 	if err != nil {
 		t.Fatalf("gzip.NewReader() error = %v", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	tr := tar.NewReader(gz)
 	files := map[string]string{}
 	for {

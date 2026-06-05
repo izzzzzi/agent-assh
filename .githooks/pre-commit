@@ -10,14 +10,8 @@ go vet ./...
 echo "pre-commit: go test"
 go test ./...
 
-echo "pre-commit: npm smoke"
-npm run smoke
+echo "pre-commit: golangci-lint"
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run
 
-echo "pre-commit: npm pack"
-npm pack --dry-run >/dev/null
-
-echo "pre-commit: markdownlint"
-npx --yes markdownlint-cli2 --config .markdownlint-cli2.yaml README.md README.en.md AGENT_INSTRUCTIONS.md SYSTEM_PROMPT_snippet.md
-
-echo "pre-commit: release contract"
-npm run release:contract -- --ci 2>/dev/null || true
+echo "pre-commit: npm check"
+npm run check

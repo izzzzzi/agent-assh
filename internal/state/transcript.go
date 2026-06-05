@@ -32,7 +32,7 @@ func (t *TranscriptStore) Append(sid string, seq int, command string, stdout []b
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	ts := time.Now().UTC().Format(time.RFC3339)
 	_, err = f.WriteString("=== seq=" + itoa(seq) + " ts=" + ts + " ===\n")

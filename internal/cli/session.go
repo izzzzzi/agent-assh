@@ -200,7 +200,7 @@ func newSessionExecCommand() *cobra.Command {
 				return writeError(cmd, "timeout", "session command timed out", "")
 			}
 			writeAudit("session_exec", entry.SID, entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
-			state.NewTranscriptStore(stateBaseDir()).Append(entry.SID, entry.Seq, userCommand, nil, nil)
+			_ = state.NewTranscriptStore(stateBaseDir()).Append(entry.SID, entry.Seq, userCommand, nil, nil)
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
