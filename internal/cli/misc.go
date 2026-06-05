@@ -123,7 +123,18 @@ func newAuditCommand() *cobra.Command {
 }
 
 func scanRemoteCommand() string {
-	return `printf '{"hostname":"%s","os":"%s","kernel":"%s","arch":"%s","cpu_cores":"%s","ip":"%s"}\n' "$(hostname 2>/dev/null)" "$(uname -s 2>/dev/null)" "$(uname -r 2>/dev/null)" "$(uname -m 2>/dev/null)" "$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo N/A)" "$(hostname -I 2>/dev/null | awk '{print $1}' || echo N/A)"`
+	return `printf '{"hostname":"%s","os":"%s","kernel":"%s","arch":"%s","cpu_cores":"%s","ip":"%s","uptime":"%s","load":"%s","mem_total_kb":"%s","mem_avail_kb":"%s","disk":"%s"}\n' \
+"$(hostname 2>/dev/null)" \
+"$(uname -s 2>/dev/null)" \
+"$(uname -r 2>/dev/null)" \
+"$(uname -m 2>/dev/null)" \
+"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo N/A)" \
+"$(hostname -I 2>/dev/null | awk '{print $1}' || echo N/A)" \
+"$(uptime 2>/dev/null | sed 's/.*up *\([^,]*\),.*/\1/' || echo N/A)" \
+"$(cat /proc/loadavg 2>/dev/null | awk '{printf "%s %s %s",$1,$2,$3}' || sysctl -n vm.loadavg 2>/dev/null | tr -d '{}' || echo N/A)" \
+"$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1024)}' || echo N/A)" \
+"$(awk '/MemAvailable/{print $2}' /proc/meminfo 2>/dev/null || echo N/A)" \
+"$(df -h / 2>/dev/null | awk 'NR==2{printf "%s/%s (%s)",$3,$2,$5}' || echo N/A)"`
 }
 
 func homeDir() string {

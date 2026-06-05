@@ -13,6 +13,8 @@ assh version
 
 ```text
 Need SSH?
+  prefer assh connect --ssh-config ALIAS for hosts in ~/.ssh/config
+
   If the user pasted provider server info:
     save it to a 0600 temp file
     assh connect-info --file TMP -n NAME
@@ -23,13 +25,57 @@ Need SSH?
     assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
     or, when key login already works:
     assh connect -H HOST -u root -i KEY -n NAME
+    or, resolve from ~/.ssh/config:
+    assh connect --ssh-config my-alias -n NAME
+
+  Scan host health:
+    assh scan -H HOST -u USER
 
   Continue with returned sid:
     assh session exec -s SID -- "pwd"
     assh session read -s SID --seq 1 --limit 50
     assh session exec -s SID --timeout 600 -- "git pull"
     assh session read -s SID --seq 2 --stream stderr --limit 50
-    assh session close -s SID
+
+  File operations:
+    assh transfer list -H HOST -u USER --path /var/log
+    assh transfer stat -H HOST -u USER --path /etc/nginx.conf
+    assh transfer put -H HOST -u USER LOCAL_PATH REMOTE_PATH
+    assh transfer get -H HOST -u USER REMOTE_PATH LOCAL_PATH
+    assh transfer sync --direction push --source ./dist --dest /var/www -H HOST
+    assh transfer mkdir -H HOST -u USER --path /opt/newapp
+    assh transfer rm -H HOST -u USER --path /tmp/junk.log
+    assh transfer mv -H HOST -u USER --source /tmp/a --dest /tmp/b
+
+  Server management:
+    assh session ps -s SID --top 20
+    assh session kill -s SID --pid 1234
+    assh session service -s SID --action status --service nginx
+    assh session service -s SID --action restart --service docker
+    assh session service -s SID --action logs --service nginx --lines 100
+
+  Background jobs:
+    assh session exec-async -s SID -- "long-build.sh"
+    assh session job-status -s SID --job-id JOB_ID
+    assh session job-cancel -s SID --job-id JOB_ID
+
+  Docker:
+    assh session docker-ps -s SID
+    assh session docker-logs -s SID --container myapp
+    assh session docker-exec -s SID --container myapp -- "ls -la"
+
+  Database (read-only):
+    assh session db-query -s SID --type mysql -d mydb -q "SELECT COUNT(*) FROM users"
+
+  Fleet (multi-host):
+    assh fleet exec -H host1 -H host2 -H host3 -u root -- "uptime"
+
+  Pre/post hooks:
+    assh session exec -s SID --before "git stash" --after "git stash pop" -- "deploy.sh"
+
+  Watch agent session (human observability):
+    assh session watch -s SID
+    # Copy the attach_cmd to a terminal to see the agent's tmux in real-time.
 
   Cleanup:
     assh session gc --older-than 24h --execute
@@ -52,6 +98,18 @@ Need SSH?
 {"ok":true,"rc":0,"seq":2,"stdout_lines":15,"stderr_lines":0,"sid":"f7a2b3c4","session":"deploy"}
 ```
 
+`assh scan` returns host inventory:
+
+```json
+{"hostname":"web01","os":"Linux","kernel":"6.1.0","arch":"x86_64","cpu_cores":"4","ip":"10.0.0.1","uptime":"30 days","load":"0.15 0.10 0.05","mem_total_kb":"8176248","mem_avail_kb":"5241360","disk":"12G/50G (25%)"}
+```
+
+`assh transfer list` returns file entries:
+
+```json
+{"ok":true,"host":"web01","user":"root","path":"/var/log","count":5,"entries":[{"name":"syslog","type":"f","size":12345,"mtime":"2026-06-05T10:00:00Z"}]}
+```
+
 Rules:
 
 - Operational commands emit one JSON value by default.
@@ -60,3 +118,5 @@ Rules:
 - Passwords are only accepted through environment variables; never put passwords in command arguments.
 - Command text is not written to audit logs.
 - If `session exec` returns `dangerous_command_requires_confirmation`, ask for explicit user intent before rerunning with `--confirm-danger`.
+- db-query is read-only — only SELECT/SHOW/DESCRIBE/EXPLAIN allowed.
+- session watch shows a tmux attach command; the human opens a terminal to observe the agent.

@@ -22,6 +22,12 @@ func newTransferCommand() *cobra.Command {
 	cmd.AddCommand(
 		newTransferPutCommand(),
 		newTransferGetCommand(),
+		newTransferListCommand(),
+		newTransferStatCommand(),
+		newTransferMkdirCommand(),
+		newTransferRmCommand(),
+		newTransferMvCommand(),
+		newTransferSyncCommand(),
 	)
 	return cmd
 }

@@ -20,6 +20,7 @@ func newConnectCommand() *cobra.Command {
 	var req bootstrap.Request
 	ssh := defaultSSHOptions()
 	ssh.Identity = filepath.Join(homeDir(), ".ssh", "id_agent_ed25519")
+	var sshConfigAlias string
 
 	cmd := &cobra.Command{
 		Use:           "connect",
@@ -37,6 +38,11 @@ func newConnectCommand() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if sshConfigAlias != "" && ssh.Host == "" {
+				if entry, ok := resolveSSHConfig(sshConfigAlias); ok {
+					applySSHConfigEntry(&ssh, entry)
+				}
+			}
 			ssh.applyToBootstrapRequest(&req)
 			req.Timeout = time.Duration(ssh.TimeoutSecond) * time.Second
 			return runConnect(cmd, req)
@@ -44,6 +50,7 @@ func newConnectCommand() *cobra.Command {
 	}
 
 	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
+	cmd.Flags().StringVar(&sshConfigAlias, "ssh-config", "", "resolve host/user/identity from ~/.ssh/config alias")
 	cmd.Flags().StringVarP(&req.PasswordEnv, "password-env", "E", "", "password environment variable for first login")
 	cmd.Flags().StringVarP(&req.SessionName, "name", "n", "", "session label")
 	cmd.Flags().DurationVar(&req.TTL, "ttl", 12*time.Hour, "session ttl")

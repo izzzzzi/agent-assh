@@ -11,6 +11,10 @@ SSH-инструмент для LLM-агентов.
 
 `assh` подготавливает SSH-доступ, открывает persistent `tmux`-сессию на сервере и не тащит большой вывод в контекст агента. Команды сначала возвращают компактный JSON с метаданными, а агент читает только нужные строки.
 
+<p align="center">
+  <img src="docs/assh-architecture.png" alt="assh architecture" width="800">
+</p>
+
 ## Быстрый старт
 
 ```bash
@@ -75,12 +79,22 @@ assh session close -s f7a2b3c4
 - `assh connect`: первый bootstrap и открытие session.
 - `assh connect-info`: распарсить provider server-info block и подключиться.
 - `assh session exec|read|close|gc`: persistent workflow через tmux.
+- `assh session ps|kill`: управление процессами.
+- `assh session service`: управление сервисами (status/restart/start/stop/logs).
+- `assh session exec-async|job-status|job-cancel`: фоновые задачи.
+- `assh session docker-ps|docker-logs|docker-exec`: управление Docker.
+- `assh session db-query`: read-only запросы к MySQL/PostgreSQL.
+- `assh session watch`: наблюдение за tmux-сессией агента человеком.
 - `assh exec`: выполнить одну remote-команду и сохранить вывод локально.
 - `assh read`: прочитать сохранённый вывод с пагинацией или через `--raw`.
+- `assh transfer put|get|list|stat|mkdir|rm|mv|sync`: файловые операции и синхронизация.
+- `assh forward`: port forwarding (start/status/stop).
+- `assh fleet exec`: параллельное выполнение на нескольких хостах.
+- `assh scan`: вернуть JSON-инвентарь хоста (OS, CPU, память, диск, uptime).
 - `assh capabilities`: проверить поддержку session workflow на сервере.
-- `assh scan`: вернуть JSON-инвентарь хоста.
 - `assh key-deploy`: низкоуровневая установка ключа через пароль из env.
 - `assh audit`: читать локальный audit через `--last`, `--host`, `--failed`.
+- `assh mcp serve`: запустить MCP stdio сервер для Claude Code/Cursor/Windsurf.
 - `assh version`: вывести метаданные версии.
 
 ## Экономия токенов
@@ -147,9 +161,14 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 ## Плюсы
 
 - Одна команда делает первый вход, ключ, tmux, cleanup и открытие session.
+- ControlMaster connection pooling — повторные вызовы переиспользуют SSH-сокет.
 - Большой вывод не попадает в контекст агента без явного чтения.
 - Persistent sessions сохраняют рабочую директорию и окружение между командами.
 - JSON-ответы стабильны для парсинга агентом.
+- Встроенная проверка безопасности команд (safety classifier).
+- Фоновые задачи через tmux (exec-async).
+- Read-only database queries с защитой от записи.
+- MCP-сервер для Claude Code, Cursor, Windsurf.
 
 ## Ограничения
 

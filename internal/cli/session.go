@@ -30,11 +30,22 @@ func newSessionCommand() *cobra.Command {
 	cmd.AddCommand(
 		newSessionOpenCommand(),
 		newSessionExecCommand(),
+		newSessionExecAsyncCommand(),
+		newSessionJobStatusCommand(),
+		newSessionJobCancelCommand(),
 		newSessionReadCommand(),
 		newSessionCloseCommand(),
 		newSessionListCommand(),
 		newSessionExportCommand(),
 		newSessionGCCommand(),
+		newSessionProcessListCommand(),
+		newSessionProcessKillCommand(),
+		newSessionServiceCommand(),
+		newSessionWatchCommand(),
+		newSessionDBQueryCommand(),
+		newSessionDockerPSCommand(),
+		newSessionDockerLogsCommand(),
+		newSessionDockerExecCommand(),
 	)
 	return cmd
 }
@@ -128,6 +139,8 @@ func newSessionExecCommand() *cobra.Command {
 	var sid string
 	var timeout int
 	var confirmDanger bool
+	var beforeCmd string
+	var afterCmd string
 	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
@@ -149,6 +162,18 @@ func newSessionExecCommand() *cobra.Command {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 			userCommand := remoteCommand(args)
+			if beforeCmd != "" || afterCmd != "" {
+				wrapped := "{ "
+				if beforeCmd != "" {
+					wrapped += beforeCmd + "; "
+				}
+				wrapped += userCommand
+				if afterCmd != "" {
+					wrapped += "; " + afterCmd
+				}
+				wrapped += "; }"
+				userCommand = wrapped
+			}
 			if result := safety.CheckCommand(userCommand); result.Dangerous && !confirmDanger {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; rerun with --confirm-danger if intentional", result.Message)
 			}
@@ -175,6 +200,7 @@ func newSessionExecCommand() *cobra.Command {
 				return writeError(cmd, "timeout", "session command timed out", "")
 			}
 			writeAudit("session_exec", entry.SID, entry.Host, entry.User, remoteCommand, rc, stdoutLines, stderrLines)
+			state.NewTranscriptStore(stateBaseDir()).Append(entry.SID, entry.Seq, userCommand, nil, nil)
 
 			return writeJSON(cmd, response.OK{
 				"ok":           true,
@@ -191,6 +217,8 @@ func newSessionExecCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().IntVarP(&timeout, "timeout", "t", 300, "timeout in seconds")
 	cmd.Flags().BoolVar(&confirmDanger, "confirm-danger", false, "allow a command that matches destructive safety rules")
+	cmd.Flags().StringVar(&beforeCmd, "before", "", "shell command to run before the main command")
+	cmd.Flags().StringVar(&afterCmd, "after", "", "shell command to run after the main command")
 	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }
@@ -255,6 +283,9 @@ func newSessionReadCommand() *cobra.Command {
 				Content:    content,
 			}); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
+			}
+			if stream == "stdout" {
+				_ = state.NewTranscriptStore(stateBaseDir()).Append(sid, seq, "", []byte(content), nil)
 			}
 			if raw {
 				_, err := cmd.OutOrStdout().Write([]byte(content))

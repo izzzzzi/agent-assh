@@ -11,6 +11,10 @@ SSH workflow helper for LLM agents.
 
 `assh` bootstraps SSH access, opens a persistent remote `tmux` session, and keeps large SSH output out of the agent context. Commands return compact JSON metadata first; agents read only the lines they need.
 
+<p align="center">
+  <img src="docs/assh-architecture.png" alt="assh architecture" width="800">
+</p>
+
 ## Quick Start
 
 ```bash
@@ -75,12 +79,22 @@ assh session close -s f7a2b3c4
 - `assh connect`: first-contact bootstrap and session open.
 - `assh connect-info`: parse a pasted provider server-info block and connect.
 - `assh session exec|read|close|gc`: persistent tmux workflow.
+- `assh session ps|kill`: process management.
+- `assh session service`: service management (status/restart/start/stop/logs).
+- `assh session exec-async|job-status|job-cancel`: background jobs.
+- `assh session docker-ps|docker-logs|docker-exec`: Docker management.
+- `assh session db-query`: read-only MySQL/PostgreSQL queries.
+- `assh session watch`: human observability into the agent's tmux session.
 - `assh exec`: run one remote command and store output locally.
 - `assh read`: read stored output with pagination or `--raw`.
+- `assh transfer put|get|list|stat|mkdir|rm|mv|sync`: file ops and sync.
+- `assh forward`: port forwarding (start/status/stop).
+- `assh fleet exec`: parallel execution across multiple hosts.
+- `assh scan`: return host inventory JSON (OS, CPU, memory, disk, uptime).
 - `assh capabilities`: inspect remote session support.
-- `assh scan`: return host inventory JSON.
 - `assh key-deploy`: low-level key deployment using a password from env.
 - `assh audit`: read local audit events with `--last`, `--host`, and `--failed`.
+- `assh mcp serve`: start MCP stdio server for Claude Code/Cursor/Windsurf.
 - `assh version`: print version metadata.
 
 ## Token Economy
@@ -147,9 +161,14 @@ OpenCode: Use `assh connect-info` for provider server-info blocks and `assh sess
 ## Advantages
 
 - One command handles first login, key setup, tmux readiness, cleanup, and session open.
+- ControlMaster connection pooling — repeat calls reuse the SSH socket.
 - Large output stays outside the agent context until explicitly paged in.
 - Persistent sessions preserve working directory and environment between commands.
 - JSON responses are stable for agent parsing.
+- Built-in command safety classifier blocks destructive operations.
+- Background jobs via tmux (exec-async).
+- Read-only database queries with write protection.
+- MCP server for Claude Code, Cursor, Windsurf.
 
 ## Limitations
 

@@ -25,10 +25,11 @@ type SCPCommand struct {
 	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
+	ControlPath   string
 }
 
 func (c SCPCommand) Args(source string, destination string, direction SCPDirection) []string {
-	args := make([]string, 0, 12)
+	args := make([]string, 0, 16)
 	if c.Port != 0 && c.Port != 22 {
 		args = append(args, "-P", strconv.Itoa(c.Port))
 	}
@@ -43,6 +44,9 @@ func (c SCPCommand) Args(source string, destination string, direction SCPDirecti
 	}
 	if value := strictHostKeyChecking(c.HostKeyPolicy); value != "" {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)
+	}
+	if c.ControlPath != "" {
+		args = append(args, "-o", "ControlPath="+c.ControlPath)
 	}
 
 	if direction == Download {

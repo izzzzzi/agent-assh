@@ -3,7 +3,11 @@ package transport
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 )
 
@@ -16,6 +20,7 @@ type SSHCommand struct {
 	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
+	ControlPath   string
 }
 
 type Result struct {
@@ -26,7 +31,7 @@ type Result struct {
 }
 
 func (c SSHCommand) Args(remoteCommand string) []string {
-	args := make([]string, 0, 10)
+	args := make([]string, 0, 14)
 
 	args = append(args, "-T")
 	if c.Port != 0 && c.Port != 22 {
@@ -44,9 +49,42 @@ func (c SSHCommand) Args(remoteCommand string) []string {
 	if value := strictHostKeyChecking(c.HostKeyPolicy); value != "" {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)
 	}
+	if cp := c.controlPath(); cp != "" {
+		args = append(args, "-o", "ControlMaster=auto")
+		args = append(args, "-o", "ControlPath="+cp)
+		args = append(args, "-o", "ControlPersist=300")
+	}
 
 	args = append(args, "--", c.target(), remoteCommand)
 	return args
+}
+
+var sshControlDir string
+
+func controlDir() string {
+	if sshControlDir != "" {
+		return sshControlDir
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Join(home, ".ssh", "controlmasters")
+	_ = os.MkdirAll(dir, 0700)
+	sshControlDir = dir
+	return dir
+}
+
+func (c SSHCommand) controlPath() string {
+	if c.ControlPath != "" {
+		return c.ControlPath
+	}
+	dir := controlDir()
+	if dir == "" {
+		return ""
+	}
+	hash := sha256.Sum256([]byte(c.target()))
+	return filepath.Join(dir, fmt.Sprintf("assh-%x.sock", hash[:8]))
 }
 
 func (c SSHCommand) Run(ctx context.Context, remoteCommand string) Result {

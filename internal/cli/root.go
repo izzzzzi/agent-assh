@@ -45,6 +45,8 @@ func NewRootCommand() *cobra.Command {
 		newKeyDeployCommand(),
 		newAuditCommand(),
 		newVersionCommand(),
+		newFleetExecCommand(),
+		newMCPServeCommand(),
 	)
 	setCommandHelp(cmd)
 	return cmd
