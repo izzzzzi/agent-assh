@@ -14,6 +14,7 @@ import (
 	"github.com/izzzzzi/agent-assh/internal/audit"
 	"github.com/izzzzzi/agent-assh/internal/ids"
 	"github.com/izzzzzi/agent-assh/internal/response"
+	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/izzzzzi/agent-assh/internal/state"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
@@ -38,6 +39,10 @@ func newExecCommand() *cobra.Command {
 			outputID, err := ids.New()
 			if err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
+			}
+
+			if result := safety.CheckCommand(remoteCommand(args)); result.Dangerous {
+				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; assh exec does not support --confirm-danger for safety reasons", result.Message)
 			}
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)

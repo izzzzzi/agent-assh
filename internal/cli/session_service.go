@@ -38,18 +38,18 @@ func newSessionServiceCommand() *cobra.Command {
 			var remoteCommand string
 			switch action {
 			case "status":
-				remoteCommand = "systemctl status " + escapeRemotePath(service) + " --no-pager -l 2>/dev/null || echo 'SERVICE_NOT_FOUND'"
+				remoteCommand = "systemctl status " + remote.SingleQuote(service) + " --no-pager -l 2>/dev/null || echo 'SERVICE_NOT_FOUND'"
 			case "restart":
-				remoteCommand = "sudo systemctl restart " + escapeRemotePath(service) + " 2>&1 && echo 'RESTART_OK' || echo 'RESTART_FAILED'"
+				remoteCommand = "sudo systemctl restart " + remote.SingleQuote(service) + " 2>&1 && echo 'RESTART_OK' || echo 'RESTART_FAILED'"
 			case "start":
-				remoteCommand = "sudo systemctl start " + escapeRemotePath(service) + " 2>&1 && echo 'START_OK' || echo 'START_FAILED'"
+				remoteCommand = "sudo systemctl start " + remote.SingleQuote(service) + " 2>&1 && echo 'START_OK' || echo 'START_FAILED'"
 			case "stop":
-				remoteCommand = "sudo systemctl stop " + escapeRemotePath(service) + " 2>&1 && echo 'STOP_OK' || echo 'STOP_FAILED'"
+				remoteCommand = "sudo systemctl stop " + remote.SingleQuote(service) + " 2>&1 && echo 'STOP_OK' || echo 'STOP_FAILED'"
 			case "logs":
 				if lines < 1 {
 					lines = 50
 				}
-				remoteCommand = "journalctl -u " + escapeRemotePath(service) + " --no-pager -n " + strconv.Itoa(lines) + " 2>/dev/null || echo 'JOURNALCTL_UNAVAILABLE'"
+				remoteCommand = "journalctl -u " + remote.SingleQuote(service) + " --no-pager -n " + strconv.Itoa(lines) + " 2>/dev/null || echo 'JOURNALCTL_UNAVAILABLE'"
 			default:
 				return writeInvalidArgs(cmd, "invalid action: "+action, "valid: status, restart, start, stop, logs")
 			}

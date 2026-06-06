@@ -160,7 +160,7 @@ func commandTokens(tokens []token) []token {
 				}
 				tokens = tokens[1:]
 			}
-		case "command", "builtin":
+		case "command", "builtin", "exec", "nohup", "nice", "time", "ionice":
 			tokens = tokens[1:]
 		case "env":
 			if _, ok := envSplitString(tokens[1:]); ok {
@@ -577,7 +577,7 @@ func criticalPath(path string) bool {
 	if path == "/" || path == "/*" {
 		return true
 	}
-	for _, prefix := range []string{"/etc", "/var", "/home", "/root", "/usr", "/bin", "/sbin", "/lib", "/opt", "/srv"} {
+	for _, prefix := range []string{"/etc", "/var", "/home", "/root", "/usr", "/bin", "/sbin", "/lib", "/opt", "/srv", "/dev", "/boot", "/sys", "/proc"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return true
 		}
@@ -593,6 +593,11 @@ func hasDangerousDDOutput(tokens []token) bool {
 		output := strings.TrimPrefix(tok.Value, "of=")
 		if strings.HasPrefix(output, "/dev/") || strings.HasPrefix(output, "/") {
 			return true
+		}
+		for _, dev := range []string{"/dev/sd", "/dev/nvme", "/dev/hd", "/dev/xvd", "/dev/vd", "/dev/mmcblk", "/dev/md", "/dev/dm-", "/dev/loop", "/dev/disk"} {
+			if strings.HasPrefix(output, dev) {
+				return true
+			}
 		}
 	}
 	return false

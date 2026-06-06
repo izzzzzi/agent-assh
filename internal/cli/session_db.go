@@ -102,7 +102,7 @@ func mysqlQueryCommand(database, query, dbUser, dbPass, dbHost string, dbPort in
 		parts = append(parts, "-u", remote.SingleQuote(dbUser))
 	}
 	if dbPass != "" {
-		parts = append(parts, "-p"+remote.SingleQuote(dbPass))
+		parts = append([]string{"MYSQL_PWD=" + remote.SingleQuote(dbPass)}, parts...)
 	}
 	if database != "" {
 		parts = append(parts, remote.SingleQuote(database))
@@ -135,6 +135,14 @@ func pgQueryCommand(database, query, dbUser, dbPass, dbHost string, dbPort int) 
 
 func isReadOnlyQuery(query string) bool {
 	query = strings.TrimSpace(query)
+	// Reject multi-statement queries (semicolons outside comments)
+	if strings.Contains(query, ";") {
+		// Allow trailing semicolons only
+		trimmed := strings.TrimRight(query, "; \t\n\r")
+		if strings.Contains(trimmed, ";") {
+			return false
+		}
+	}
 	for _, prefix := range []string{"SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN"} {
 		if strings.HasPrefix(query, prefix+" ") || query == prefix {
 			return true

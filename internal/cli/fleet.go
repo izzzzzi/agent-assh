@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +51,10 @@ func newFleetExecRunCommand() *cobra.Command {
 			}
 			command := strings.Join(args, " ")
 
+			if result := safety.CheckCommand(command); result.Dangerous {
+				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive: "+result.Message, "fleet exec does not support --confirm-danger for safety reasons")
+			}
+
 			results := runFleetExec(hosts, ssh, command, timeout)
 
 			return writeJSON(cmd, map[string]any{
@@ -73,15 +78,23 @@ func runFleetExec(hosts []string, baseOpts sshOptions, command string, timeout i
 	var wg sync.WaitGroup
 	results := make([]map[string]any, 0, len(hosts))
 
+	const maxConcurrent = 50
+	sem := make(chan struct{}, maxConcurrent)
+
+	parentCtx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout+5)*time.Second)
+	defer cancel()
+
 	for _, host := range hosts {
 		wg.Add(1)
+		sem <- struct{}{}
 		go func(h string) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			opts := baseOpts
 			opts.Host = h
 			opts.TimeoutSecond = timeout
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+			ctx, cancel := context.WithTimeout(parentCtx, time.Duration(timeout)*time.Second)
 			defer cancel()
 
 			result := runSSH(ctx, opts.command(), command)

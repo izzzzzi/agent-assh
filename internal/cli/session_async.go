@@ -7,6 +7,7 @@ import (
 
 	"github.com/izzzzzi/agent-assh/internal/ids"
 	"github.com/izzzzzi/agent-assh/internal/remote"
+	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/izzzzzi/agent-assh/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -36,12 +37,17 @@ func newSessionExecAsyncCommand() *cobra.Command {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 
+			userCommand := remoteCommand(args)
+
+			if result := safety.CheckCommand(userCommand); result.Dangerous {
+				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; exec-async does not support --confirm-danger for safety reasons", result.Message)
+			}
+
 			jobID, err := ids.New()
 			if err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			jobName := "assh_job_" + jobID
-			userCommand := remoteCommand(args)
 
 			entry.Seq++
 			remoteCommand := execAsyncRemoteCommand(entry.TmuxName, jobName, entry.Seq, userCommand, timeout)

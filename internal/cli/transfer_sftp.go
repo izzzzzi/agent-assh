@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/spf13/cobra"
 )
 
@@ -116,7 +117,7 @@ func newTransferMkdirCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
 
-			remoteCommand := "mkdir -p " + escapeRemotePath(path)
+			remoteCommand := "mkdir -p " + remote.SingleQuote(path)
 			result := runSSH(ctx, ssh.command(), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -163,7 +164,7 @@ func newTransferRmCommand() *cobra.Command {
 			if recursive {
 				flags = "-rf "
 			}
-			remoteCommand := "rm " + flags + escapeRemotePath(path)
+			remoteCommand := "rm " + flags + remote.SingleQuote(path)
 			result := runSSH(ctx, ssh.command(), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -207,7 +208,7 @@ func newTransferMvCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
 
-			remoteCommand := "mv " + escapeRemotePath(source) + " " + escapeRemotePath(dest)
+			remoteCommand := "mv " + remote.SingleQuote(source) + " " + remote.SingleQuote(dest)
 			result := runSSH(ctx, ssh.command(), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -233,15 +234,11 @@ func newTransferMvCommand() *cobra.Command {
 }
 
 func remoteFileListCommand(path string) string {
-	return `find ` + escapeRemotePath(path) + ` -maxdepth 1 -printf '{"name":"%f","type":"%Y","size":%s,"mtime":"%TY-%Tm-%TdT%TH:%TM:%TSZ"}\n' 2>/dev/null || echo "[]"`
+	return `find ` + remote.SingleQuote(path) + ` -maxdepth 1 -printf '{"name":"%f","type":"%Y","size":%s,"mtime":"%TY-%Tm-%TdT%TH:%TM:%TSZ"}\n' 2>/dev/null || echo "[]"`
 }
 
 func remoteFileStatCommand(path string) string {
-	return `stat --format='{"name":"%n","size":%s,"type":"%F","mode":"%a","uid":%u,"gid":%g,"mtime":"%y"}' ` + escapeRemotePath(path) + ` 2>/dev/null || echo "{}"`
-}
-
-func escapeRemotePath(path string) string {
-	return "'" + path + "'"
+	return `stat --format='{"name":"%n","size":%s,"type":"%F","mode":"%a","uid":%u,"gid":%g,"mtime":"%y"}' ` + remote.SingleQuote(path) + ` 2>/dev/null || echo "{}"`
 }
 
 func parseFileListJSON(stdout []byte) []any {

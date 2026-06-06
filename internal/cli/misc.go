@@ -164,6 +164,9 @@ func ensureKeyPair(identity string) error {
 
 func runSSHWithPassword(ctx context.Context, password string, command transport.SSHCommand, remoteCommand string) error {
 	dir, err := os.MkdirTemp("", "assh-askpass-*")
+	if err == nil {
+		_ = os.Chmod(dir, 0o700)
+	}
 	if err != nil {
 		return err
 	}

@@ -80,6 +80,9 @@ func newSessionProcessKillCommand() *cobra.Command {
 			if pid < 1 {
 				return writeInvalidArgs(cmd, "--pid is required", "")
 			}
+			if pid == 1 {
+				return writeError(cmd, "dangerous_command_requires_confirmation", "killing PID 1 (init/systemd) is blocked for safety", "")
+			}
 
 			entry, err := session.LoadRegistry(stateBaseDir(), sid)
 			if err != nil {
