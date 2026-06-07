@@ -7,14 +7,15 @@ import (
 
 const agentPrompt = `Use ` + "`assh`" + ` for SSH work.
 
-Prefer assh connect --ssh-config ALIAS for hosts already in ~/.ssh/config.
+Connect with direct host + key (simplest — no alias, no password):
+assh connect -H HOST -u root -i KEY -n NAME
 
-If the user pasted a provider server-info block, save the full block to a mode 0600 temporary file, run:
+For ~/.ssh/config aliases:
+assh connect --ssh-config ALIAS -n NAME
+
+For pasted provider server-info, save to a 0600 temp file, run:
 assh connect-info --file TMP -n NAME
-Then remove TMP.
-
-If connect-info cannot parse the block, extract host, user, and password yourself. Put the password in an environment variable and run:
-assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
+Then remove TMP. If parsing fails, extract host/user/password manually and use assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME.
 
 Never put passwords in command arguments. Never print, log, repeat, or summarize passwords.
 
@@ -107,7 +108,9 @@ func agentHelpManifest() response.OK {
 			"prompt":           "assh prompt",
 			"connect_info":     "assh connect-info --file TMP -n NAME",
 			"connect":          "assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME",
+			"connect_key":      "assh connect -H HOST -u USER -i KEY -n NAME",
 			"connect_ssh_conf": "assh connect --ssh-config ALIAS -n NAME",
+
 			"session_exec":     "assh session exec -s SID -- \"pwd\"",
 			"session_read":     "assh session read -s SID --seq 1 --limit 50",
 			"session_list":     "assh session list",

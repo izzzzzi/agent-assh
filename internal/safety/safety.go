@@ -577,6 +577,12 @@ func criticalPath(path string) bool {
 	if path == "/" || path == "/*" {
 		return true
 	}
+	// /dev/null, /dev/zero, /dev/random, /dev/urandom are harmless sinks
+	switch path {
+	case "/dev/null", "/dev/zero", "/dev/random", "/dev/urandom",
+		"/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/fd":
+		return false
+	}
 	for _, prefix := range []string{"/etc", "/var", "/home", "/root", "/usr", "/bin", "/sbin", "/lib", "/opt", "/srv", "/dev", "/boot", "/sys", "/proc"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return true
