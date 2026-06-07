@@ -13,20 +13,20 @@ assh version
 
 ```text
 Need SSH?
-  prefer assh connect --ssh-config ALIAS for hosts in ~/.ssh/config
+  Simplest path — direct host + key, no alias, no password:
+    assh connect -H HOST -u root -i KEY -n NAME
 
-  If the user pasted provider server info:
-    save it to a 0600 temp file
+  Alternative — ~/.ssh/config alias:
+    assh connect --ssh-config ALIAS -n NAME
+
+  Alternative — pasted provider server info:
+    save to a 0600 temp file
     assh connect-info --file TMP -n NAME
     delete TMP after connect
     if parsing fails, extract host/user/password, put password in env, then use connect
 
-  First step:
+  Alternative — first-contact with password:
     assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
-    or, when key login already works:
-    assh connect -H HOST -u root -i KEY -n NAME
-    or, resolve from ~/.ssh/config:
-    assh connect --ssh-config my-alias -n NAME
 
   Scan host health:
     assh scan -H HOST -u USER

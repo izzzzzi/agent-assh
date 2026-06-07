@@ -11,35 +11,39 @@ assh version
 
 ## First SSH Step
 
-Prefer `assh connect --ssh-config ALIAS` for hosts already in `~/.ssh/config`.
+Pick the right connect method — assh works with ANY combination of host, key, password, and SSH config alias.
 
-If the user pasted a provider server-info block, write the block to a temporary file with mode `0600`, run:
-
-```bash
-assh connect-info --file /path/to/tmp-server-info -n NAME
-```
-
-Then delete the temporary file. Server-info formats vary; if parsing fails, extract host, user, and password yourself, put the password in an environment variable, and use `assh connect -E PASSWORD_ENV`.
-
-If first-contact password access may be needed:
+**1. Direct host + key** (most common for agents):
 
 ```bash
-assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
+assh connect -H HOST -u root -i ~/.ssh/id_ed25519 -n NAME
 ```
 
-If key login is already configured:
+`-H` is a raw hostname/IP — no `~/.ssh/config` alias, no password needed.
 
-```bash
-assh connect -H HOST -u root -i ~/.ssh/id_agent_ed25519 -n NAME
-```
-
-If host is in `~/.ssh/config`:
+**2. SSH config alias** (when host is in `~/.ssh/config`):
 
 ```bash
 assh connect --ssh-config my-alias -n NAME
 ```
 
-Use the returned `sid` and `next_commands`.
+**3. Pasted server-info block** (provider credentials):
+
+```bash
+assh connect-info --file /path/to/tmp-server-info -n NAME
+```
+
+Then delete the temp file. If parsing fails, extract host/user/password, put password in env, and use `assh connect -E PASSWORD_ENV`.
+
+**4. First-contact with password only:**
+
+```bash
+assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
+```
+
+The key point: `-H` + `-i` is the simplest path. No `~/.ssh/config`, no password, no alias. Just host and key file.
+
+Use the returned `sid` and `next_commands` for all remote work.
 
 ## Normal Workflow
 
