@@ -188,7 +188,7 @@ func newSessionExecCommand() *cobra.Command {
 			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), timeout+5, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), timeout+5, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if strings.Contains(string(result.Stdout), "__ASSH_TIMEOUT__") {
 				return writeError(cmd, "timeout", "session command timed out", "")
 			}
@@ -265,7 +265,7 @@ func newSessionReadCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), 300, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), 300, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -345,7 +345,7 @@ func newSessionCloseCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 300*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), 300, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), 300, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}

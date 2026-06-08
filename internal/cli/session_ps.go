@@ -38,7 +38,7 @@ func newSessionProcessListCommand() *cobra.Command {
 			remoteCommand := remoteProcessListCommand(filter, top)
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -97,7 +97,7 @@ func newSessionProcessKillCommand() *cobra.Command {
 			remoteCommand := "kill -" + sig + " " + strconv.Itoa(pid) + " 2>/dev/null && echo '{\"ok\":true,\"pid\":'" + strconv.Itoa(pid) + ",\"signal\":\"" + sig + "\"}' || echo '{\"ok\":false,\"pid\":'" + strconv.Itoa(pid) + ",\"error\":\"kill failed\"}'"
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}

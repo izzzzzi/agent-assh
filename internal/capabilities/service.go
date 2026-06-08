@@ -28,18 +28,37 @@ func ProbeCommand() string {
 
 func ParseProbe(raw []byte) Capabilities {
 	text := string(raw)
-	// Extract content between probe markers (handles PTY echo) or use full output
-	s, e := strings.Index(text, "__ASSH_PROBE__"), strings.Index(text, "__ASSH_PROBE_END__")
-	if s >= 0 && e > s {
-		text = text[s+len("__ASSH_PROBE__") : e]
-	}
-	values := map[string]string{}
-	for _, line := range strings.Split(text, "\n") {
-		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
-		if !ok {
-			continue
+	// Extract content between probe markers with newline suffix to distinguish
+	// actual output from PTY-echoed command text (echoed has \n as literal chars).
+	s := strings.Index(text, "__ASSH_PROBE__\n")
+	if s >= 0 {
+		s += len("__ASSH_PROBE__\n")
+	} else {
+		// Fallback: no newline suffix (no-PTY mode)
+		s = strings.Index(text, "__ASSH_PROBE__")
+		if s >= 0 {
+			s += len("__ASSH_PROBE__")
+		} else {
+			s = 0
 		}
-		values[key] = value
+	}
+	e := strings.Index(text[s:], "\n__ASSH_PROBE_END__")
+	if e < 0 {
+		e = strings.Index(text[s:], "__ASSH_PROBE_END__")
+	}
+	if e >= 0 {
+		e += s
+	} else {
+		e = len(text)
+		s = 0
+	}
+
+	content := text[s:e]
+	values := map[string]string{}
+	for _, line := range strings.Split(content, "\n") {
+		if key, value, ok := strings.Cut(strings.TrimSpace(line), "="); ok {
+			values[key] = value
+		}
 	}
 
 	osName := values["os"]

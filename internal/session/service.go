@@ -31,6 +31,7 @@ type RegistryEntry struct {
 	Identity      string    `json:"identity,omitempty"`
 	Jump          string    `json:"jump,omitempty"`
 	HostKeyPolicy string    `json:"host_key_policy"`
+	ForcePTY      bool      `json:"force_pty"`
 	TmuxName      string    `json:"tmux_name"`
 	CreatedAt     time.Time `json:"created_at"`
 	TTLSeconds    int64     `json:"ttl_seconds"`
