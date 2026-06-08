@@ -43,6 +43,18 @@ assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
 
 The key point: `-H` + `-i` is the simplest path. No `~/.ssh/config`, no password, no alias. Just host and key file.
 
+**Picky SSH gateways (RunPod, etc.):** if connect fails with `unsupported remote session backend` or `Your SSH client doesn't support PTY`, add `--force-pty`:
+
+```bash
+assh connect -H HOST -u USER -i KEY --force-pty -n NAME
+```
+
+This uses `-tt` instead of `-T` and pipes commands via stdin. Also works with `assh exec`:
+
+```bash
+assh exec -H HOST -u USER -i KEY --force-pty -- "command"
+```
+
 Use the returned `sid` and `next_commands` for all remote work.
 
 ## Normal Workflow

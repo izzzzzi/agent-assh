@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 type SSHCommand struct {
@@ -98,11 +99,27 @@ func (c SSHCommand) Run(ctx context.Context, remoteCommand string) Result {
 		binary = "ssh"
 	}
 
-	cmd := exec.CommandContext(ctx, binary, c.Args(remoteCommand)...)
+	args := c.Args(remoteCommand)
+
+	// With PTY, the command must be sent via stdin (not as SSH arg)
+	// because SSH -tt sends the command to the PTY shell, which
+	// doesn't exit after the command completes.
+	if c.ForcePTY {
+		// Remove the remote command from args and send it via stdin
+		args = c.ptyArgs()
+	}
+
+	cmd := exec.CommandContext(ctx, binary, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+
+	if c.ForcePTY {
+		// With -tt the command must be sent via stdin (not SSH arg).
+		// Append exit so the interactive shell closes after the command.
+		cmd.Stdin = strings.NewReader(remoteCommand + "\nexit\n")
+	}
 
 	err := cmd.Run()
 	exitCode := 0
@@ -113,12 +130,48 @@ func (c SSHCommand) Run(ctx context.Context, remoteCommand string) Result {
 		}
 	}
 
-	return Result{
+	result := Result{
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
 		ExitCode: exitCode,
 		Err:      err,
 	}
+
+	if c.ForcePTY {
+		result.Stdout = CleanPTYOutput(result.Stdout, remoteCommand)
+		result.Stderr = CleanPTYOutput(result.Stderr, "")
+	}
+
+	return result
+}
+
+func (c SSHCommand) ptyArgs() []string {
+	args := make([]string, 0, 14)
+
+	args = append(args, "-tt")
+	if c.Port != 0 && c.Port != 22 {
+		args = append(args, "-p", strconv.Itoa(c.Port))
+	}
+	if c.Identity != "" {
+		args = append(args, "-i", c.Identity)
+	}
+	if c.Jump != "" {
+		args = append(args, "-J", c.Jump)
+	}
+	if c.TimeoutSecond > 0 {
+		args = append(args, "-o", "ConnectTimeout="+strconv.Itoa(c.TimeoutSecond))
+	}
+	if value := strictHostKeyChecking(c.HostKeyPolicy); value != "" {
+		args = append(args, "-o", "StrictHostKeyChecking="+value)
+	}
+	if cp := c.controlPath(); cp != "" {
+		args = append(args, "-o", "ControlMaster=auto")
+		args = append(args, "-o", "ControlPath="+cp)
+		args = append(args, "-o", "ControlPersist=300")
+	}
+
+	args = append(args, "--", c.target())
+	return args
 }
 
 func (c SSHCommand) target() string {

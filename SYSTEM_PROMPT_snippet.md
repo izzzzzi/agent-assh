@@ -28,6 +28,10 @@ Need SSH?
   Alternative — first-contact with password:
     assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
 
+  Picky SSH gateways (RunPod, etc.) — add --force-pty:
+    assh connect -H HOST -u root -i KEY --force-pty -n NAME
+    assh exec -H HOST -u root -i KEY --force-pty -- "command"
+
   Scan host health:
     assh scan -H HOST -u USER
 

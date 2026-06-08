@@ -13,6 +13,10 @@ assh connect -H HOST -u root -i KEY -n NAME
 For ~/.ssh/config aliases:
 assh connect --ssh-config ALIAS -n NAME
 
+For picky SSH gateways (RunPod, etc.) that reject -T:
+assh connect -H HOST -u root -i KEY --force-pty -n NAME
+assh exec -H HOST -u root -i KEY --force-pty -- "command"
+
 For pasted provider server-info, save to a 0600 temp file, run:
 assh connect-info --file TMP -n NAME
 Then remove TMP. If parsing fails, extract host/user/password manually and use assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME.
