@@ -1,6 +1,6 @@
 {
   "name": "agent-assh",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "SSH workflow helper for LLM agents",
   "license": "MIT",
   "repository": {
