@@ -49,6 +49,7 @@ func newSessionExecAsyncCommand() *cobra.Command {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			jobName := "assh_job_" + jobID
+			userCommand = remoteCommand(args)
 
 			entry.Seq++
 			remoteCommand := execAsyncRemoteCommand(entry.TmuxName, jobName, entry.Seq, userCommand, timeout)
@@ -200,7 +201,6 @@ func execAsyncRemoteCommand(tmuxName, jobName string, seq int, command string, w
 	outFile := jobDir + "/output.log"
 	rcFile := jobDir + "/rc"
 	scriptFile := jobDir + "/cmd.sh"
-	// Write command to a temp script to avoid quoting issues with shell meta-chars
 	return strings.Join([]string{
 		"mkdir -p " + jobDir,
 		"printf '%s\\n' " + remote.SingleQuote(command) + " > " + scriptFile,
@@ -228,4 +228,31 @@ func searchStr(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// execSyncRemoteCommandPTY runs a command synchronously using temp script + tmux new-window.
+// Used instead of ExecRemoteCommand when ForcePTY is active (PTY-gated hosts like RunPod).
+// Outputs __ASSH_RC__ and __ASSH_STDOUT_LINES__ markers for parseSessionExec.
+func execSyncRemoteCommandPTY(sid, tmuxName string, seq int, command string, waitSeconds int) string {
+	sessionDir := "~/.assh/sessions"
+	jobDir := sessionDir + "/jobs/exec_" + sid + "_" + strconv.Itoa(seq)
+	outFile := jobDir + "/output.log"
+	rcFile := jobDir + "/rc"
+	scriptFile := jobDir + "/cmd.sh"
+	sessionOut := sessionDir + "/" + sid + "/" + strconv.Itoa(seq) + ".out"
+	sessionErr := sessionDir + "/" + sid + "/" + strconv.Itoa(seq) + ".err"
+	sessionRC := sessionDir + "/" + sid + "/" + strconv.Itoa(seq) + ".rc"
+	lineCount := "awk 'END{print NR}'"
+	return strings.Join([]string{
+		"mkdir -p " + jobDir,
+		"printf '%s\\n' " + remote.SingleQuote(command) + " > " + scriptFile,
+		"rm -f " + rcFile,
+		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) + " -n exec sh -c 'sh " + scriptFile + " > " + outFile + " 2>&1; echo $? > " + rcFile + "'",
+		"i=0; while [ $i -lt " + strconv.Itoa(waitSeconds) + " ] && [ ! -f " + rcFile + " ]; do i=$((i+1)); sleep 1; done",
+		"test -f " + rcFile + " || { echo __ASSH_TIMEOUT__; exit 124; }",
+		"printf '__ASSH_RC__=%s\\n' \"$(cat " + rcFile + ")\"",
+		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(" + lineCount + " " + outFile + ")\"",
+		"mkdir -p " + sessionDir + "/" + sid,
+		"cp " + outFile + " " + sessionOut + " 2>/dev/null; cp " + scriptFile + " " + sessionErr + " 2>/dev/null; cp " + rcFile + " " + sessionRC + " 2>/dev/null; true",
+	}, " && ")
 }

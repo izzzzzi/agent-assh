@@ -178,9 +178,17 @@ func newSessionExecCommand() *cobra.Command {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; rerun with --confirm-danger if intentional", result.Message)
 			}
 			entry.Seq++
-			remoteCommand, err := session.ExecRemoteCommand(entry.SID, entry.TmuxName, entry.Seq, userCommand, timeout)
-			if err != nil {
-				return writeInvalidArgs(cmd, err.Error(), "")
+
+			var remoteCommand string
+			if entry.ForcePTY {
+				// PTY-gated hosts (RunPod): use temp script + tmux new-window instead
+				// of tmux send-keys (which breaks with PTY echo).
+				remoteCommand = execSyncRemoteCommandPTY(entry.SID, entry.TmuxName, entry.Seq, userCommand, timeout)
+			} else {
+				remoteCommand, err = session.ExecRemoteCommand(entry.SID, entry.TmuxName, entry.Seq, userCommand, timeout)
+				if err != nil {
+					return writeInvalidArgs(cmd, err.Error(), "")
+				}
 			}
 			localTimeout := time.Duration(timeout+5) * time.Second
 			ctx, cancel := context.WithTimeout(cmd.Context(), localTimeout)
