@@ -137,6 +137,7 @@ For long-running commands (builds, deployments):
 assh session exec-async -s SID -- "make build"
 # Returns job_id for tracking
 assh session job-status -s SID --job-id JOB_ID
+assh session job-status -s SID --job-id JOB_ID --raw  # bare content, no JSON wrapper
 assh session job-cancel -s SID --job-id JOB_ID
 ```
 

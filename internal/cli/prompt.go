@@ -53,6 +53,7 @@ assh transfer mv -H HOST -u USER --source /tmp/a --dest /tmp/b
 Background jobs:
 assh session exec-async -s SID -- "long-build.sh"
 assh session job-status -s SID --job-id JOB_ID
+assh session job-status -s SID --job-id JOB_ID --raw  # bare output, no JSON
 assh session job-cancel -s SID --job-id JOB_ID
 
 Docker:

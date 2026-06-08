@@ -88,6 +88,7 @@ func newSessionJobStatusCommand() *cobra.Command {
 	var sid string
 	var jobID string
 	var lines int
+	var raw bool
 	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
@@ -120,6 +121,11 @@ func newSessionJobStatusCommand() *cobra.Command {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
+			if raw {
+				_, _ = cmd.OutOrStdout().Write(result.Stdout)
+				return nil
+			}
+
 			alive := !containsStr(string(result.Stdout), "__JOB_NOT_FOUND__")
 			completed := containsStr(string(result.Stdout), "__JOB_COMPLETE__")
 
@@ -137,6 +143,7 @@ func newSessionJobStatusCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().StringVar(&jobID, "job-id", "", "job id")
 	cmd.Flags().IntVarP(&lines, "lines", "n", 50, "output lines to return")
+	cmd.Flags().BoolVar(&raw, "raw", false, "print only content without JSON")
 	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }
