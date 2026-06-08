@@ -59,7 +59,7 @@ func newSessionExecAsyncCommand() *cobra.Command {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), timeout+10, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), timeout+10, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -114,7 +114,7 @@ func newSessionJobStatusCommand() *cobra.Command {
 			remoteCommand := jobStatusRemoteCommand(jobName, lines)
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -167,7 +167,7 @@ func newSessionJobCancelCommand() *cobra.Command {
 			remoteCommand := "tmux kill-window -t " + remote.SingleQuote(jobName) + " 2>/dev/null && echo '{\"ok\":true}' || echo '{\"ok\":false,\"error\":\"job not found\"}'"
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}

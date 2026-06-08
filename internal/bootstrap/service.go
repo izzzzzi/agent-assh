@@ -39,6 +39,7 @@ type Request struct {
 	SkipGC          bool
 	SkipTmuxInstall bool
 	StateDir        string
+	ForcePTY        bool
 }
 
 type Result struct {
@@ -84,6 +85,7 @@ type SSHTarget struct {
 	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
+	ForcePTY      bool
 }
 
 type SSHResult struct {
@@ -120,6 +122,7 @@ func (s Service) Run(ctx context.Context, req Request) (Result, error) {
 		Jump:          req.Jump,
 		TimeoutSecond: int(req.Timeout.Seconds()),
 		HostKeyPolicy: req.HostKeyPolicy,
+		ForcePTY:      req.ForcePTY,
 	}
 
 	keyDeployed := false

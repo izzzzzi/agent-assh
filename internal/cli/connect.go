@@ -165,6 +165,7 @@ func runBootstrapSSH(ctx context.Context, target bootstrap.SSHTarget, remoteComm
 		Jump:          target.Jump,
 		TimeoutSecond: target.TimeoutSecond,
 		HostKeyPolicy: target.HostKeyPolicy,
+		ForcePTY:      target.ForcePTY,
 	}, remoteCommand)
 	return bootstrap.SSHResult{
 		Stdout:   result.Stdout,
@@ -186,6 +187,7 @@ func deployPublicKeyWithPassword(ctx context.Context, password string, target bo
 		Jump:          target.Jump,
 		TimeoutSecond: target.TimeoutSecond,
 		HostKeyPolicy: target.HostKeyPolicy,
+		ForcePTY:      target.ForcePTY,
 	}
 	return runSSHWithPassword(ctx, password, ssh, keyDeployRemoteCommand(strings.TrimSpace(string(pubKey))))
 }

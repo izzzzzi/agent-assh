@@ -36,7 +36,7 @@ func newSessionDockerPSCommand() *cobra.Command {
 			remoteCommand := "docker ps " + flags + " --format '{{.ID}}\\t{{.Names}}\\t{{.Image}}\\t{{.Status}}\\t{{.Ports}}' 2>&1"
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -93,7 +93,7 @@ func newSessionDockerLogsCommand() *cobra.Command {
 			remoteCommand := "docker logs " + flags + " " + remote.SingleQuote(container) + " 2>&1"
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -148,7 +148,7 @@ func newSessionDockerExecCommand() *cobra.Command {
 			remoteCommand := "docker exec " + remote.SingleQuote(container) + " " + remoteCommand(args) + " 2>&1"
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}

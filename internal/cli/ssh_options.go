@@ -14,6 +14,7 @@ type sshOptions struct {
 	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
+	ForcePTY      bool
 }
 
 func defaultSSHOptions() sshOptions {
@@ -57,6 +58,7 @@ type sshOptionFlags struct {
 	jump          bool
 	timeout       bool
 	hostKeyPolicy bool
+	forcePTY      bool
 }
 
 func standardSSHOptionFlags() sshOptionFlags {
@@ -68,6 +70,7 @@ func standardSSHOptionFlags() sshOptionFlags {
 		jump:          true,
 		timeout:       true,
 		hostKeyPolicy: true,
+		forcePTY:      true,
 	}
 }
 
@@ -96,6 +99,7 @@ func (o sshOptions) command() transport.SSHCommand {
 		Jump:          o.Jump,
 		TimeoutSecond: o.TimeoutSecond,
 		HostKeyPolicy: o.HostKeyPolicy,
+		ForcePTY:      o.ForcePTY,
 	}
 }
 
@@ -106,6 +110,7 @@ func (o sshOptions) applyToBootstrapRequest(req *bootstrap.Request) {
 	req.Identity = o.Identity
 	req.Jump = o.Jump
 	req.HostKeyPolicy = o.HostKeyPolicy
+	req.ForcePTY = o.ForcePTY
 }
 
 type validationError string

@@ -52,7 +52,7 @@ func newSessionDBQueryCommand() *cobra.Command {
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy, ssh.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
