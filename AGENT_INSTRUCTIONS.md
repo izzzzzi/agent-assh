@@ -79,14 +79,24 @@ Clean up stale trusted sessions:
 assh session gc --older-than 24h --execute
 ```
 
-## One-Off Commands
+## One-Off Commands (no tmux session needed)
 
-Use `exec/read` when no persistent directory or environment is needed:
+Use `exec` + `read` for quick commands without a persistent session. Best for PTY-gated hosts (RunPod).
 
 ```bash
-assh exec -H HOST -u root -i KEY -- "df -h"
-assh read --id OUTPUT_ID --limit 50
+# Run a command, capture output_id
+assh exec -H HOST -u root -i KEY --force-pty -- "curl -s localhost:8188"
+# Returns {"ok":true,"output_id":"ABC123","stdout_lines":3,"stderr_lines":0}
+
+# Read the actual output using the output_id
+assh read --id ABC123 --raw
+# Prints clean output without JSON wrapper
+
+# Paginated read with stream filtering
+assh read --id ABC123 --limit 50 --stream stdout
 ```
+
+Only one flag to remember: `--force-pty` for hosts that reject `-T` (RunPod, etc.).
 
 ## Host Scanning
 

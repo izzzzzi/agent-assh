@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -84,14 +85,17 @@ func newSessionProcessKillCommand() *cobra.Command {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "killing PID 1 (init/systemd) is blocked for safety", "")
 			}
 
-			entry, err := session.LoadRegistry(stateBaseDir(), sid)
-			if err != nil {
-				return writeError(cmd, "session_not_found", err.Error(), "")
-			}
-
 			sig := signal
 			if sig == "" {
 				sig = "TERM"
+			}
+			if !validProcessSignal(sig) {
+				return writeInvalidArgs(cmd, "--signal must be a signal name or number", "")
+			}
+
+			entry, err := session.LoadRegistry(stateBaseDir(), sid)
+			if err != nil {
+				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 
 			remoteCommand := "kill -" + sig + " " + strconv.Itoa(pid) + " 2>/dev/null && echo '{\"ok\":true,\"pid\":'" + strconv.Itoa(pid) + ",\"signal\":\"" + sig + "\"}' || echo '{\"ok\":false,\"pid\":'" + strconv.Itoa(pid) + ",\"error\":\"kill failed\"}'"
@@ -118,12 +122,30 @@ func newSessionProcessKillCommand() *cobra.Command {
 	return cmd
 }
 
+var processSignalPattern = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]{0,15}|[1-9][0-9]{0,2})$`)
+
+func validProcessSignal(signal string) bool {
+	return processSignalPattern.MatchString(signal)
+}
+
 func remoteProcessListCommand(filter string, top int) string {
 	cmd := `ps -eo pid,ppid,user,rss,vsz,%cpu,%mem,etime,args --sort=-%cpu 2>/dev/null | head -n $((` + strconv.Itoa(top) + ` + 1))`
-	if filter != "" {
-		cmd += ` | grep -i '` + filter + `' || true`
-	}
-	cmd += ` | awk 'NR==1{printf "["} NR>1{printf "%s{\"pid\":%s,\"ppid\":%s,\"user\":\"%s\",\"rss_kb\":%s,\"vsz_kb\":%s,\"cpu_pct\":%s,\"mem_pct\":%s,\"etime\":\"%s\",\"command\":\"%s\"}",(NR>2?",":""),$1,$2,$3,$4,$5,$6,$7,$8,substr($0,index($0,$9))} END{print "]"}'`
+	cmd += ` | awk -v filter=` + remote.SingleQuote(filter) + ` '
+function json_escape(value) {
+	gsub(/\\/, "\\\\", value)
+	gsub(/"/, "\\\"", value)
+	gsub(/\t/, "\\t", value)
+	gsub(/\r/, "\\r", value)
+	return value
+}
+BEGIN{filter=tolower(filter); printf "["}
+NR==1{next}
+{
+	command=substr($0,index($0,$9))
+	if (filter != "" && index(tolower(command), filter) == 0) next
+	printf "%s{\"pid\":%s,\"ppid\":%s,\"user\":\"%s\",\"rss_kb\":%s,\"vsz_kb\":%s,\"cpu_pct\":%s,\"mem_pct\":%s,\"etime\":\"%s\",\"command\":\"%s\"}",(count++>0?",":""),$1,$2,json_escape($3),$4,$5,$6,$7,json_escape($8),json_escape(command)
+}
+END{print "]"}'`
 	return cmd
 }
 

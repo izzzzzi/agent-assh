@@ -32,9 +32,29 @@ jobs:
       - name: Verify npm version matches tag
         run: 'test "v$(node -p "require(''./package.json'').version")" = "$GITHUB_REF_NAME"'
 
+      - name: Verify npm token is configured
+        run: 'test -n "${NODE_AUTH_TOKEN:-}"'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm version is unpublished
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "agent-assh@$VERSION" version >/dev/null 2>&1; then
+            echo "agent-assh@$VERSION is already published" >&2
+            exit 1
+          fi
+
+      - name: Run release preflight checks
+        run: |
+          npm run smoke
+          npm pack --dry-run
+          npm run release:contract
+
       - name: Release binaries
         uses: goreleaser/goreleaser-action@v7
         with:
+          version: v2.12.7
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

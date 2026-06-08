@@ -124,6 +124,34 @@ func TestSessionCloseRequiresSID(t *testing.T) {
 	}
 }
 
+func TestSessionKillRejectsUnsafeSignal(t *testing.T) {
+	writeTestSessionRegistry(t, "abcdef12")
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	runSSH = func(context.Context, transport.SSHCommand, string) transport.Result {
+		t.Fatalf("runSSH called for unsafe signal")
+		return transport.Result{}
+	}
+
+	got := executeSessionJSONError(t, []string{"session", "kill", "--sid", "abcdef12", "--pid", "123", "--signal", "TERM; touch /tmp/pwned"})
+	if got["error"] != "invalid_args" || got["message"] != "--signal must be a signal name or number" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+}
+
+func TestRemoteProcessListCommandQuotesFilterAndEscapesJSON(t *testing.T) {
+	cmd := remoteProcessListCommand("foo'$(touch /tmp/pwned)", 5)
+	if strings.Contains(cmd, "grep -i") {
+		t.Fatalf("filter should not be interpolated into grep shell syntax: %s", cmd)
+	}
+	if !strings.Contains(cmd, `-v filter='foo'"'"'$(touch /tmp/pwned)'`) {
+		t.Fatalf("filter was not shell-quoted as an awk variable: %s", cmd)
+	}
+	if !strings.Contains(cmd, "json_escape") {
+		t.Fatalf("process list command does not escape JSON string fields: %s", cmd)
+	}
+}
+
 func TestSessionCloseAcceptsJumpHost(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
 	oldRunSSH := runSSH

@@ -16,6 +16,7 @@ assh connect --ssh-config ALIAS -n NAME
 For picky SSH gateways (RunPod, etc.) that reject -T:
 assh connect -H HOST -u root -i KEY --force-pty -n NAME
 assh exec -H HOST -u root -i KEY --force-pty -- "command"
+assh read --id OUTPUT_ID --raw  # read exec output, no JSON
 
 For pasted provider server-info, save to a 0600 temp file, run:
 assh connect-info --file TMP -n NAME

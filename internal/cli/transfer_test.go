@@ -133,6 +133,27 @@ func TestTransferMapsSCPErrorsToJSON(t *testing.T) {
 	}
 }
 
+func TestRsyncSSHCommandQuotesArguments(t *testing.T) {
+	got := rsyncSSHCommand(sshOptions{
+		Port:          2200,
+		Identity:      "/Users/me/key with spaces';touch pwned'",
+		Jump:          "jump host.example.com",
+		HostKeyPolicy: "strict",
+	})
+
+	for _, want := range []string{
+		"ssh -T",
+		"-p 2200",
+		`-i '/Users/me/key with spaces'"'"';touch pwned'"'"''`,
+		`-J 'jump host.example.com'`,
+		"-o StrictHostKeyChecking=yes",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("rsyncSSHCommand() = %q, missing %q", got, want)
+		}
+	}
+}
+
 func TestPromptManifestIncludesTransferCommands(t *testing.T) {
 	var out bytes.Buffer
 	cmd := NewRootCommand()

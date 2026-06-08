@@ -8,6 +8,7 @@ const { target } = require('./platform');
 
 const root = path.join(__dirname, '..');
 const releaseRemote = 'https://github.com/izzzzzi/agent-assh.git';
+const goreleaserModule = 'github.com/goreleaser/goreleaser/v2@v2.12.7';
 
 function expectedArchives(version) {
   return [
@@ -111,7 +112,7 @@ function goreleaserArgs() {
 
   return ['go', [
     'run',
-    'github.com/goreleaser/goreleaser/v2@latest',
+    goreleaserModule,
     'release',
     '--snapshot',
     '--clean',

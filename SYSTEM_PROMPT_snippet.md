@@ -31,6 +31,7 @@ Need SSH?
   Picky SSH gateways (RunPod, etc.) — add --force-pty:
     assh connect -H HOST -u root -i KEY --force-pty -n NAME
     assh exec -H HOST -u root -i KEY --force-pty -- "command"
+    assh read --id OUTPUT_ID --raw               # read exec output
 
   Scan host health:
     assh scan -H HOST -u USER

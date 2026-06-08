@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
+	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/spf13/cobra"
 )
 
@@ -45,19 +47,7 @@ func newTransferSyncCommand() *cobra.Command {
 
 			// SSH options for rsync
 			sshTarget := ssh.User + "@" + ssh.Host
-			sshCmd := "ssh -T"
-			if ssh.Port != 0 && ssh.Port != 22 {
-				sshCmd += " -p " + fmt.Sprintf("%d", ssh.Port)
-			}
-			if ssh.Identity != "" {
-				sshCmd += " -i " + ssh.Identity
-			}
-			if ssh.Jump != "" {
-				sshCmd += " -J " + ssh.Jump
-			}
-			if value := strictHostKeyCheckingRSYNC(ssh.HostKeyPolicy); value != "" {
-				sshCmd += " -o StrictHostKeyChecking=" + value
-			}
+			sshCmd := rsyncSSHCommand(ssh)
 			rsyncArgs = append(rsyncArgs, "-e", sshCmd)
 
 			if direction == "push" {
@@ -99,6 +89,38 @@ func newTransferSyncCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&delete, "delete", false, "delete extraneous files at destination")
 	cmd.Flags().StringArrayVar(&excludes, "exclude", nil, "exclude pattern (repeatable)")
 	return cmd
+}
+
+func rsyncSSHCommand(ssh sshOptions) string {
+	args := []string{"ssh", "-T"}
+	if ssh.Port != 0 && ssh.Port != 22 {
+		args = append(args, "-p", fmt.Sprintf("%d", ssh.Port))
+	}
+	if ssh.Identity != "" {
+		args = append(args, "-i", ssh.Identity)
+	}
+	if ssh.Jump != "" {
+		args = append(args, "-J", ssh.Jump)
+	}
+	if value := strictHostKeyCheckingRSYNC(ssh.HostKeyPolicy); value != "" {
+		args = append(args, "-o", "StrictHostKeyChecking="+value)
+	}
+	return shellJoin(args)
+}
+
+func shellJoin(args []string) string {
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, shellQuoteIfNeeded(arg))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellQuoteIfNeeded(arg string) string {
+	if arg == "" || strings.ContainsAny(arg, " \t\n'\"\\;$&|<>`()[]{}!*?") {
+		return remote.SingleQuote(arg)
+	}
+	return arg
 }
 
 func strictHostKeyCheckingRSYNC(policy string) string {
