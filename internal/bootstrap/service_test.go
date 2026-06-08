@@ -272,7 +272,7 @@ func TestRunInstallsTmuxWhenProbeReportsMissing(t *testing.T) {
 		t.Fatalf("session fields = sid:%q session:%q tmux:%q", result.SID, result.Session, result.TmuxName)
 	}
 	wantNext := map[string]string{
-		"exec":  `assh session exec -s abc12345 -- "pwd"`,
+		"exec":  `assh session exec -s abc12345 -- pwd`,
 		"read":  "assh session read -s abc12345 --seq 1 --limit 50",
 		"close": "assh session close -s abc12345",
 	}

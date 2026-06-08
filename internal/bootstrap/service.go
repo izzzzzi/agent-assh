@@ -244,7 +244,7 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		Session:       req.SessionName,
 		TmuxName:      metadata.TmuxName,
 		NextCommands: map[string]string{
-			"exec":  `assh session exec -s ` + sid + ` -- "pwd"`,
+			"exec":  `assh session exec -s ` + sid + ` -- pwd`,
 			"read":  "assh session read -s " + sid + " --seq 1 --limit 50",
 			"close": "assh session close -s " + sid,
 		},

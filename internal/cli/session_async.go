@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/izzzzzi/agent-assh/internal/ids"
@@ -191,11 +192,13 @@ func execAsyncRemoteCommand(tmuxName, jobName string, seq int, command string, w
 	jobDir := sessionDir + "/jobs/" + jobName
 	outFile := jobDir + "/output.log"
 	rcFile := jobDir + "/rc"
-	cmd := "mkdir -p " + jobDir + " || exit $?; " +
-		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) + " -n " + remote.SingleQuote(jobName) + " '(" +
-		command +
-		") > " + outFile + " 2>&1; echo $? > " + rcFile + "; echo __JOB_COMPLETE__ >> " + outFile + "'"
-	return cmd
+	scriptFile := jobDir + "/cmd.sh"
+	// Write command to a temp script to avoid quoting issues with shell meta-chars
+	return strings.Join([]string{
+		"mkdir -p " + jobDir,
+		"printf '%s\\n' " + remote.SingleQuote(command) + " > " + scriptFile,
+		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) + " -n " + remote.SingleQuote(jobName) + " sh -c 'sh " + scriptFile + " > " + outFile + " 2>&1; echo $? > " + rcFile + "; echo __JOB_COMPLETE__ >> " + outFile + "'",
+	}, " && ")
 }
 
 func jobStatusRemoteCommand(jobName string, lines int) string {
