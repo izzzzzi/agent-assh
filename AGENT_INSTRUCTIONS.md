@@ -178,15 +178,6 @@ assh session watch -s SID
 # Returns an attach_cmd — paste it in a terminal to attach to the agent's tmux
 ```
 
-## MCP Server (for Claude Code, Cursor, Windsurf)
-
-Start as an MCP stdio server so agents can call assh as MCP tools:
-
-```bash
-assh mcp serve
-# Wire into Claude Code: claude mcp add assh -- assh mcp serve
-```
-
 ## JSON Rules
 
 - Operational commands emit one JSON value by default.

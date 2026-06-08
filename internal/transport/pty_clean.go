@@ -18,12 +18,10 @@ var (
 // Handles: ANSI escapes, carriage returns, shell prompts, echoing of the
 // sent command, gateway banners, and trailing whitespace.
 func CleanPTYOutput(raw []byte, sentCommand string) []byte {
-	s := string(raw)
-	if s == "" {
-		return raw
+	if len(raw) == 0 {
+		return nil
 	}
-
-	// Step 1: normalize line endings (CRLF → LF, bare CR → LF)
+	s := string(raw)
 	s = crRe.ReplaceAllString(s, "\n")
 
 	// Step 2: strip ANSI escape sequences
@@ -31,6 +29,9 @@ func CleanPTYOutput(raw []byte, sentCommand string) []byte {
 
 	// Step 3: strip trailing shell prompts on their own lines
 	s = regexp.MustCompile(`(?m)^[a-z]+@[a-zA-Z0-9_-]+:[^\$#]*[\$#]\s*\n?`).ReplaceAllString(s, "")
+
+	// Step 4: strip bare shell prompts ($ or # on their own line)
+	s = regexp.MustCompile(`(?m)^[\$#]\s*\n?`).ReplaceAllString(s, "")
 
 	// Step 4: strip lines that exactly match the sent command (PTY echo)
 	if sentCommand != "" {

@@ -94,7 +94,6 @@ assh session close -s f7a2b3c4
 - `assh capabilities`: проверить поддержку session workflow на сервере.
 - `assh key-deploy`: низкоуровневая установка ключа через пароль из env.
 - `assh audit`: читать локальный audit через `--last`, `--host`, `--failed`.
-- `assh mcp serve`: запустить MCP stdio сервер для Claude Code/Cursor/Windsurf.
 - `assh version`: вывести метаданные версии.
 
 ## Экономия токенов
@@ -168,7 +167,6 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 - Встроенная проверка безопасности команд (safety classifier).
 - Фоновые задачи через tmux (exec-async).
 - Read-only database queries с защитой от записи.
-- MCP-сервер для Claude Code, Cursor, Windsurf.
 
 ## Ограничения
 

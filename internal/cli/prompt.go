@@ -67,9 +67,6 @@ assh session db-query -s SID --type mysql -d DB -q "SELECT ..."
 Fleet (multi-host parallel):
 assh fleet exec -H host1 -H host2 -u root -- "uptime"
 
-MCP server (for Claude Code, Cursor, Windsurf):
-assh mcp serve
-
 Pre/post hooks:
 assh session exec -s SID --before "git stash" --after "git stash pop" -- "deploy.sh"
 
@@ -133,7 +130,6 @@ func agentHelpManifest() response.OK {
 			"session_docker":   "assh session docker-ps -s SID",
 			"session_db_query": "assh session db-query -s SID --type mysql -d DB -q \"SELECT ...\"",
 			"fleet_exec":       "assh fleet exec -H host1 -H host2 -u root -- \"uptime\"",
-			"mcp_serve":        "assh mcp serve",
 			"forward":          "assh forward status --name NAME",
 		},
 		"json_contract": response.OK{

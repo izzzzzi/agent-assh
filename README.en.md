@@ -94,7 +94,6 @@ assh session close -s f7a2b3c4
 - `assh capabilities`: inspect remote session support.
 - `assh key-deploy`: low-level key deployment using a password from env.
 - `assh audit`: read local audit events with `--last`, `--host`, and `--failed`.
-- `assh mcp serve`: start MCP stdio server for Claude Code/Cursor/Windsurf.
 - `assh version`: print version metadata.
 
 ## Token Economy
@@ -168,7 +167,6 @@ OpenCode: Use `assh connect-info` for provider server-info blocks and `assh sess
 - Built-in command safety classifier blocks destructive operations.
 - Background jobs via tmux (exec-async).
 - Read-only database queries with write protection.
-- MCP server for Claude Code, Cursor, Windsurf.
 
 ## Limitations
 
