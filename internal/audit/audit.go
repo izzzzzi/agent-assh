@@ -18,6 +18,17 @@ type Event struct {
 	ExitCode    int       `json:"exit_code,omitempty"`
 	StdoutLines int       `json:"stdout_lines,omitempty"`
 	StderrLines int       `json:"stderr_lines,omitempty"`
+	// RawLines and ServedLines track the metadata-first token economy: how many
+	// lines existed versus how many were served to the agent on a read. Only read
+	// actions populate them; `audit --savings` filters by action and treats a
+	// missing field as 0, so omitempty here does not skew aggregation.
+	RawLines    int `json:"raw_lines,omitempty"`
+	ServedLines int `json:"served_lines,omitempty"`
+	// Safety policy fields are populated only when a deny-only policy overlay
+	// blocks a command, so operators can audit which policy fired.
+	SafetyRule       string `json:"safety_rule,omitempty"`
+	SafetyPolicyPath string `json:"safety_policy_path,omitempty"`
+	SafetyPolicyHash string `json:"safety_policy_hash,omitempty"`
 }
 
 func Write(path string, event Event) (err error) {

@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/spf13/cobra"
 )
 
@@ -51,7 +50,9 @@ func newFleetExecRunCommand() *cobra.Command {
 			}
 			command := strings.Join(args, " ")
 
-			if result := safety.CheckCommand(command); result.Dangerous {
+			if result, handled, errReturn := classifyCommand(cmd, command); handled {
+				return errReturn
+			} else if result.Dangerous {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive: "+result.Message, "fleet exec does not support --confirm-danger for safety reasons")
 			}
 

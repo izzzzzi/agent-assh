@@ -46,6 +46,7 @@ assh transfer list -H HOST -u USER --path /var/log
 assh transfer stat -H HOST -u USER --path /etc/nginx.conf
 assh transfer put -H HOST LOCAL_PATH REMOTE_PATH
 assh transfer get -H HOST REMOTE_PATH LOCAL_PATH
+assh transfer read -H HOST -u USER --path /etc/app.conf  # remote file -> output_id, then assh read --id ID
 assh transfer sync --direction push --source ./dist --dest /var/www -H HOST -u USER
 assh transfer mkdir -H HOST -u USER --path /opt/app
 assh transfer rm -H HOST -u USER --path /tmp/junk
@@ -73,6 +74,7 @@ assh session exec -s SID --before "git stash" --after "git stash pop" -- "deploy
 
 If session exec returns dangerous_command_requires_confirmation, do not add --confirm-danger unless the user explicitly intended the destructive action.
 Keep large remote output out of context. Read bounded windows with --limit, --offset, and --stream. Use --raw only for piping or exact output.
+Output is redacted by default: [REDACTED:type] with "redacted":true means a secret was masked; the command succeeded, do not retry to recover it. Use --no-redact to disable. Best-effort hygiene, not a security boundary.
 `
 
 func agentHelpManifest() response.OK {
@@ -97,6 +99,8 @@ func agentHelpManifest() response.OK {
 			"Do not add --confirm-danger unless the user explicitly intended the destructive action.",
 			"db-query is read-only — only SELECT/SHOW/DESCRIBE/EXPLAIN queries allowed.",
 			"Use assh session watch to observe agent actions in real-time.",
+			"Output is redacted by default; [REDACTED:type] is intentional, do not retry to recover the value.",
+			"Operators may add deny-only rules in ~/.config/assh/safety.rules (mode 0600, additive only).",
 		},
 		"workflow": []string{
 			"Prefer assh connect --ssh-config ALIAS for hosts in ~/.ssh/config.",
@@ -126,6 +130,8 @@ func agentHelpManifest() response.OK {
 			"transfer_list":    "assh transfer list -H HOST -u USER --path /var/log",
 			"transfer_put":     "assh transfer put -H HOST LOCAL_PATH REMOTE_PATH",
 			"transfer_get":     "assh transfer get -H HOST REMOTE_PATH LOCAL_PATH",
+			"transfer_read":    "assh transfer read -H HOST -u USER --path /etc/app.conf",
+			"audit_savings":    "assh audit --savings",
 			"transfer_sync":    "assh transfer sync --direction push --source ./dist --dest /var/www -H HOST",
 			"session_async":    "assh session exec-async -s SID -- \"long-build.sh\"",
 			"session_docker":   "assh session docker-ps -s SID",

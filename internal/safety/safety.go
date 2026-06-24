@@ -15,28 +15,35 @@ type token struct {
 
 const maxShellDepth = 4
 
+// CheckCommand classifies a command using only the built-in rules.
 func CheckCommand(command string) Result {
-	return checkCommand(command, 0)
+	return checkCommand(command, nil, 0)
 }
 
-func checkCommand(command string, depth int) Result {
+// CheckCommandWithPolicy classifies a command using the built-in rules plus an
+// additive deny-only policy overlay. A nil policy is equivalent to CheckCommand.
+func CheckCommandWithPolicy(command string, policy *Policy) Result {
+	return checkCommand(command, policy, 0)
+}
+
+func checkCommand(command string, policy *Policy, depth int) Result {
 	for _, segment := range splitSegments(command) {
 		if depth < maxShellDepth {
 			for _, script := range commandSubstitutionScripts(segment) {
-				if result := checkCommand(script, depth+1); result.Dangerous {
+				if result := checkCommand(script, policy, depth+1); result.Dangerous {
 					return result
 				}
 			}
 		}
 		tokens := shellFields(segment)
-		if result := checkSegment(tokens, depth); result.Dangerous {
+		if result := checkSegment(tokens, policy, depth); result.Dangerous {
 			return result
 		}
 	}
 	return Result{}
 }
 
-func checkSegment(tokens []token, depth int) Result {
+func checkSegment(tokens []token, policy *Policy, depth int) Result {
 	tokens = groupCommandTokens(tokens)
 	tokens = commandTokens(tokens)
 	if len(tokens) == 0 {
@@ -45,22 +52,26 @@ func checkSegment(tokens []token, depth int) Result {
 	name := commandName(tokens[0].Value)
 	args := tokens[1:]
 
+	if result := policy.check(name); result.Dangerous {
+		return result
+	}
+
 	switch {
 	case name == "env":
 		if depth < maxShellDepth {
 			if script, ok := envSplitString(args); ok {
-				return checkCommand(script, depth+1)
+				return checkCommand(script, policy, depth+1)
 			}
 		}
 		tokens = envCommandTokens(args)
 		if len(tokens) == 0 {
 			return Result{}
 		}
-		return checkSegment(tokens, depth)
+		return checkSegment(tokens, policy, depth)
 	case name == "bash" || name == "sh":
 		if depth < maxShellDepth {
 			if script, ok := shellCommandScript(args); ok {
-				return checkCommand(script, depth+1)
+				return checkCommand(script, policy, depth+1)
 			}
 		}
 	case name == "rm":

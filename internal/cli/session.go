@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/izzzzzi/agent-assh/internal/ids"
+	"github.com/izzzzzi/agent-assh/internal/redact"
 	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/izzzzzi/agent-assh/internal/response"
 	"github.com/izzzzzi/agent-assh/internal/safety"
@@ -174,8 +175,19 @@ func newSessionExecCommand() *cobra.Command {
 				wrapped += "; }"
 				userCommand = wrapped
 			}
-			if result := safety.CheckCommand(userCommand); result.Dangerous && !confirmDanger {
+			if result, handled, errReturn := classifyCommand(cmd, userCommand); handled {
+				return errReturn
+			} else if result.Dangerous && !confirmDanger {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; rerun with --confirm-danger if intentional", result.Message)
+			}
+			// Profile check (after safety, never replaces it)
+			if entry.Profile != "" {
+				profs, err := safety.LoadProfiles(safety.DefaultProfilePath())
+				if err == nil && profs != nil {
+					if r := profs.Match(entry.Profile, userCommand); r.Dangerous {
+						return writeError(cmd, "command_not_allowed", r.Message, "use a different profile or connect without --profile")
+					}
+				}
 			}
 			entry.Seq++
 
@@ -238,6 +250,7 @@ func newSessionReadCommand() *cobra.Command {
 	var offset int
 	var limit int
 	var raw bool
+	var noRedact bool
 	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
@@ -281,6 +294,12 @@ func newSessionReadCommand() *cobra.Command {
 			if notFound {
 				return writeError(cmd, "output_not_found", "session output not found", "")
 			}
+			redactionCount := 0
+			if !noRedact {
+				var redRes redact.Result
+				content, redRes = redact.String(content)
+				redactionCount = redRes.Count
+			}
 			if err := state.NewSessionOutputStore(stateBaseDir()).Write(state.SessionOutputPage{
 				SID:        sid,
 				Seq:        seq,
@@ -301,17 +320,20 @@ func newSessionReadCommand() *cobra.Command {
 			}
 			hasMore := offset+limit < total
 			writeAudit("session_read", entry.SID, entry.Host, entry.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAuditSavings("session_read", entry.SID, total, countLines([]byte(content)))
 
 			return writeJSON(cmd, response.OK{
-				"ok":          true,
-				"sid":         sid,
-				"seq":         seq,
-				"stream":      stream,
-				"offset":      offset,
-				"limit":       limit,
-				"total_lines": total,
-				"has_more":    hasMore,
-				"content":     content,
+				"ok":              true,
+				"sid":             sid,
+				"seq":             seq,
+				"stream":          stream,
+				"offset":          offset,
+				"limit":           limit,
+				"total_lines":     total,
+				"has_more":        hasMore,
+				"content":         content,
+				"redacted":        redactionCount > 0,
+				"redaction_count": redactionCount,
 			})
 		},
 	}
@@ -322,6 +344,7 @@ func newSessionReadCommand() *cobra.Command {
 	cmd.Flags().IntVar(&offset, "offset", 0, "line offset")
 	cmd.Flags().IntVar(&limit, "limit", 50, "line limit")
 	cmd.Flags().BoolVar(&raw, "raw", false, "print only content without JSON")
+	cmd.Flags().BoolVar(&noRedact, "no-redact", false, "disable best-effort secret redaction in served output")
 	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }

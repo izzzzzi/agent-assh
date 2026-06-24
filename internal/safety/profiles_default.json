@@ -1,0 +1,46 @@
+{
+  "profile": {
+    "readonly": {
+      "allow": [
+        "journalctl *",
+        "tail *",
+        "cat *",
+        "grep *",
+        "df -h",
+        "free -h",
+        "uptime",
+        "systemctl status *",
+        "docker ps",
+        "docker logs *",
+        "ss -tlnp",
+        "ps aux",
+        "ls *",
+        "uname -a"
+      ]
+    },
+    "ops": {
+      "allow": [
+        "journalctl *",
+        "tail *",
+        "cat *",
+        "grep *",
+        "df -h",
+        "free -h",
+        "uptime",
+        "systemctl status *",
+        "systemctl restart *",
+        "systemctl reload *",
+        "docker ps",
+        "docker logs *",
+        "docker restart *",
+        "git pull",
+        "apt update",
+        "ss -tlnp",
+        "ps aux"
+      ]
+    },
+    "admin": {
+      "allow": ["*"]
+    }
+  }
+}

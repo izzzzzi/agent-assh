@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/izzzzzi/agent-assh/internal/remote"
-	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/izzzzzi/agent-assh/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -136,7 +135,9 @@ func newSessionDockerExecCommand() *cobra.Command {
 				return writeInvalidArgs(cmd, "command required", "")
 			}
 
-			if result := safety.CheckCommand(remoteCommand(args)); result.Dangerous {
+			if result, handled, errReturn := classifyCommand(cmd, remoteCommand(args)); handled {
+				return errReturn
+			} else if result.Dangerous {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "docker-exec command looks destructive", result.Message)
 			}
 

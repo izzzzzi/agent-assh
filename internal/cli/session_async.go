@@ -8,7 +8,6 @@ import (
 
 	"github.com/izzzzzi/agent-assh/internal/ids"
 	"github.com/izzzzzi/agent-assh/internal/remote"
-	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/izzzzzi/agent-assh/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +39,9 @@ func newSessionExecAsyncCommand() *cobra.Command {
 
 			userCommand := remoteCommand(args)
 
-			if result := safety.CheckCommand(userCommand); result.Dangerous {
+			if result, handled, errReturn := classifyCommand(cmd, userCommand); handled {
+				return errReturn
+			} else if result.Dangerous {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; exec-async does not support --confirm-danger for safety reasons", result.Message)
 			}
 

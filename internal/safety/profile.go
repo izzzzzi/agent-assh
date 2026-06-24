@@ -1,12 +1,16 @@
 package safety
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+//go:embed profiles_default.json
+var defaultProfilesData []byte
 
 // Profile defines an allow-list of command patterns.
 type Profile struct {
@@ -31,9 +35,25 @@ func DefaultProfilePath() string {
 	return filepath.Join(dir, "assh", "profiles.json")
 }
 
-// LoadProfiles reads and parses a profiles JSON file. Returns (nil, nil) if
-// the file does not exist.
+// ensureDefaultProfiles writes bundled defaults if the file doesn't exist.
+func ensureDefaultProfiles(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, defaultProfilesData, 0600)
+}
+
+// LoadProfiles reads and parses a profiles JSON file. On first run, seeds
+// bundled defaults. Returns (nil, nil) if the file does not exist and
+// defaults were seeded.
 func LoadProfiles(path string) (*Profiles, error) {
+	if err := ensureDefaultProfiles(path); err != nil {
+		return nil, fmt.Errorf("seeding default profiles: %w", err)
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

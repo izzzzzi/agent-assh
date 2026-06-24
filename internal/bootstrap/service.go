@@ -28,6 +28,7 @@ type Request struct {
 	Host            string
 	User            string
 	Port            int
+	Profile         string
 	Identity        string
 	Jump            string
 	PasswordEnv     string
@@ -225,6 +226,7 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		CreatedAt:     metadata.CreatedAt,
 		TTLSeconds:    metadata.TTLSeconds,
 		Seq:           0,
+		Profile:       req.Profile,
 	}
 	if err := session.SaveRegistry(req.StateDir, entry); err != nil {
 		return Result{}, Error{Code: "internal_error", Message: err.Error()}

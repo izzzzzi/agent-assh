@@ -11,6 +11,7 @@ import (
 
 	"github.com/izzzzzi/agent-assh/internal/audit"
 	"github.com/izzzzzi/agent-assh/internal/remote"
+	"github.com/izzzzzi/agent-assh/internal/response"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
 )
@@ -96,16 +97,40 @@ func newAuditCommand() *cobra.Command {
 	var last int
 	var host string
 	var failed bool
+	var savings bool
 	cmd := &cobra.Command{
 		Use:           "audit",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			auditPath := filepath.Join(stateBaseDir(), "audit", "audit.jsonl")
+			if savings {
+				events, err := audit.Read(auditPath, audit.Filter{Host: host})
+				if err != nil {
+					return writeError(cmd, "internal_error", err.Error(), "")
+				}
+				var reads, rawLines, servedLines int
+				for _, e := range events {
+					if e.Action != "read" && e.Action != "session_read" {
+						continue
+					}
+					reads++
+					rawLines += e.RawLines
+					servedLines += e.ServedLines
+				}
+				return writeJSON(cmd, response.OK{
+					"ok":             true,
+					"reads":          reads,
+					"raw_lines":      rawLines,
+					"served_lines":   servedLines,
+					"withheld_lines": rawLines - servedLines,
+				})
+			}
 			if last < 1 {
 				return writeInvalidArgs(cmd, "--last must be greater than 0", "")
 			}
-			events, err := audit.Read(filepath.Join(stateBaseDir(), "audit", "audit.jsonl"), audit.Filter{
+			events, err := audit.Read(auditPath, audit.Filter{
 				Last:   last,
 				Host:   host,
 				Failed: failed,
@@ -119,6 +144,7 @@ func newAuditCommand() *cobra.Command {
 	cmd.Flags().IntVar(&last, "last", 20, "last audit entries")
 	cmd.Flags().StringVar(&host, "host", "", "filter by host")
 	cmd.Flags().BoolVar(&failed, "failed", false, "show only failed events")
+	cmd.Flags().BoolVar(&savings, "savings", false, "summarize withheld output lines instead of listing events")
 	return cmd
 }
 

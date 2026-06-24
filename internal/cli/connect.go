@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/izzzzzi/agent-assh/internal/bootstrap"
 	"github.com/izzzzzi/agent-assh/internal/ids"
+	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/izzzzzi/agent-assh/internal/serverinfo"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
@@ -21,6 +23,21 @@ func newConnectCommand() *cobra.Command {
 	ssh := defaultSSHOptions()
 	ssh.Identity = filepath.Join(homeDir(), ".ssh", "id_agent_ed25519")
 	var sshConfigAlias string
+	var profile string
+
+	validateProfile := func(name string) error {
+		profs, err := safety.LoadProfiles(safety.DefaultProfilePath())
+		if err != nil {
+			return fmt.Errorf("loading profiles: %w", err)
+		}
+		if profs == nil {
+			return fmt.Errorf("no profiles file at %s", safety.DefaultProfilePath())
+		}
+		if _, ok := profs.Profile[name]; !ok {
+			return fmt.Errorf("profile %q not found", name)
+		}
+		return nil
+	}
 
 	cmd := &cobra.Command{
 		Use:           "connect",
@@ -43,6 +60,12 @@ func newConnectCommand() *cobra.Command {
 					applySSHConfigEntry(&ssh, entry)
 				}
 			}
+			if profile != "" {
+				if err := validateProfile(profile); err != nil {
+					return writeError(cmd, "invalid_args", err.Error(), "")
+				}
+				req.Profile = profile
+			}
 			ssh.applyToBootstrapRequest(&req)
 			req.Timeout = time.Duration(ssh.TimeoutSecond) * time.Second
 			return runConnect(cmd, req)
@@ -57,6 +80,7 @@ func newConnectCommand() *cobra.Command {
 	cmd.Flags().DurationVar(&req.GCOlderThan, "gc-older-than", 24*time.Hour, "cleanup sessions older than duration")
 	cmd.Flags().BoolVar(&req.SkipGC, "no-gc", false, "skip bootstrap cleanup")
 	cmd.Flags().BoolVar(&req.SkipTmuxInstall, "no-install-tmux", false, "do not install tmux if missing")
+	cmd.Flags().StringVar(&profile, "profile", "", "command profile (readonly, ops, admin)")
 	return cmd
 }
 

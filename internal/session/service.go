@@ -36,6 +36,7 @@ type RegistryEntry struct {
 	CreatedAt     time.Time `json:"created_at"`
 	TTLSeconds    int64     `json:"ttl_seconds"`
 	Seq           int       `json:"seq"`
+	Profile       string    `json:"profile,omitempty"`
 }
 
 func NewMetadata(sid, label string, ttl time.Duration, clientID string) Metadata {

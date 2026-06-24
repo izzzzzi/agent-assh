@@ -13,8 +13,8 @@ import (
 
 	"github.com/izzzzzi/agent-assh/internal/audit"
 	"github.com/izzzzzi/agent-assh/internal/ids"
+	"github.com/izzzzzi/agent-assh/internal/redact"
 	"github.com/izzzzzi/agent-assh/internal/response"
-	"github.com/izzzzzi/agent-assh/internal/safety"
 	"github.com/izzzzzi/agent-assh/internal/state"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
@@ -22,6 +22,7 @@ import (
 
 func newExecCommand() *cobra.Command {
 	ssh := defaultSSHOptions()
+	var noRedact bool
 
 	cmd := &cobra.Command{
 		Use:           "exec -- command",
@@ -41,7 +42,9 @@ func newExecCommand() *cobra.Command {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 
-			if result := safety.CheckCommand(remoteCommand(args)); result.Dangerous {
+			if result, handled, errReturn := classifyCommand(cmd, remoteCommand(args)); handled {
+				return errReturn
+			} else if result.Dangerous {
 				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; assh exec does not support --confirm-danger for safety reasons", result.Message)
 			}
 
@@ -54,22 +57,36 @@ func newExecCommand() *cobra.Command {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
+			stdout, stderr := result.Stdout, result.Stderr
+			redactionCount := 0
+			if !noRedact {
+				var outRes, errRes redact.Result
+				stdout, outRes = redact.Bytes(stdout)
+				stderr, errRes = redact.Bytes(stderr)
+				redactionCount = outRes.Count + errRes.Count
+			}
+
 			store := state.NewOutputStore(filepath.Join(stateBaseDir(), "outputs"))
-			if err := store.Write(outputID, result.Stdout, result.Stderr); err != nil {
+			if err := store.Write(outputID, stdout, stderr); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("exec", "", ssh.Host, ssh.User, remoteCommand(args), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			stdoutLines := countLines(stdout)
+			stderrLines := countLines(stderr)
+			writeAudit("exec", "", ssh.Host, ssh.User, remoteCommand(args), result.ExitCode, stdoutLines, stderrLines)
 
 			return writeJSON(cmd, response.OK{
-				"ok":           true,
-				"exit_code":    result.ExitCode,
-				"output_id":    outputID,
-				"stdout_lines": countLines(result.Stdout),
-				"stderr_lines": countLines(result.Stderr),
+				"ok":              true,
+				"exit_code":       result.ExitCode,
+				"output_id":       outputID,
+				"stdout_lines":    stdoutLines,
+				"stderr_lines":    stderrLines,
+				"redacted":        redactionCount > 0,
+				"redaction_count": redactionCount,
 			})
 		},
 	}
 
+	cmd.Flags().BoolVar(&noRedact, "no-redact", false, "disable best-effort secret redaction in stored output")
 	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
 	return cmd
 }
@@ -108,6 +125,8 @@ func newReadCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "output_not_found", err.Error(), "")
 			}
+			servedLines := countLines([]byte(page.Content))
+			writeAuditSavings("read", "", page.TotalLines, servedLines)
 			if raw {
 				_, _ = cmd.OutOrStdout().Write([]byte(page.Content))
 				return nil
@@ -265,6 +284,17 @@ func writeAudit(action, sid, host, user, command string, exitCode int, stdoutLin
 		ExitCode:    exitCode,
 		StdoutLines: stdoutLines,
 		StderrLines: stderrLines,
+	})
+}
+
+// writeAuditSavings records a read action with raw vs served line counts for the
+// `audit --savings` aggregate. action is typically "read" or "session_read".
+func writeAuditSavings(action, sid string, rawLines, servedLines int) {
+	_ = audit.Write(filepath.Join(stateBaseDir(), "audit", "audit.jsonl"), audit.Event{
+		Action:      action,
+		SID:         sid,
+		RawLines:    rawLines,
+		ServedLines: servedLines,
 	})
 }
 
