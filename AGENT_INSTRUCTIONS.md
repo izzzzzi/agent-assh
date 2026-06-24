@@ -216,12 +216,13 @@ assh session watch -s SID
 - `session exec` responses include `rc`, `seq`, `stdout_lines`, `stderr_lines`, `sid`, and `session`.
 - Remote non-zero exit status is a command result, not a transport failure.
 
-## Context Discipline
+## Context Discipline — Token Economy
 
-If `stdout_lines` or `stderr_lines` is large, do not read all output. Use targeted windows with `--limit`, `--offset`, and `--stream`. Use `read --raw` or `session read --raw` only when piping or exact output is required.
-
-`assh audit --savings` reports how many output lines were withheld from context
-by pagination (raw vs served lines). This is a line-count metric, not a token count.
+1. **`exec` first** — всегда JSON с метаданными (мало токенов)
+2. **`read --raw`** — чистый вывод без `\n` и JSON-обёртки (меньше токенов)
+3. **`read`** (без `--raw`) — только если нужна пагинация (`has_more`, `total_lines`)
+4. **`--limit`** — всегда ограничивай строки, не читай всё
+5. **`audit --savings`** — показывает сколько строк удержано от контекста (метрика в строках)
 
 ## Output Redaction
 

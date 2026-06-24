@@ -42,6 +42,13 @@ Need SSH?
 `scan` → JSON with hostname, OS, CPU, disk, memory
 `transfer list` → `{"ok":true,"entries":[{"name":"...","type":"f|d","size":N}]}`
 
+### Token Economy
+
+1. `assh session exec` → JSON metadata only (fits in context)
+2. `assh session read --raw` → clean text, no `\n`, fewer tokens
+3. `assh session read` (no `--raw`) → only when pagination needed
+4. Always `--limit N` — don't read more than you need
+
 ### Security Rules
 
 - Passwords only through env vars. No `--password` flag.

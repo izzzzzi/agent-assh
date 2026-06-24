@@ -71,12 +71,29 @@ assh session kill -s f7a2b3c4 --pid 1234 --signal KILL
 assh session gc --older-than 24h --execute
 ```
 
-## Context Discipline
+## Context Discipline — Token Economy
 
-If `stdout_lines` or `stderr_lines` is large, do NOT read all output.
-Use targeted windows with `--limit`, `--offset`, and `--stream`.
-Use `read --raw` or `session read --raw` only when piping or exact output
-is required.
+**First, check metadata (always fits in context):**
+
+```bash
+assh session exec -s SID -- "command"
+# Returns {"stdout_lines":N,"stderr_lines":M} — tiny JSON
+```
+
+**Then read only what you need:**
+
+| Goal | Use | Why |
+|------|-----|-----|
+| Посмотреть вывод | `session read --raw` | Чистый текст, без `\n`, меньше токенов |
+| Распарсить JSON | `session read` | Есть `has_more`, `total_lines` |
+| Большой вывод | `--limit N` | Только N строк в контекст |
+| Stderr отдельно | `--stream stderr` | Не тащить stdout |
+
+**Правило:**
+- `exec` → всегда JSON (метаданные, мало токенов)
+- `read --raw` → для чтения вывода человеку или агенту
+- `read` (без `--raw`) → только если нужна пагинация (`has_more`, `total_lines`)
+- `audit --savings` → показывает сколько строк удержано от контекста
 
 ## Errors
 
