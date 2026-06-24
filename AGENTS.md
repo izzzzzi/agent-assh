@@ -4,6 +4,8 @@ Install when missing:
 ```bash
 npm i -g agent-assh
 assh version
+# check for updates before remote work:
+assh version --check
 ```
 
 ### Agent Algorithm for SSH
@@ -37,6 +39,7 @@ Restrict agent?  → add --profile readonly|ops|admin
 | `assh session exec-async -s SID -- "cmd"` | Background job |
 | `assh fleet exec -H H1 -H H2 -u root -- "cmd"` | Multi-host |
 | `assh scan -H HOST -u USER` | Host inventory JSON |
+| `assh version --check` | Check for CLI updates |
 | `assh transfer read -H HOST -u USER --path FILE` | Read remote file |
 
 ### JSON Contract

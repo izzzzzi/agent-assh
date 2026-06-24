@@ -19,6 +19,7 @@ SSH-инструмент для LLM-агентов.
 
 ```bash
 npm i -g agent-assh
+assh version --check  # проверить обновления
 
 export TARGET_PASS="..."
 assh connect -H 203.0.113.10 -u root -E TARGET_PASS -n deploy

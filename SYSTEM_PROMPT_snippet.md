@@ -12,6 +12,7 @@ Install when missing:
 ```bash
 npm i -g agent-assh
 assh version
+assh version --check  # check for updates
 ```
 
 ### Agent Algorithm

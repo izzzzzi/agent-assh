@@ -19,6 +19,14 @@ assh version
 
 If `assh` is not found, install first and retry.
 
+**Check for newer version before remote work:**
+
+```bash
+assh version --check
+# Update available: v1.2.8 → v1.3.0
+# Run: npm i -g agent-assh@latest
+```
+
 ## Agent Algorithm — Which `connect` to Use
 
 ```
@@ -62,6 +70,7 @@ On success → use returned sid for all remote work
 | `assh scan -H HOST -u USER` | Host inventory JSON |
 | `assh session watch -s SID` | Human observability |
 | `assh audit --savings` | Token economy report |
+| `assh version --check` | Check for CLI updates |
 | `assh transfer read -H HOST -u USER --path /etc/app.conf` | Read remote file |
 
 ## JSON Contract

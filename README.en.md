@@ -19,6 +19,7 @@ SSH workflow helper for LLM agents.
 
 ```bash
 npm i -g agent-assh
+assh version --check  # check for updates
 
 export TARGET_PASS="..."
 assh connect -H 203.0.113.10 -u root -E TARGET_PASS -n deploy

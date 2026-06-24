@@ -16,6 +16,12 @@ npm i -g agent-assh
 assh version
 ```
 
+Check for a newer version:
+
+```bash
+assh version --check
+```
+
 ## First SSH Step
 
 Pick the right connect method — assh works with ANY combination of host, key, password, and SSH config alias.
