@@ -7,8 +7,11 @@ const root = path.join(__dirname, '..');
 
 const INVARIANTS = [
   'dangerous_command_requires_confirmation',
-  'assh connect',
-  'password',
+  'redacted',
+  'db-query',
+  'session exec',
+  'transfer read',
+  'never put passwords',
 ];
 
 const skill = fs.readFileSync(path.join(root, 'skills/assh/SKILL.md'), 'utf8');
@@ -27,7 +30,7 @@ let failed = false;
 
 for (const [name, content] of copies) {
   for (const phrase of INVARIANTS) {
-    if (!content.includes(phrase)) {
+    if (!content.toLowerCase().includes(phrase.toLowerCase())) {
       console.error(`${name} is missing invariant: "${phrase}"`);
       failed = true;
     }
@@ -36,7 +39,7 @@ for (const [name, content] of copies) {
 
 const skillInvariants = [...INVARIANTS, 'assh connect', 'assh session'];
 for (const phrase of skillInvariants) {
-  if (!skill.includes(phrase)) {
+  if (!skill.toLowerCase().includes(phrase.toLowerCase())) {
     console.error(`skills/assh/SKILL.md is missing invariant: "${phrase}"`);
     failed = true;
   }
