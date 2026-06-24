@@ -1,6 +1,13 @@
 # assh Agent Instructions
 
-`assh` is the SSH workflow helper for LLM agents. Start with `assh connect` so access, key setup, tmux, cleanup, and the first persistent session are prepared in one step.
+`assh` is the SSH workflow helper for LLM agents.
+
+**If your agent loaded the assh skill (via plugin, `AGENTS.md`, or `skills/assh/SKILL.md`):**
+Follow the skill's instructions — it contains the complete decision tree and workflow.
+
+**Otherwise,** use this document as the fallback guide.
+
+Start with `assh connect` so access, key setup, tmux, cleanup, and the first persistent session are prepared in one step.
 
 ## Install
 
@@ -120,6 +127,20 @@ assh transfer rm -H HOST -u USER --path /tmp/old --recursive
 assh transfer mv -H HOST -u USER --source /tmp/a --dest /tmp/b
 ```
 
+Read a remote text file over ssh (cleaner and cheaper than `cat`; returns an
+`output_id`, then page it with `assh read`):
+
+```bash
+assh transfer read -H HOST -u USER --path /etc/app.conf
+# {"ok":true,"output_id":"ABC123","stdout_lines":42,"redacted":true,...}
+assh read --id ABC123 --limit 50
+```
+
+`transfer read` refuses directories, oversized files (`--max-bytes`, default 1 MiB),
+and binary files with typed errors (`remote_file_not_found`, `not_a_file`,
+`file_too_large`, `binary_file`, `permission_denied`) and a `hint`. Use
+`assh transfer get` to download binaries.
+
 ## Process Management
 
 ```bash
@@ -199,6 +220,18 @@ assh session watch -s SID
 
 If `stdout_lines` or `stderr_lines` is large, do not read all output. Use targeted windows with `--limit`, `--offset`, and `--stream`. Use `read --raw` or `session read --raw` only when piping or exact output is required.
 
+`assh audit --savings` reports how many output lines were withheld from context
+by pagination (raw vs served lines). This is a line-count metric, not a token count.
+
+## Output Redaction
+
+By default assh masks obvious secrets (AWS keys, JWTs, bearer tokens, PEM private
+keys, `password=`/`token=` assignments) in stored and served output, replacing them
+with `[REDACTED:type]`. When a response has `"redacted":true`, the masking is
+intentional and the command itself succeeded — do NOT retry to recover the value.
+Redaction is best-effort hygiene, not a security boundary. Pass `--no-redact` only
+if you genuinely need the raw value.
+
 ## Security Rules
 
 - Never put passwords in command arguments.
@@ -209,6 +242,7 @@ If `stdout_lines` or `stderr_lines` is large, do not read all output. Use target
 - Treat `--host-key-policy no-check` as unsafe and only for disposable lab/dev hosts.
 - If `session exec` returns `dangerous_command_requires_confirmation`, do not add `--confirm-danger` unless the user explicitly intended the destructive action.
 - `db-query` is read-only by design — write operations are blocked with a safety error.
+- Operators may add deny-only rules in `~/.config/assh/safety.rules` (one command name per line). It can only ADD blocked commands, never relax built-in rules. The file must be mode `0600`; an invalid file fails closed with `safety_policy_invalid`.
 - Use `assh session watch` to observe agent actions in real-time.
 
 ## Connection Pooling (Automatic)

@@ -61,6 +61,28 @@ assh session read -s f7a2b3c4 --seq 1 --limit 50
 assh session close -s f7a2b3c4
 ```
 
+## Installing the assh Skill into AI Agents
+
+The assh skill teaches AI coding agents to use assh efficiently for SSH work.
+After install, the agent automatically uses assh for all SSH tasks.
+
+| Agent | Install |
+| --- | --- |
+| **Claude Code** | `/plugin marketplace add izzzzzi/agent-assh` then `/plugin install assh@assh` |
+| **Codex** | `codex plugin marketplace add izzzzzi/agent-assh` |
+| **Cursor** | Copy `.cursor/rules/assh.mdc` to your project's `.cursor/rules/` |
+| **Cline** | Copy `.clinerules/assh.md` to your project root |
+| **Copilot CLI** | `copilot plugin marketplace add izzzzzi/agent-assh` then `copilot plugin install assh@assh` |
+| **OpenCode** | Add `"plugin": ["./.opencode/plugins/assh.mjs"]` to `opencode.json` |
+| **Pi** | `pi install git:github.com/izzzzzi/agent-assh` |
+| **Any agent** | The `AGENTS.md` file at the repo root provides universal instructions |
+
+Via `ctx7`:
+
+```bash
+ctx7 skills install /izzzzzi/agent-assh assh
+```
+
 ## What connect Does
 
 `assh connect`:
@@ -87,7 +109,7 @@ assh session close -s f7a2b3c4
 - `assh session watch`: human observability into the agent's tmux session.
 - `assh exec`: run one remote command and store output locally.
 - `assh read`: read stored output with pagination or `--raw`.
-- `assh transfer put|get|list|stat|mkdir|rm|mv|sync`: file ops and sync.
+- `assh transfer put|get|read|list|stat|mkdir|rm|mv|sync`: file ops and sync. `transfer read` reads a remote text file over ssh and returns an `output_id` for paginated `assh read`.
 - `assh forward`: port forwarding (start/status/stop).
 - `assh fleet exec`: parallel execution across multiple hosts.
 - `assh scan`: return host inventory JSON (OS, CPU, memory, disk, uptime).
@@ -110,6 +132,14 @@ Use `--raw` only for piping or exact output:
 
 ```bash
 assh session read -s f7a2b3c4 --seq 1 --raw
+```
+
+`assh audit --savings` reports how many output lines were withheld from context by
+pagination (a line metric, not tokens):
+
+```bash
+assh audit --savings
+# {"ok":true,"reads":12,"raw_lines":5000,"served_lines":600,"withheld_lines":4400}
 ```
 
 ## Agent CLI Examples
@@ -147,6 +177,8 @@ OpenCode: Use `assh connect-info` for provider server-info blocks and `assh sess
 ## Security
 
 - Passwords are accepted only through environment variables. There is no `--password` flag.
+- Output is redacted by default (AWS keys, JWTs, bearer tokens, PEM keys, `password=`/`token=` assignments) into `[REDACTED:type]`, with `"redacted":true` in JSON. This is best-effort hygiene, **not** a security boundary. Disable with `--no-redact`.
+- Declarative safety policy: operators can add denied commands in `~/.config/assh/safety.rules` (one command name per line). The file only **adds** denials and never relaxes built-in rules; it must be mode `0600` or loading fails closed (`safety_policy_invalid`).
 - `connect-info` reads passwords only from stdin or a local file and never from command arguments.
 - If key login works, `connect` does not read the password env var.
 - Password values are not written to audit logs.

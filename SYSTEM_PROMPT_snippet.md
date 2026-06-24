@@ -1,5 +1,10 @@
 ## assh SSH Workflow
 
+The assh skill (`skills/assh/SKILL.md`, `AGENTS.md`, or CLI plugin) has the
+complete decision tree and JSON contracts. If your runtime loaded it, follow it.
+
+Otherwise, use the instructions below.
+
 Use `assh` for SSH work so large remote output stays out of the agent context.
 
 Install when missing:
@@ -51,6 +56,7 @@ Need SSH?
     assh transfer mkdir -H HOST -u USER --path /opt/newapp
     assh transfer rm -H HOST -u USER --path /tmp/junk.log
     assh transfer mv -H HOST -u USER --source /tmp/a --dest /tmp/b
+    assh transfer read -H HOST -u USER --path /etc/app.conf  # remote file -> output_id, then: assh read --id ID
 
   Server management:
     assh session ps -s SID --top 20
@@ -119,6 +125,8 @@ Rules:
 
 - Operational commands emit one JSON value by default.
 - `read --raw` and `session read --raw` print only content.
+- Output is redacted by default: `[REDACTED:type]` and `"redacted":true` mean assh masked a secret; the command succeeded, do not retry to recover it. `--no-redact` disables it. Best-effort hygiene, not a security boundary.
+- `assh audit --savings` summarizes output lines withheld by pagination (line metric, not tokens).
 - Remote non-zero status is a command result, not a transport failure.
 - Passwords are only accepted through environment variables; never put passwords in command arguments.
 - Command text is not written to audit logs.

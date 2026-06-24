@@ -61,6 +61,28 @@ assh session read -s f7a2b3c4 --seq 1 --limit 50
 assh session close -s f7a2b3c4
 ```
 
+## Установка скилла assh в AI-агентов
+
+Скилл assh обучает AI-агентов правильно использовать assh для SSH-работы.
+После установки агент автоматически использует assh для всех SSH-задач.
+
+| Агент | Установка |
+| --- | --- |
+| **Claude Code** | `/plugin marketplace add izzzzzi/agent-assh` затем `/plugin install assh@assh` |
+| **Codex** | `codex plugin marketplace add izzzzzi/agent-assh` |
+| **Cursor** | Скопировать `.cursor/rules/assh.mdc` в `.cursor/rules/` проекта |
+| **Cline** | Скопировать `.clinerules/assh.md` в корень проекта |
+| **Copilot CLI** | `copilot plugin marketplace add izzzzzi/agent-assh` затем `copilot plugin install assh@assh` |
+| **OpenCode** | Добавить `"plugin": ["./.opencode/plugins/assh.mjs"]` в `opencode.json` |
+| **Pi** | `pi install git:github.com/izzzzzi/agent-assh` |
+| **Любой агент** | Файл `AGENTS.md` в корне репозитория — универсальная инструкция для всех агентов |
+
+Через `ctx7`:
+
+```bash
+ctx7 skills install /izzzzzi/agent-assh assh
+```
+
 ## Что делает connect
 
 `assh connect`:
@@ -87,7 +109,7 @@ assh session close -s f7a2b3c4
 - `assh session watch`: наблюдение за tmux-сессией агента человеком.
 - `assh exec`: выполнить одну remote-команду и сохранить вывод локально.
 - `assh read`: прочитать сохранённый вывод с пагинацией или через `--raw`.
-- `assh transfer put|get|list|stat|mkdir|rm|mv|sync`: файловые операции и синхронизация.
+- `assh transfer put|get|read|list|stat|mkdir|rm|mv|sync`: файловые операции и синхронизация. `transfer read` читает удалённый текстовый файл по ssh и возвращает `output_id` для постраничного `assh read`.
 - `assh forward`: port forwarding (start/status/stop).
 - `assh fleet exec`: параллельное выполнение на нескольких хостах.
 - `assh scan`: вернуть JSON-инвентарь хоста (OS, CPU, память, диск, uptime).
@@ -110,6 +132,13 @@ assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
 
 ```bash
 assh session read -s f7a2b3c4 --seq 1 --raw
+```
+
+`assh audit --savings` показывает, сколько строк вывода было удержано из контекста пагинацией (метрика в строках, не в токенах):
+
+```bash
+assh audit --savings
+# {"ok":true,"reads":12,"raw_lines":5000,"served_lines":600,"withheld_lines":4400}
 ```
 
 ## Примеры для agent CLI
@@ -147,6 +176,8 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 ## Безопасность
 
 - Пароли принимаются только через env-переменные. Флага `--password` нет.
+- Вывод по умолчанию проходит редактирование секретов (AWS-ключи, JWT, bearer-токены, PEM-ключи, присваивания `password=`/`token=`) → `[REDACTED:type]`, в JSON появляется `"redacted":true`. Это гигиена по лучшему усилию, **не** механизм безопасности. Отключается флагом `--no-redact`.
+- Деклеративная политика безопасности: операторы могут добавить запрещённые команды в `~/.config/assh/safety.rules` (по одному имени команды в строке). Файл только **добавляет** запреты и не ослабляет встроенные правила; требует mode `0600`, иначе fail-closed (`safety_policy_invalid`).
 - `connect-info` читает пароли только из stdin или локального файла, но не из command arguments.
 - Если вход по ключу работает, `connect` не читает password env var.
 - Значения паролей не пишутся в audit logs.
