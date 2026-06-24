@@ -50,6 +50,25 @@ Add `--force-pty` for hosts that reject `-T`:
 assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_ed25519 --force-pty -n deploy
 ```
 
+## 6. With command profile (restrict agent commands)
+
+```bash
+assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_ed25519 -n deploy --profile readonly
+```
+
+Profiles limit what commands the session can run. Available profiles:
+- `readonly` — log inspection, status checks, file reads
+- `ops` — readonly + restarts, pulls, apt updates
+- `admin` — full access (default)
+
+Blocked command returns:
+
+```json
+{"ok":false,"error":"command_not_allowed","message":"'apt install nginx' is not in profile 'readonly'","hint":"use a different profile or connect without --profile"}
+```
+
+Profiles are defined in `~/.config/assh/profiles.json`.
+
 ## connect response fields
 
 | Field | Type | Description |

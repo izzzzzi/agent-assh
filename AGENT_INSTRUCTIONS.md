@@ -28,6 +28,14 @@ assh connect -H HOST -u root -i ~/.ssh/id_ed25519 -n NAME
 
 `-H` is a raw hostname/IP — no `~/.ssh/config` alias, no password needed.
 
+**With command profile** (restrict to allow-listed commands):
+
+```bash
+assh connect -H HOST -u root -i ~/.ssh/id_ed25519 -n NAME --profile readonly
+```
+
+Profiles: `readonly` (logs, status, reads), `ops` (+ restarts, pulls), `admin` (full access).
+
 **2. SSH config alias** (when host is in `~/.ssh/config`):
 
 ```bash

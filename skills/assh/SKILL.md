@@ -35,6 +35,8 @@ Need SSH?
 │   └── assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
 └── Picky SSH gateway (RunPod, etc.)?
     └── assh connect -H HOST -u USER -i KEY --force-pty -n NAME
+└── Restrict agent commands?
+    └── add --profile readonly|ops|admin
 
 On success → use returned sid for all remote work
 ```
@@ -43,7 +45,8 @@ On success → use returned sid for all remote work
 
 | Command | What it does |
 |---------|-------------|
-| `assh connect` | Bootstrap SSH, deploy key, open tmux session |
+| `assh connect -H HOST -u USER -i KEY -n NAME` | Bootstrap SSH, deploy key, open tmux session |
+| `assh connect --profile readonly` | Restrict session to allow-listed commands |
 | `assh connect-info` | Parse provider server-info block and connect |
 | `assh session exec -s SID -- "cmd"` | Run command in session |
 | `assh session read -s SID --seq N --limit 50` | Read output paginated |

@@ -15,12 +15,16 @@ Need SSH?
 ├── Pasted provider block?  → save to 0600 temp → assh connect-info --file TMP -n NAME → rm
 ├── First-contact w/ pass?  → assh connect -H HOST -u USER -E PASS_ENV -n NAME
 └── Picky gateway?          → assh connect ... --force-pty -n NAME
+
+Restrict agent?  → add --profile readonly|ops|admin
 ```
 
 ### Quick Reference
 
 | Command | What |
 |---------|------|
+| `assh connect -H HOST -u USER -i KEY -n NAME` | Bootstrap + open tmux session |
+| `assh connect ... --profile readonly` | Restrict session to allow-list |
 | `assh session exec -s SID -- "cmd"` | Run command in tmux session |
 | `assh session read -s SID --seq N --limit 50` | Read paginated output |
 | `assh session close -s SID` | Close session |

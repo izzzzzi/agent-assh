@@ -38,6 +38,11 @@ Need SSH?
     assh exec -H HOST -u root -i KEY --force-pty -- "command"
     assh read --id OUTPUT_ID --raw               # read exec output
 
+  Restrict commands? — add --profile:
+    assh connect ... --profile readonly           # read-only commands only
+    assh connect ... --profile ops                # + restarts, pulls
+    assh connect ... --profile admin              # full access (default)
+
   Scan host health:
     assh scan -H HOST -u USER
 
