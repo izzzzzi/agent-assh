@@ -84,16 +84,16 @@ assh session exec -s SID -- "command"
 
 | Goal | Use | Why |
 |------|-----|-----|
-| Посмотреть вывод | `session read --raw` | Чистый текст, без `\n`, меньше токенов |
-| Распарсить JSON | `session read` | Есть `has_more`, `total_lines` |
-| Большой вывод | `--limit N` | Только N строк в контекст |
-| Stderr отдельно | `--stream stderr` | Не тащить stdout |
+| View output | `session read --raw` | Clean text, no `\n`, fewer tokens |
+| Parse JSON | `session read` | Has `has_more`, `total_lines` |
+| Large output | `--limit N` | Only N lines into context |
+| Stderr only | `--stream stderr` | Skip stdout |
 
-**Правило:**
-- `exec` → всегда JSON (метаданные, мало токенов)
-- `read --raw` → для чтения вывода человеку или агенту
-- `read` (без `--raw`) → только если нужна пагинация (`has_more`, `total_lines`)
-- `audit --savings` → показывает сколько строк удержано от контекста
+**Rule:**
+- `exec` → always JSON (metadata, few tokens)
+- `read --raw` → for reading output (human or agent)
+- `read` (no `--raw`) → only when pagination needed (`has_more`, `total_lines`)
+- `audit --savings` → shows lines withheld from context
 
 ## Errors
 

@@ -7,8 +7,8 @@ license: MIT
 
 # assh — SSH Workflow for LLM Agents
 
-SSH-инструмент для LLM-агентов. Одна команда готовит ключ, tmux, сессию.
-Большой вывод остаётся вне контекста — читайте только нужные строки.
+SSH tool for LLM agents. One command: key, tmux, session.
+Large output stays outside context — read only what you need.
 
 ## Install / Update
 

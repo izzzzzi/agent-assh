@@ -218,11 +218,11 @@ assh session watch -s SID
 
 ## Context Discipline — Token Economy
 
-1. **`exec` first** — всегда JSON с метаданными (мало токенов)
-2. **`read --raw`** — чистый вывод без `\n` и JSON-обёртки (меньше токенов)
-3. **`read`** (без `--raw`) — только если нужна пагинация (`has_more`, `total_lines`)
-4. **`--limit`** — всегда ограничивай строки, не читай всё
-5. **`audit --savings`** — показывает сколько строк удержано от контекста (метрика в строках)
+1. **`exec` first** — always JSON metadata (fits context)
+2. **`read --raw`** — clean text, no `\n` or JSON wrapper (fewer tokens)
+3. **`read`** (no `--raw`) — only when pagination needed (`has_more`, `total_lines`)
+4. **`--limit`** — always limit lines, don't read everything
+5. **`audit --savings`** — shows lines withheld from context (line metric)
 
 ## Output Redaction
 

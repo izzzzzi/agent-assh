@@ -123,15 +123,15 @@ Need SSH?
 
 ## Token Economy
 
-1. `assh session exec` → JSON с метаданными (всегда влезает в контекст)
-2. `assh session read --raw` → чистый вывод, без `\n` и JSON-обёртки
-3. `assh session read` (без `--raw`) → только если нужна пагинация
-4. Всегда с `--limit N` — не читай больше чем нужно
+1. `assh session exec` → JSON metadata (always fits context)
+2. `assh session read --raw` → clean text, no `\n` or JSON wrapper
+3. `assh session read` (no `--raw`) → only when pagination needed
+4. Always `--limit N` — don't read more than you need
 
 Rules:
 
 - Operational commands emit one JSON value by default.
-- `read --raw` and `session read --raw` print only content (не JSON).
+- `read --raw` and `session read --raw` print only content (not JSON).
 - Output is redacted by default: `[REDACTED:type]` and `"redacted":true` mean assh masked a secret; the command succeeded, do not retry to recover it. `--no-redact` disables it. Best-effort hygiene, not a security boundary.
 - `assh audit --savings` summarizes output lines withheld by pagination (line metric, not tokens).
 - Remote non-zero status is a command result, not a transport failure.
