@@ -1,0 +1,6 @@
+{
+  "name": "assh",
+  "description": "SSH workflow for LLM agents",
+  "version": "1.0.0",
+  "skills": "skills/"
+}

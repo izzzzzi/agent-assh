@@ -1,0 +1,7 @@
+{
+  "name": "assh",
+  "version": "1.0.0",
+  "description": "SSH workflow for LLM agents — assh CLI",
+  "author": { "name": "izzzzzi", "url": "https://github.com/izzzzzi" },
+  "skills": "skills/"
+}

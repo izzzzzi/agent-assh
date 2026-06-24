@@ -90,6 +90,13 @@ and `"redacted":true` is set in JSON. **This means the command succeeded —
 do NOT retry to recover the value.** Pass `--no-redact` only if you genuinely
 need the raw output. Best-effort hygiene, not a security boundary.
 
+## Security Rules
+
+- Passwords only through env vars. No `--password` flag.
+- `dangerous_command_requires_confirmation` → ask user before `--confirm-danger`.
+- `db-query` is read-only. `session exec` blocks destructive commands.
+- Never put passwords in arguments. Never echo passwords.
+
 ## Detailed References
 
 - [Connect](references/connect.md) — all connect methods with examples

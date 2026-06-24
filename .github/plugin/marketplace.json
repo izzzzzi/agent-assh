@@ -1,0 +1,17 @@
+{
+  "name": "assh",
+  "interface": {
+    "displayName": "assh SSH"
+  },
+  "plugins": [
+    {
+      "name": "assh",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/izzzzzi/agent-assh.git",
+        "ref": "main"
+      },
+      "category": "Infrastructure"
+    }
+  ]
+}
