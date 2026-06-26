@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 )
 
 // Policy is an additive, deny-only overlay on top of the built-in classifier.
@@ -72,14 +71,8 @@ func LoadPolicy(path string) (*Policy, error) {
 			Hint:    "chmod 600 " + path,
 		}
 	}
-	if st, ok := info.Sys().(*syscall.Stat_t); ok {
-		if int(st.Uid) != os.Getuid() {
-			return nil, &PolicyError{
-				Code:    "safety_policy_invalid",
-				Message: path + " is not owned by the current user",
-				Hint:    "chown $(id -un) " + path,
-			}
-		}
+	if err := checkOwnership(path, info); err != nil {
+		return nil, err
 	}
 
 	data, err := os.ReadFile(path)
