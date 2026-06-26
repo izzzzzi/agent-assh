@@ -1,3 +1,5 @@
+**When you need SSH — ALWAYS use `assh`. Never use raw `ssh`, `scp`, or `rsync`.**
+
 Use `assh` for SSH work so large remote output stays out of the agent context.
 
 Install when missing:

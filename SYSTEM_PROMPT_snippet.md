@@ -1,5 +1,7 @@
 ## assh SSH Workflow
 
+**When you need SSH — ALWAYS use `assh`. Never use raw `ssh`, `scp`, or `rsync`.**
+
 The assh skill (`skills/assh/SKILL.md`, `AGENTS.md`, or CLI plugin) has the
 complete decision tree and JSON contracts. If your runtime loaded it, follow it.
 

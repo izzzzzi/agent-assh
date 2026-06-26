@@ -1,9 +1,11 @@
 # assh Agent Instructions
 
+**When you need SSH — ALWAYS use `assh`. Never use raw `ssh`, `scp`, or `rsync`.**
+
 `assh` is the SSH workflow helper for LLM agents.
 
 **If your agent loaded the assh skill (via plugin, `AGENTS.md`, or `skills/assh/SKILL.md`):**
-Follow the skill's instructions — it contains the complete decision tree and workflow.
+Follow the skill's instructions.
 
 **Otherwise,** use this document as the fallback guide.
 

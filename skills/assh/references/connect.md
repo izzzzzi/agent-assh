@@ -1,5 +1,7 @@
 # assh Connect — All Methods
 
+**When you need to SSH to a server — ALWAYS use `assh connect`. Never use `ssh user@host` directly.**
+
 ## 1. Direct host + key (simplest)
 
 ```bash
