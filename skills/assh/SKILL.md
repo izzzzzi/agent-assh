@@ -1,6 +1,6 @@
 ---
 name: assh
-description: "Use assh for SSH — bootstraps connections, manages tmux sessions, keeps output out of agent context. Connecting, deploying, remote commands."
+description: "Use when SSH, remote commands, logs, file transfer, deploy, or server inspection is needed — bootstraps connections, manages tmux sessions, keeps output out of agent context."
 homepage: https://github.com/izzzzzi/agent-assh
 license: MIT
 ---
@@ -64,7 +64,8 @@ Need SSH?
 │   ├── assh connect-info --file TMP -n NAME
 │   └── delete TMP after connect
 ├── First-contact with password?
-│   └── assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
+│   ├── assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
+│   └── unset PASSWORD_ENV after connect
 └── Picky SSH gateway (RunPod, etc.)?
     └── assh connect -H HOST -u USER -i KEY --force-pty -n NAME
 └── Restrict agent commands?
@@ -84,7 +85,7 @@ On success → use returned sid for all remote work
 | `assh session read -s SID --seq N --limit 50` | Read output paginated |
 | `assh session close -s SID` | Close session |
 | `assh exec -H HOST -u USER -- "cmd"` | One-off command, no session |
-| `assh read --id ID --raw` | Read stored exec output |
+| `assh read --id ID --limit 50 --raw` | Read stored exec output |
 | `assh transfer put/get/read/list/stat/mkdir/rm/mv/sync` | File operations |
 | `assh session service -s SID --action restart --service nginx` | Service mgmt |
 | `assh session docker-ps/docker-logs/docker-exec -s SID` | Docker |
@@ -128,7 +129,7 @@ need the raw output. Best-effort hygiene, not a security boundary.
 
 ## Security Rules
 
-- Passwords only through env vars. No `--password` flag.
+- Passwords only through env vars. No `--password` flag. Unset password env vars after connect.
 - `dangerous_command_requires_confirmation` → ask user before `--confirm-danger`.
 - `db-query` is read-only. `session exec` blocks destructive commands.
 - Never put passwords in arguments. Never echo passwords.

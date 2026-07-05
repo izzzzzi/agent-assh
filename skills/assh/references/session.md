@@ -43,7 +43,7 @@ assh session close -s f7a2b3c4
 ```bash
 assh exec -H HOST -u root -i KEY --force-pty -- "curl -s localhost:8188"
 # {"ok":true,"output_id":"ABC123","stdout_lines":3,"stderr_lines":0}
-assh read --id ABC123 --raw
+assh read --id ABC123 --limit 50 --raw
 ```
 
 ## Background Jobs
@@ -84,15 +84,15 @@ assh session exec -s SID -- "command"
 
 | Goal | Use | Why |
 |------|-----|-----|
-| View output | `session read --raw` | Clean text, no `\n`, fewer tokens |
-| Parse JSON | `session read` | Has `has_more`, `total_lines` |
+| View output | `session read --limit N --raw` | Clean text, no `\n`, bounded tokens |
+| Parse JSON | `session read --limit N` | Has `has_more`, `total_lines` |
 | Large output | `--limit N` | Only N lines into context |
 | Stderr only | `--stream stderr` | Skip stdout |
 
 **Rule:**
 - `exec` → always JSON (metadata, few tokens)
-- `read --raw` → for reading output (human or agent)
-- `read` (no `--raw`) → only when pagination needed (`has_more`, `total_lines`)
+- `read --limit N --raw` → for reading output (human or agent)
+- `read --limit N` (no `--raw`) → only when pagination needed (`has_more`, `total_lines`)
 - `audit --savings` → shows lines withheld from context
 
 ## Errors

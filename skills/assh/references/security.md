@@ -6,6 +6,7 @@
 - There is NO `--password` flag — never try it
 - `connect-info` reads passwords from stdin or a local file, NEVER from command arguments
 - If key login works, `connect` does not read the password env var
+- Unset password env vars after connect (`unset PASSWORD_ENV`)
 - Never print, log, summarize, or repeat passwords in responses
 
 ## Output Redaction (Best-Effort Hygiene, NOT a Security Boundary)
