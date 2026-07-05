@@ -213,7 +213,7 @@ func newSessionExecCommand() *cobra.Command {
 				return writeError(cmd, "timeout", "session command timed out", "")
 			}
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
-				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
+				return registeredSessionLifecycleError(cmd, entry, code, sshResultErrorMessage(ctx.Err(), result))
 			}
 			rc, stdoutLines, stderrLines, timedOut := parseSessionExec(result.Stdout)
 			if timedOut {
@@ -477,6 +477,40 @@ func sessionSSH(host, user string, port int, identity string, jump string, timeo
 		HostKeyPolicy: policy,
 		ForcePTY:      forcePTY,
 	}
+}
+
+func registeredSessionLifecycleError(cmd *cobra.Command, entry session.RegistryEntry, code string, message string) error {
+	if code == "" {
+		return nil
+	}
+	hint := reconnectHint(entry)
+	switch code {
+	case "auth_failed", "connection_error", "host_key_failed", "timeout", "ssh_missing":
+		return writeError(cmd, "session_unreachable", "registered session could not be reached over SSH: "+message, hint)
+	case "tmux_missing":
+		return writeError(cmd, "session_stale", "registered session host is reachable but tmux is unavailable: "+message, hint)
+	default:
+		if strings.Contains(strings.ToLower(message), "session_not_found") || strings.Contains(strings.ToLower(message), "tmux_send_failed") {
+			return writeError(cmd, "session_stale", "registered remote tmux session is gone: "+message, hint)
+		}
+		return writeError(cmd, code, message, "")
+	}
+}
+
+func reconnectHint(entry session.RegistryEntry) string {
+	name := entry.Label
+	if name == "" {
+		name = entry.SID
+	}
+	host := entry.Host
+	user := entry.User
+	if host == "" {
+		host = "HOST"
+	}
+	if user == "" {
+		user = "USER"
+	}
+	return "do not keep retrying this SID; reconnect with explicit auth: assh connect -H " + host + " -u " + user + " -i KEY -n " + name + " or assh connect -H " + host + " -u " + user + " -E PASSWORD_ENV -n " + name + "; prefer assh connect --ssh-config ALIAS -n " + name + " for repeat use"
 }
 
 func firstNonEmpty(values ...string) string {

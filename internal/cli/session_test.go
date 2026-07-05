@@ -336,6 +336,41 @@ func TestSessionExecNonZeroRCIsCommandResult(t *testing.T) {
 	}
 }
 
+func TestSessionExecConnectionClosedReturnsSessionUnreachable(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	entry := session.RegistryEntry{
+		SID:           "abcdef12",
+		Label:         "likeboom",
+		Host:          "80.74.27.102",
+		User:          "root",
+		Port:          22,
+		HostKeyPolicy: "accept-new",
+		TmuxName:      "assh_abcdef12",
+		CreatedAt:     time.Now().UTC(),
+		TTLSeconds:    3600,
+	}
+	if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+		t.Fatalf("SaveRegistry() error = %v", err)
+	}
+	oldRunSSH := runSSH
+	runSSH = func(ctx context.Context, command transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{ExitCode: 255, Stderr: []byte("Connection closed by 80.74.27.102 port 22")}
+	}
+	defer func() { runSSH = oldRunSSH }()
+
+	got := executeSessionJSONError(t, []string{"session", "exec", "-s", "abcdef12", "--", "pwd"})
+
+	if got["ok"] != false || got["error"] != "session_unreachable" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	hint, _ := got["hint"].(string)
+	for _, want := range []string{"assh connect", "-i KEY", "-E PASSWORD_ENV", "--ssh-config ALIAS", "80.74.27.102", "root"} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("hint %q missing %q", hint, want)
+		}
+	}
+}
+
 func TestSessionExecTimeoutMarkerReturnsTimeout(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
 	oldRunSSH := runSSH
