@@ -4,5 +4,7 @@ bin/
 native/
 .gocache/
 dist/
+.pi-subagents/
+.superpowers/
 docs/superpowers/
 .worktrees/
