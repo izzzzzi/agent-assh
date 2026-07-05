@@ -621,8 +621,33 @@ func TestSessionReadRawNotFoundReturnsJSONError(t *testing.T) {
 	if got["ok"] != false || got["error"] != "output_not_found" {
 		t.Fatalf("unexpected response: %#v", got)
 	}
+	hint, _ := got["hint"].(string)
+	for _, want := range []string{"do not keep retrying this SID", "assh connect", "-i KEY", "-E PASSWORD_ENV", "--ssh-config ALIAS"} {
+		if !strings.Contains(hint, want) {
+			t.Fatalf("hint %q missing %q", hint, want)
+		}
+	}
 	if strings.Contains(out.String(), "__ASSH_NOT_FOUND__") {
 		t.Fatalf("raw not-found marker leaked to output: %q", out.String())
+	}
+}
+
+func TestReconnectHintUsesStoredIdentity(t *testing.T) {
+	entry := session.RegistryEntry{
+		SID:      "abcdef12",
+		Label:    "likeboom",
+		Host:     "80.74.27.102",
+		User:     "root",
+		Identity: "/Users/apple/.ssh/likeboom_ed25519",
+	}
+
+	hint := reconnectHint(entry)
+
+	if !strings.Contains(hint, "-i /Users/apple/.ssh/likeboom_ed25519") {
+		t.Fatalf("hint did not include stored identity: %q", hint)
+	}
+	if strings.Contains(hint, "-i KEY") {
+		t.Fatalf("hint should not use generic key when identity is known: %q", hint)
 	}
 }
 

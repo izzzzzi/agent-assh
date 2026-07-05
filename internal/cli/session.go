@@ -292,7 +292,7 @@ func newSessionReadCommand() *cobra.Command {
 			}
 			content, total, notFound := parseSessionRead(result.Stdout)
 			if notFound {
-				return writeError(cmd, "output_not_found", "session output not found", "")
+				return writeError(cmd, "output_not_found", "session output not found", reconnectHint(entry))
 			}
 			redactionCount := 0
 			if !noRedact {
@@ -511,7 +511,11 @@ func reconnectHint(entry session.RegistryEntry) string {
 	if user == "" {
 		user = "USER"
 	}
-	return "do not keep retrying this SID; reconnect with explicit auth: assh connect -H " + host + " -u " + user + " -i KEY -n " + name + " or assh connect -H " + host + " -u " + user + " -E PASSWORD_ENV -n " + name + "; prefer assh connect --ssh-config ALIAS -n " + name + " for repeat use"
+	key := "KEY"
+	if entry.Identity != "" {
+		key = entry.Identity
+	}
+	return "do not keep retrying this SID; reconnect with explicit auth: assh connect -H " + host + " -u " + user + " -i " + key + " -n " + name + " or assh connect -H " + host + " -u " + user + " -E PASSWORD_ENV -n " + name + "; prefer assh connect --ssh-config ALIAS -n " + name + " for repeat use"
 }
 
 func firstNonEmpty(values ...string) string {
