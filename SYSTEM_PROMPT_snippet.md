@@ -54,6 +54,7 @@ Need SSH?
     assh session read -s SID --seq 1 --limit 50
     assh session exec -s SID --timeout 600 -- "git pull"
     assh session read -s SID --seq 2 --stream stderr --limit 50
+    Stale sessions: `expired=false` is TTL-only, not proof the SSH/tmux channel is alive. If `session_unreachable` or `session_stale` appears, stop retrying that SID and reconnect with explicit auth: `-i KEY`, `-E PASSWORD_ENV`, or `--ssh-config ALIAS`.
 
   File operations:
     assh transfer list -H HOST -u USER --path /var/log

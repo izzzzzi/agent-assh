@@ -20,6 +20,8 @@ assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
 
 Use `--raw` only for piping or exact output.
 
+Stale sessions: `expired=false` is TTL-only, not proof the SSH/tmux channel is alive. If `session_unreachable` or `session_stale` appears, stop retrying that SID and reconnect with explicit auth: `-i KEY`, `-E PASSWORD_ENV`, or `--ssh-config ALIAS`.
+
 ## Timeout for long commands
 
 ```bash

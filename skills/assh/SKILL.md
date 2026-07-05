@@ -130,6 +130,7 @@ need the raw output. Best-effort hygiene, not a security boundary.
 ## Security Rules
 
 - Passwords only through env vars. No `--password` flag. Unset password env vars after connect.
+- Stale sessions: `expired=false` is TTL-only, not proof the SSH/tmux channel is alive. If `session_unreachable` or `session_stale` appears, stop retrying that SID and reconnect with explicit auth: `-i KEY`, `-E PASSWORD_ENV`, or `--ssh-config ALIAS`.
 - `dangerous_command_requires_confirmation` → ask user before `--confirm-danger`.
 - `db-query` is read-only. `session exec` blocks destructive commands.
 - Never put passwords in arguments. Never echo passwords.

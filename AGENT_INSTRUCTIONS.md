@@ -90,6 +90,8 @@ assh session read -s SID --seq 2 --stream stderr --limit 50
 assh session close -s SID
 ```
 
+Stale sessions: `expired=false` is TTL-only, not proof the SSH/tmux channel is alive. If `session_unreachable` or `session_stale` appears, stop retrying that SID and reconnect with explicit auth: `-i KEY`, `-E PASSWORD_ENV`, or `--ssh-config ALIAS`.
+
 Pre/post hooks:
 
 ```bash
