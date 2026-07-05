@@ -34,16 +34,18 @@ func newSessionListCommand() *cobra.Command {
 			for _, entry := range entries {
 				expired := (session.Metadata{CreatedAt: entry.CreatedAt, TTLSeconds: entry.TTLSeconds}).Expired(now)
 				sessions = append(sessions, response.OK{
-					"sid":         entry.SID,
-					"session":     entry.Label,
-					"host":        entry.Host,
-					"user":        entry.User,
-					"port":        entry.Port,
-					"created_at":  entry.CreatedAt,
-					"ttl_seconds": entry.TTLSeconds,
-					"seq":         entry.Seq,
-					"tmux_name":   entry.TmuxName,
-					"expired":     expired,
+					"sid":          entry.SID,
+					"session":      entry.Label,
+					"host":         entry.Host,
+					"user":         entry.User,
+					"port":         entry.Port,
+					"created_at":   entry.CreatedAt,
+					"ttl_seconds":  entry.TTLSeconds,
+					"seq":          entry.Seq,
+					"tmux_name":    entry.TmuxName,
+					"expired":      expired,
+					"status_basis": "ttl_only",
+					"reachable":    "unknown",
 				})
 			}
 

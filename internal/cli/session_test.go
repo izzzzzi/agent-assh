@@ -614,6 +614,9 @@ func TestSessionListReturnsSortedSessions(t *testing.T) {
 	if first["expired"] != false || second["expired"] != true || third["expired"] != false {
 		t.Fatalf("unexpected expired flags: %#v", got["sessions"])
 	}
+	if first["status_basis"] != "ttl_only" || first["reachable"] != "unknown" {
+		t.Fatalf("session list must say liveness is not checked: %#v", first)
+	}
 	if first["seq"] != float64(1) || first["tmux_name"] != "assh_aaaaaaaa" {
 		t.Fatalf("unexpected session payload: %#v", first)
 	}
