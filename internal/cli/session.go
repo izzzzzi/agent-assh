@@ -490,7 +490,8 @@ func registeredSessionLifecycleError(cmd *cobra.Command, entry session.RegistryE
 	case "tmux_missing":
 		return writeError(cmd, "session_stale", "registered session host is reachable but tmux is unavailable: "+message, hint)
 	default:
-		if strings.Contains(strings.ToLower(message), "session_not_found") || strings.Contains(strings.ToLower(message), "tmux_send_failed") {
+		lower := strings.ToLower(message)
+		if strings.Contains(lower, "session_not_found") || strings.Contains(lower, "tmux_send_failed") {
 			return writeError(cmd, "session_stale", "registered remote tmux session is gone: "+message, hint)
 		}
 		return writeError(cmd, code, message, "")

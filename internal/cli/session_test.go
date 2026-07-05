@@ -371,6 +371,39 @@ func TestSessionExecConnectionClosedReturnsSessionUnreachable(t *testing.T) {
 	}
 }
 
+func TestSessionExecRemoteSessionNotFoundReturnsSessionStale(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	entry := session.RegistryEntry{
+		SID:           "abcdef12",
+		Label:         "likeboom",
+		Host:          "80.74.27.102",
+		User:          "root",
+		Port:          22,
+		HostKeyPolicy: "accept-new",
+		TmuxName:      "assh_abcdef12",
+		CreatedAt:     time.Now().UTC(),
+		TTLSeconds:    3600,
+	}
+	if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
+		t.Fatalf("SaveRegistry() error = %v", err)
+	}
+	oldRunSSH := runSSH
+	runSSH = func(ctx context.Context, args transport.SSHCommand, remoteCommand string) transport.Result {
+		return transport.Result{ExitCode: 3, Stderr: []byte("session_not_found")}
+	}
+	defer func() { runSSH = oldRunSSH }()
+
+	got := executeSessionJSONError(t, []string{"session", "exec", "-s", "abcdef12", "--", "pwd"})
+
+	if got["ok"] != false || got["error"] != "session_stale" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	hint, _ := got["hint"].(string)
+	if !strings.Contains(hint, "do not keep retrying this SID") || !strings.Contains(hint, "--ssh-config ALIAS") {
+		t.Fatalf("unexpected hint: %q", hint)
+	}
+}
+
 func TestSessionExecTimeoutMarkerReturnsTimeout(t *testing.T) {
 	writeTestSessionRegistry(t, "abcdef12")
 	oldRunSSH := runSSH
