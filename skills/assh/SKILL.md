@@ -71,6 +71,18 @@ Need SSH?
     └── add --profile readonly|ops|admin
 
 On success → use returned sid for all remote work
+
+Session dead (session_unreachable / session_stale / session_not_found / output_not_found)?
+├── STOP retrying that SID — the hint says so for a reason
+└── Reconnect with the same auth → new sid
+
+Command blocked by safety?
+└── "dangerous_command_requires_confirmation" → ask user, then --confirm-danger
+
+Command will run >30s (git pull, docker compose up, apt install)?
+└── session exec-async instead of session exec — sync exec times out
+
+Unsure about a flag? → run `assh <cmd> --help` — do NOT invent flags (invalid_args)
 ```
 
 ## Quick Reference
@@ -132,6 +144,13 @@ need the raw output. Best-effort hygiene, not a security boundary.
 - `dangerous_command_requires_confirmation` → ask user before `--confirm-danger`.
 - `db-query` is read-only. `session exec` blocks destructive commands.
 - Never put passwords in arguments. Never echo passwords.
+- **Never fall back to raw ssh/scp/rsync with a password.** If key auth fails and you
+  have a password, use `assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME`.
+  No `sshpass -p "..."`, no `ssh ... -o PasswordAuthentication` — plaintext
+  passwords in command arguments leak into session logs and agent context.
+- Raw ssh is allowed only for disposable lab pods where no credentials exist
+  (e.g. RunPod with an existing key and no password) — and even then prefer assh
+  with `--force-pty`.
 
 ## Detailed References
 
