@@ -53,7 +53,9 @@ func newFleetExecRunCommand() *cobra.Command {
 			if result, handled, errReturn := classifyCommand(cmd, command); handled {
 				return errReturn
 			} else if result.Dangerous {
-				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive: "+result.Message, "fleet exec does not support --confirm-danger for safety reasons")
+				return writeError(cmd, "dangerous_command_requires_confirmation",
+					"command looks destructive: "+result.Message,
+					"fleet exec does not support --confirm-danger for safety reasons")
 			}
 
 			results := runFleetExec(hosts, ssh, command, timeout)

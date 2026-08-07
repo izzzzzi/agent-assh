@@ -5,8 +5,6 @@ import (
 	"context"
 	"os/exec"
 	"strconv"
-
-	"github.com/izzzzzi/agent-assh/internal/remote"
 )
 
 type SCPDirection int
@@ -92,5 +90,10 @@ func (c SCPCommand) remotePath(path string) string {
 	if c.User != "" {
 		target = c.User + "@" + target
 	}
-	return target + ":" + remote.SingleQuote(path)
+	// scp argv is passed via execve (see Run), not through a shell, so the
+	// remote path must NOT be shell-escaped. Single-quoting it makes the
+	// quotes part of the literal filename: scp parses host:'/tmp/x' as the
+	// path '/tmp/x' (with quotes), producing files named 'x' instead of x
+	// for relative targets and "No such file or directory" for absolute ones.
+	return target + ":" + path
 }

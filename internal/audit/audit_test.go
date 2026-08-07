@@ -90,7 +90,7 @@ func TestReadMissingAndEmptyFilesReturnEmptySlice(t *testing.T) {
 			name: "empty",
 			setup: func(t *testing.T, path string) {
 				t.Helper()
-				if err := os.WriteFile(path, nil, 0600); err != nil {
+				if err := os.WriteFile(path, nil, 0o600); err != nil {
 					t.Fatalf("WriteFile() error = %v", err)
 				}
 			},
@@ -120,7 +120,7 @@ func TestReadMissingAndEmptyFilesReturnEmptySlice(t *testing.T) {
 
 func TestReadMalformedJSONLReturnsError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.jsonl")
-	if err := os.WriteFile(path, []byte("{bad json}\n"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("{bad json}\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 

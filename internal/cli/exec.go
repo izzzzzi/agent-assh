@@ -45,7 +45,9 @@ func newExecCommand() *cobra.Command {
 			if result, handled, errReturn := classifyCommand(cmd, remoteCommand(args)); handled {
 				return errReturn
 			} else if result.Dangerous {
-				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; assh exec does not support --confirm-danger for safety reasons", result.Message)
+				return writeError(cmd, "dangerous_command_requires_confirmation",
+					"command looks destructive; rerun with `assh session exec -s SID --confirm-danger` if intentional",
+					result.Message)
 			}
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
@@ -191,7 +193,8 @@ func sshResultErrorCodeWithPolicy(ctxErr error, result transport.Result, allowRe
 			return "auth_failed"
 		case strings.Contains(stderr, "scp: permission denied"):
 			return "auth_failed"
-		case strings.Contains(stderr, "host key verification failed"), strings.Contains(stderr, "remote host identification has changed"):
+		case strings.Contains(stderr, "host key verification failed"),
+			strings.Contains(stderr, "remote host identification has changed"):
 			return "host_key_failed"
 		case strings.Contains(stderr, "connection refused"),
 			strings.Contains(stderr, "could not resolve hostname"),

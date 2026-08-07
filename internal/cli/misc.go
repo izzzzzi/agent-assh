@@ -34,7 +34,8 @@ func newScanCommand() *cobra.Command {
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
-			writeAudit("scan", "", ssh.Host, ssh.User, scanRemoteCommand(), result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("scan", "", ssh.Host, ssh.User, scanRemoteCommand(),
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			_, _ = cmd.OutOrStdout().Write(result.Stdout)
 			if len(result.Stdout) == 0 || result.Stdout[len(result.Stdout)-1] != '\n' {
 				_, _ = cmd.OutOrStdout().Write([]byte("\n"))
@@ -75,7 +76,8 @@ func newKeyDeployCommand() *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
 			defer cancel()
-			err = runSSHWithPassword(ctx, os.Getenv(envName), ssh.command(), keyDeployRemoteCommand(strings.TrimSpace(string(pubKey))))
+			err = runSSHWithPassword(ctx, os.Getenv(envName), ssh.command(),
+				keyDeployRemoteCommand(strings.TrimSpace(string(pubKey))))
 			if err != nil {
 				return writeError(cmd, passwordSSHErrorCode(err), err.Error(), "")
 			}
@@ -149,7 +151,8 @@ func newAuditCommand() *cobra.Command {
 }
 
 func scanRemoteCommand() string {
-	return `printf '{"hostname":"%s","os":"%s","kernel":"%s","arch":"%s","cpu_cores":"%s","ip":"%s","uptime":"%s","load":"%s","mem_total_kb":"%s","mem_avail_kb":"%s","disk":"%s"}\n' \
+	return `printf '{"hostname":"%s","os":"%s","kernel":"%s","arch":"%s",` +
+		`"cpu_cores":"%s","ip":"%s","uptime":"%s","load":"%s","mem_total_kb":"%s","mem_avail_kb":"%s","disk":"%s"}\n' \
 "$(hostname 2>/dev/null)" \
 "$(uname -s 2>/dev/null)" \
 "$(uname -r 2>/dev/null)" \
@@ -157,8 +160,10 @@ func scanRemoteCommand() string {
 "$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo N/A)" \
 "$(hostname -I 2>/dev/null | awk '{print $1}' || echo N/A)" \
 "$(uptime 2>/dev/null | sed 's/.*up *\([^,]*\),.*/\1/' || echo N/A)" \
-"$(cat /proc/loadavg 2>/dev/null | awk '{printf "%s %s %s",$1,$2,$3}' || sysctl -n vm.loadavg 2>/dev/null | tr -d '{}' || echo N/A)" \
-"$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1024)}' || echo N/A)" \
+"$(cat /proc/loadavg 2>/dev/null | awk '{printf "%s %s %s",$1,$2,$3}' || ` +
+		`sysctl -n vm.loadavg 2>/dev/null | tr -d '{}' || echo N/A)" \
+"$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || ` +
+		`sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1024)}' || echo N/A)" \
 "$(awk '/MemAvailable/{print $2}' /proc/meminfo 2>/dev/null || echo N/A)" \
 "$(df -h / 2>/dev/null | awk 'NR==2{printf "%s/%s (%s)",$3,$2,$5}' || echo N/A)"`
 }
@@ -188,7 +193,8 @@ func ensureKeyPair(identity string) error {
 	return exec.Command("ssh-keygen", "-t", "ed25519", "-f", identity, "-N", "").Run()
 }
 
-func runSSHWithPassword(ctx context.Context, password string, command transport.SSHCommand, remoteCommand string) error {
+func runSSHWithPassword(ctx context.Context, password string, command transport.SSHCommand,
+	remoteCommand string) error {
 	dir, err := os.MkdirTemp("", "assh-askpass-*")
 	if err == nil {
 		_ = os.Chmod(dir, 0o700)
@@ -198,7 +204,8 @@ func runSSHWithPassword(ctx context.Context, password string, command transport.
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	askpass := filepath.Join(dir, "askpass.sh")
-	if err := os.WriteFile(askpass, []byte("#!/bin/sh\nprintf '%s\\n' "+remote.SingleQuote(password)+"\n"), 0o500); err != nil {
+	script := "#!/bin/sh\nprintf '%s\\n' " + remote.SingleQuote(password) + "\n"
+	if err := os.WriteFile(askpass, []byte(script), 0o500); err != nil {
 		return err
 	}
 	execCommand := exec.CommandContext(ctx, "ssh", command.Args(remoteCommand)...)
@@ -296,7 +303,8 @@ func passwordSSHTextErrorCode(text string) string {
 	switch {
 	case strings.Contains(text, "permission denied"), strings.Contains(text, "authentication failed"):
 		return "auth_failed"
-	case strings.Contains(text, "host key verification failed"), strings.Contains(text, "remote host identification has changed"):
+	case strings.Contains(text, "host key verification failed"),
+		strings.Contains(text, "remote host identification has changed"):
 		return "host_key_failed"
 	case strings.Contains(text, "tmux_missing"):
 		return "tmux_missing"
@@ -310,6 +318,25 @@ func passwordSSHTextErrorCode(text string) string {
 func keyDeployRemoteCommand(pubKey string) string {
 	quotedKey := remote.SingleQuote(pubKey)
 	return "mkdir -p ~/.ssh && chmod 700 ~/.ssh && " +
-		"(grep -qxF " + quotedKey + " ~/.ssh/authorized_keys 2>/dev/null || echo " + quotedKey + " >> ~/.ssh/authorized_keys) && " +
+		"(grep -qxF " + quotedKey + " ~/.ssh/authorized_keys 2>/dev/null || " +
+		"echo " + quotedKey + " >> ~/.ssh/authorized_keys) && " +
 		"chmod 600 ~/.ssh/authorized_keys"
+}
+
+// stdinIsPiped reports whether process stdin is connected to a pipe or
+// redirect (i.e. NOT an interactive TTY). Overridable for tests.
+//
+// `session exec` forwards commands to a remote tmux window via a
+// non-interactive ssh invocation and never forwards its own stdin. A pipe
+// like `cat f | assh session exec -s SID -- "docker exec -i ... cat >f"`
+// would silently drop the piped data and hang the tmux window while the
+// inner command waited on stdin forever. We detect this up front and refuse
+// rather than let the session wedge.
+var stdinIsPiped = func() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	// A TTY has ModeCharDevice set; pipes/redirects/regular files do not.
+	return fi.Mode()&os.ModeCharDevice == 0
 }

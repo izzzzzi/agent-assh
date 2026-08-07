@@ -20,7 +20,8 @@ assh read --id OUTPUT_ID --raw  # read exec output, no JSON
 
 For pasted provider server-info, save to a 0600 temp file, run:
 assh connect-info --file TMP -n NAME
-Then remove TMP. If parsing fails, extract host/user/password manually and use assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME.
+Then remove TMP. If parsing fails, extract host/user/password manually and use:
+assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
 
 Never put passwords in command arguments. Never print, log, repeat, or summarize passwords.
 
@@ -44,7 +45,7 @@ assh session service -s SID --action logs --service nginx --lines 100
 File operations:
 assh transfer list -H HOST -u USER --path /var/log
 assh transfer stat -H HOST -u USER --path /etc/nginx.conf
-assh transfer put -H HOST LOCAL_PATH REMOTE_PATH
+assh transfer put -H HOST LOCAL_PATH REMOTE_PATH  # creates missing remote parent dirs
 assh transfer get -H HOST REMOTE_PATH LOCAL_PATH
 assh transfer read -H HOST -u USER --path /etc/app.conf  # remote file -> output_id, then assh read --id ID
 assh transfer sync --direction push --source ./dist --dest /var/www -H HOST -u USER
@@ -72,9 +73,13 @@ assh fleet exec -H host1 -H host2 -u root -- "uptime"
 Pre/post hooks:
 assh session exec -s SID --before "git stash" --after "git stash pop" -- "deploy.sh"
 
-If session exec returns dangerous_command_requires_confirmation, do not add --confirm-danger unless the user explicitly intended the destructive action.
-Keep large remote output out of context. Read bounded windows with --limit, --offset, and --stream. Use --raw only for piping or exact output.
-Output is redacted by default: [REDACTED:type] with "redacted":true means a secret was masked; the command succeeded, do not retry to recover it. Use --no-redact to disable. Best-effort hygiene, not a security boundary.
+If session exec returns dangerous_command_requires_confirmation, do not add
+--confirm-danger unless the user explicitly intended the destructive action.
+Keep large remote output out of context. Read bounded windows with --limit,
+--offset, and --stream. Use --raw only for piping or exact output.
+Output is redacted by default: [REDACTED:type] with "redacted":true means a
+secret was masked; the command succeeded, do not retry to recover it. Use
+--no-redact to disable. Best-effort hygiene, not a security boundary.
 `
 
 func agentHelpManifest() response.OK {

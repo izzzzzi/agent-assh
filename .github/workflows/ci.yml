@@ -69,6 +69,7 @@ jobs:
             README.en.md
             AGENT_INSTRUCTIONS.md
             SYSTEM_PROMPT_snippet.md
+            CONTRIBUTING.md
 
   release-check:
     name: Release Check

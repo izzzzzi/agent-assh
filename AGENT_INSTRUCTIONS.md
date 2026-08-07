@@ -90,6 +90,21 @@ assh session read -s SID --seq 2 --stream stderr --limit 50
 assh session close -s SID
 ```
 
+`session exec` does NOT forward local stdin to the remote command (commands are sent to a tmux window over non-interactive ssh). Never pipe data in:
+
+```bash
+# WRONG — data is dropped, tmux window wedges:
+cat file.php | assh session exec -s SID -- "docker exec -i c cat > /path/file.php"
+# → {"ok":false,"error":"stdin_pipe_unsupported","hint":"use `assh transfer put` ..."}
+```
+
+To get data onto the remote host, upload it first and reference the file:
+
+```bash
+assh transfer put -H HOST -u USER local.php /tmp/file.php
+assh session exec -s SID -- "docker cp /tmp/file.php c:/path/file.php"
+```
+
 Pre/post hooks:
 
 ```bash
@@ -138,6 +153,7 @@ assh transfer get -H HOST -u USER REMOTE_PATH LOCAL_PATH
 assh transfer sync --direction push --source ./dist --dest /var/www -H HOST -u USER
 assh transfer sync --direction pull --source /var/log --dest ./logs -H HOST -u USER
 assh transfer mkdir -H HOST -u USER --path /opt/newapp
+# `transfer put` creates missing remote parent dirs automatically — no separate mkdir needed
 assh transfer rm -H HOST -u USER --path /tmp/junk.log
 assh transfer rm -H HOST -u USER --path /tmp/old --recursive
 assh transfer mv -H HOST -u USER --source /tmp/a --dest /tmp/b
@@ -206,6 +222,10 @@ assh session db-query -s SID --type mysql -d mydb -q "SELECT COUNT(*) FROM users
 assh session db-query -s SID --type postgres -d mydb -q "SELECT * FROM orders LIMIT 10"
 assh session db-query -s SID --type mysql -d mydb -U dbuser -W dbpass -q "SHOW TABLES"
 ```
+
+A failed query (bad credentials, unreachable server, syntax error) returns
+`{"ok":false,"error":"command_failed",...}` with the database error in
+`message` — treat that as a failure, not as an empty result set.
 
 ## Fleet (Multi-Host)
 

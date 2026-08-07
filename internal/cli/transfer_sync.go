@@ -16,7 +16,7 @@ func newTransferSyncCommand() *cobra.Command {
 	var direction string
 	var source string
 	var dest string
-	var delete bool
+	var deleteFlag bool
 	var excludes []string
 
 	cmd := &cobra.Command{
@@ -36,9 +36,12 @@ func newTransferSyncCommand() *cobra.Command {
 			}
 
 			rsyncBinary := "rsync"
-			rsyncArgs := []string{"-az", "--info=progress2"}
+			// No --info=progress2: rsync < 3.1.0 (still common on remote hosts)
+			// rejects it with "unrecognized option", and the progress stream is
+			// noise in captured output anyway.
+			rsyncArgs := []string{"-az"}
 
-			if delete {
+			if deleteFlag {
 				rsyncArgs = append(rsyncArgs, "--delete")
 			}
 			for _, ex := range excludes {
@@ -77,7 +80,7 @@ func newTransferSyncCommand() *cobra.Command {
 				"direction": direction,
 				"source":    source,
 				"dest":      dest,
-				"delete":    delete,
+				"delete":    deleteFlag,
 			})
 		},
 	}
@@ -86,7 +89,7 @@ func newTransferSyncCommand() *cobra.Command {
 	cmd.Flags().StringVar(&direction, "direction", "push", "sync direction: push or pull")
 	cmd.Flags().StringVar(&source, "source", "", "source path")
 	cmd.Flags().StringVar(&dest, "dest", "", "destination path")
-	cmd.Flags().BoolVar(&delete, "delete", false, "delete extraneous files at destination")
+	cmd.Flags().BoolVar(&deleteFlag, "delete", false, "delete extraneous files at destination")
 	cmd.Flags().StringArrayVar(&excludes, "exclude", nil, "exclude pattern (repeatable)")
 	return cmd
 }

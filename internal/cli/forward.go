@@ -78,7 +78,8 @@ func newForwardStartCommand() *cobra.Command {
 			if err := state.NewForwardStore(stateBaseDir()).Save(record); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("forward_start", "", ssh.Host, ssh.User, "forward start", result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("forward_start", "", ssh.Host, ssh.User, "forward start",
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			return writeJSON(cmd, forwardResponse(record, true, response.OK{"stopped": false}))
 		},
 	}
@@ -147,7 +148,8 @@ func newForwardStopCommand() *cobra.Command {
 			if err := store.Delete(name); err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
-			writeAudit("forward_stop", "", record.Host, record.User, "forward stop", result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("forward_stop", "", record.Host, record.User, "forward stop",
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 			return writeJSON(cmd, forwardResponse(record, false, response.OK{"stopped": true}))
 		},
 	}
@@ -169,7 +171,10 @@ func ensureForwardSocketDir(socket string) error {
 	return os.MkdirAll(filepath.Dir(socket), 0o700)
 }
 
-func forwardSpecFromOptions(ssh sshOptions, socket string, persist time.Duration, local []string, remote []string, dynamic []string) forward.Spec {
+func forwardSpecFromOptions(
+	ssh sshOptions, socket string, persist time.Duration,
+	local, remote, dynamic []string,
+) forward.Spec {
 	return forward.Spec{
 		Host:          ssh.Host,
 		User:          ssh.User,

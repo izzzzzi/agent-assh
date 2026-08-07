@@ -63,7 +63,11 @@ func TestSessionExportBuildsTarGzArchive(t *testing.T) {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	files := readTarGz(t, archivePath)
-	for _, name := range []string{"manifest.json", "session.json", "audit.jsonl", "outputs/seq-1-stdout-offset-0-limit-50.json", "outputs/seq-1-stderr-offset-0-limit-50.json"} {
+	for _, name := range []string{
+		"manifest.json", "session.json", "audit.jsonl",
+		"outputs/seq-1-stdout-offset-0-limit-50.json",
+		"outputs/seq-1-stderr-offset-0-limit-50.json",
+	} {
 		if _, ok := files[name]; !ok {
 			t.Fatalf("archive missing %q; files=%v", name, keys(files))
 		}
@@ -99,7 +103,9 @@ func TestSessionExportDoesNotIncludeOtherSessionAudit(t *testing.T) {
 	if err := SaveRegistry(baseDir, entry); err != nil {
 		t.Fatalf("SaveRegistry() error = %v", err)
 	}
-	body := `{"ts":"2026-05-23T00:00:00Z","action":"session_exec","sid":"abcdef13","host":"example.com","user":"root","command_hash":"hash-a","exit_code":0}` + "\n"
+	body := `{"ts":"2026-05-23T00:00:00Z","action":"session_exec",` +
+		`"sid":"abcdef13","host":"example.com","user":"root",` +
+		`"command_hash":"hash-a","exit_code":0}` + "\n"
 	if err := os.MkdirAll(filepath.Join(baseDir, "audit"), 0o700); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}

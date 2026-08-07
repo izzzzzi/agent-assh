@@ -70,7 +70,8 @@ SSH Port: 2222`), 0o600); err != nil {
 	if deployPassword != "example\npassword$1" {
 		t.Fatalf("deployPassword=%q", deployPassword)
 	}
-	if strings.Contains(stdout.String()+stderr.String(), "example") || strings.Contains(stdout.String()+stderr.String(), "password") {
+	combined := stdout.String() + stderr.String()
+	if strings.Contains(combined, "example") || strings.Contains(combined, "password") {
 		t.Fatalf("command output leaked password: stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 

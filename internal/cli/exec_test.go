@@ -197,7 +197,11 @@ func TestSSHResultErrorCodeClassifiesSSHExit255(t *testing.T) {
 	}{
 		{name: "auth", stderr: "root@example.com: Permission denied (publickey).", want: "auth_failed"},
 		{name: "host key", stderr: "Host key verification failed.", want: "host_key_failed"},
-		{name: "connection", stderr: "ssh: connect to host example.com port 22: Connection refused", want: "connection_error"},
+		{
+			name:   "connection",
+			stderr: "ssh: connect to host example.com port 22: Connection refused",
+			want:   "connection_error",
+		},
 	}
 
 	for _, test := range tests {
@@ -252,7 +256,11 @@ func TestPasswordSSHErrorCodeClassifiesFailures(t *testing.T) {
 		want string
 	}{
 		{name: "nil", err: nil, want: ""},
-		{name: "missing ssh", err: passwordSSHError{err: &exec.Error{Name: "ssh", Err: exec.ErrNotFound}}, want: "ssh_missing"},
+		{
+			name: "missing ssh",
+			err:  passwordSSHError{err: &exec.Error{Name: "ssh", Err: exec.ErrNotFound}},
+			want: "ssh_missing",
+		},
 		{name: "timeout", err: passwordSSHError{err: context.DeadlineExceeded}, want: "timeout"},
 		{name: "auth", err: passwordSSHError{output: []byte("Permission denied, please try again.")}, want: "auth_failed"},
 		{name: "host key", err: passwordSSHError{output: []byte("Host key verification failed.")}, want: "host_key_failed"},

@@ -120,5 +120,7 @@ func validateSessionOutputPage(page SessionOutputPage) error {
 }
 
 func sessionOutputFileName(page SessionOutputPage) string {
-	return "seq-" + strconv.Itoa(page.Seq) + "-" + page.Stream + "-offset-" + strconv.Itoa(page.Offset) + "-limit-" + strconv.Itoa(page.Limit) + ".json"
+	return "seq-" + strconv.Itoa(page.Seq) + "-" + page.Stream +
+		"-offset-" + strconv.Itoa(page.Offset) +
+		"-limit-" + strconv.Itoa(page.Limit) + ".json"
 }

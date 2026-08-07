@@ -41,10 +41,10 @@ func ensureDefaultProfiles(path string) error {
 		return nil
 	}
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, defaultProfilesData, 0600)
+	return os.WriteFile(path, defaultProfilesData, 0o600)
 }
 
 // LoadProfiles reads and parses a profiles JSON file. On first run, seeds

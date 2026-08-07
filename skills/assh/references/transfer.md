@@ -20,6 +20,10 @@ assh transfer stat -H HOST -u USER --path /etc/nginx.conf
 assh transfer put -H HOST -u USER ./local-file /remote/path
 ```
 
+`put` creates missing remote parent directories automatically, so uploading
+into a fresh path (`/opt/app/file.conf`, or a trailing-slash directory like
+`/var/www/uploads/`) works without a separate `transfer mkdir`.
+
 ## Download
 
 ```bash

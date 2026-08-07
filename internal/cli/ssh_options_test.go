@@ -19,7 +19,10 @@ func TestSSHOptionsBuildCommandIncludesJump(t *testing.T) {
 
 	cmd := opts.command()
 
-	if cmd.Host != opts.Host || cmd.User != opts.User || cmd.Port != opts.Port || cmd.Identity != opts.Identity || cmd.Jump != opts.Jump {
+	if cmd.Host != opts.Host || cmd.User != opts.User || cmd.Port != opts.Port {
+		t.Fatalf("command=%#v opts=%#v", cmd, opts)
+	}
+	if cmd.Identity != opts.Identity || cmd.Jump != opts.Jump {
 		t.Fatalf("command=%#v opts=%#v", cmd, opts)
 	}
 }

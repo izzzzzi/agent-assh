@@ -1,0 +1,45 @@
+{
+  "editor.formatOnSave": true,
+  "editor.rulers": [120],
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[markdown]": {
+    "editor.wordWrap": "on"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "gopls": {
+    "ui.diagnostic.staticcheck": true,
+    "ui.diagnostic.analyses": {
+      "shadow": { "enabled": true },
+      "unusedparams": { "enabled": true },
+      "composites": { "enabled": true },
+      "fillstruct": { "enabled": true }
+    },
+    "format.gofmt": true,
+    "build.staticcheck": true
+  },
+  "go.lintTool": "golangci-lint",
+  "go.lintOnSave": "file",
+  "go.formatTool": "gofmt",
+  "go.testOnSave": false,
+  "golangci-lint.lintTriggers": ["save", "edit"],
+  "golangci-lint.configFile": ".golangci.yml",
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "search.exclude": {
+    "**/.gocache": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.worktrees": true
+  },
+  "files.exclude": {
+    "**/.gocache": true
+  }
+}

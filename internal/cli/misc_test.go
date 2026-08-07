@@ -60,10 +60,10 @@ func TestAuditCommandMissingAndEmptyFilesOutputEmptyArray(t *testing.T) {
 			name: "empty",
 			setup: func(t *testing.T, path string) {
 				t.Helper()
-				if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 					t.Fatalf("MkdirAll() error = %v", err)
 				}
-				if err := os.WriteFile(path, nil, 0600); err != nil {
+				if err := os.WriteFile(path, nil, 0o600); err != nil {
 					t.Fatalf("WriteFile() error = %v", err)
 				}
 			},
@@ -118,10 +118,11 @@ func TestAuditCommandAllFilteredOutputsEmptyArray(t *testing.T) {
 func TestAuditCommandDropsLegacyCommandField(t *testing.T) {
 	t.Setenv("ASSH_STATE_DIR", t.TempDir())
 	path := filepath.Join(stateBaseDir(), "audit", "audit.jsonl")
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	if err := os.WriteFile(path, []byte(`{"action":"exec","host":"a.example","exit_code":1,"command":"secret"}`+"\n"), 0600); err != nil {
+	auditLine := `{"action":"exec","host":"a.example","exit_code":1,"command":"secret"}` + "\n"
+	if err := os.WriteFile(path, []byte(auditLine), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -194,7 +195,12 @@ func TestKeyDeployUsesJumpHost(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"key-deploy", "--host", "example.com", "--identity", identity, "--password-env", "TARGET_PASS", "--jump", "bastion.example.com"})
+	cmd.SetArgs([]string{
+		"key-deploy", "--host", "example.com",
+		"--identity", identity,
+		"--password-env", "TARGET_PASS",
+		"--jump", "bastion.example.com",
+	})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)

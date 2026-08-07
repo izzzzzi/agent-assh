@@ -7,10 +7,10 @@ import (
 
 var (
 	// ANSI escape sequences — cursor movement, colors, erase display/line, DEC private modes,
-	// alternate screen, device attributes
+	// alternate screen, device attributes.
 	ansiRe = regexp.MustCompile(`\x1b\[[0-9;?><]*[a-zA-Z]|\x1b\][^\x1b\x07]*(\x07|\x1b\\)`)
 
-	// Carriage returns — replace with newlines for consistent processing
+	// Carriage returns — replace with newlines for consistent processing.
 	crRe = regexp.MustCompile(`\r\n?`)
 )
 
