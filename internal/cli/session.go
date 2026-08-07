@@ -40,10 +40,6 @@ func newSessionCommand() *cobra.Command {
 		newSessionProcessKillCommand(),
 		newSessionServiceCommand(),
 		newSessionWatchCommand(),
-		newSessionDBQueryCommand(),
-		newSessionDockerPSCommand(),
-		newSessionDockerLogsCommand(),
-		newSessionDockerExecCommand(),
 	)
 	return cmd
 }

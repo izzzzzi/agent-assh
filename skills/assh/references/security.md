@@ -23,7 +23,6 @@ Pass `--no-redact` only if you genuinely need the raw output.
 - `session exec` blocks destructive commands (rm -rf, mkfs, wipefs, etc.)
 - If you get `dangerous_command_requires_confirmation`, ask the user explicitly
   before re-running with `--confirm-danger`. Never add `--confirm-danger` on your own
-- `db-query` is read-only — write operations return a safety error
 - Declarative safety policy: `~/.config/assh/safety.rules` can ADD deny rules
   (one command per line, file must be mode 0600)
 

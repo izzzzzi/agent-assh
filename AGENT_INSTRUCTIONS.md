@@ -206,28 +206,21 @@ assh session job-status -s SID --job-id JOB_ID --raw  # bare content, no JSON wr
 assh session job-cancel -s SID --job-id JOB_ID
 ```
 
-## Docker Management
+## Docker, Databases, Anything Else
+
+No dedicated subcommands — run tools directly through the session:
 
 ```bash
-assh session docker-ps -s SID
-assh session docker-ps -s SID -a  # all containers including stopped
-assh session docker-logs -s SID --container myapp --tail 100
-assh session docker-exec -s SID --container myapp -- "ls -la /app"
+assh session exec -s SID -- "docker ps -a"
+assh session exec -s SID -- "docker logs myapp --tail 100"
+assh session exec -s SID -- "docker exec myapp ls -la /app"
+assh session exec -s SID -- "mysql -e 'SELECT COUNT(*) FROM users' mydb"
+assh session exec -s SID -- "psql mydb -c 'SHOW TABLES'"
 ```
 
-## Database Query (Read-Only)
-
-Only SELECT, SHOW, DESCRIBE, and EXPLAIN queries are allowed for safety:
-
-```bash
-assh session db-query -s SID --type mysql -d mydb -q "SELECT COUNT(*) FROM users"
-assh session db-query -s SID --type postgres -d mydb -q "SELECT * FROM orders LIMIT 10"
-assh session db-query -s SID --type mysql -d mydb -U dbuser -W dbpass -q "SHOW TABLES"
-```
-
-A failed query (bad credentials, unreachable server, syntax error) returns
-`{"ok":false,"error":"command_failed",...}` with the database error in
-`message` — treat that as a failure, not as an empty result set.
+`safety` guards file-system destructive patterns (rm -rf on system paths, dd
+to block devices, redirects into /etc /var ...) — `docker rm`/`DELETE` are not
+classified, think before running them.
 
 ## Fleet (Multi-Host)
 
@@ -280,7 +273,6 @@ if you genuinely need the raw value.
 - Prefer `--host-key-policy strict` when host keys are already managed.
 - Treat `--host-key-policy no-check` as unsafe and only for disposable lab/dev hosts.
 - If `session exec` returns `dangerous_command_requires_confirmation`, do not add `--confirm-danger` unless the user explicitly intended the destructive action.
-- `db-query` is read-only by design — write operations are blocked with a safety error.
 - Operators may add deny-only rules in `~/.config/assh/safety.rules` (one command name per line). It can only ADD blocked commands, never relax built-in rules. The file must be mode `0600`; an invalid file fails closed with `safety_policy_invalid`.
 - Use `assh session watch` to observe agent actions in real-time.
 

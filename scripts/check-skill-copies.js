@@ -8,7 +8,6 @@ const root = path.join(__dirname, '..');
 const INVARIANTS = [
   'dangerous_command_requires_confirmation',
   'redacted',
-  'db-query',
   'session exec',
   'transfer read',
   'never put passwords',
