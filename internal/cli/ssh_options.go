@@ -46,7 +46,8 @@ func bindSSHOptions(cmd *cobra.Command, opts *sshOptions, cfg sshOptionFlags) {
 		cmd.Flags().IntVarP(&opts.TimeoutSecond, "timeout", "t", opts.TimeoutSecond, "timeout in seconds")
 	}
 	if cfg.hostKeyPolicy {
-		cmd.Flags().StringVar(&opts.HostKeyPolicy, "host-key-policy", opts.HostKeyPolicy, "host key policy: accept-new, strict, no-check")
+		cmd.Flags().StringVar(&opts.HostKeyPolicy, "host-key-policy", opts.HostKeyPolicy,
+			"host key policy: accept-new, strict, no-check")
 	}
 	if cfg.forcePTY {
 		cmd.Flags().BoolVar(&opts.ForcePTY, "force-pty", false, "force PTY allocation (-tt) for hosts that reject -T")

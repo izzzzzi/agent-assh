@@ -9,3 +9,4 @@ globs:
   - "README.en.md"
   - "AGENT_INSTRUCTIONS.md"
   - "SYSTEM_PROMPT_snippet.md"
+  - "CONTRIBUTING.md"

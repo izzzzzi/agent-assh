@@ -1,14 +1,67 @@
 version: "2"
 
 linters:
+  default: none
   enable:
+    # correctness / bugs
     - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
+    # hygiene
     - misspell
+    - godot # comments that are sentences end in a period
+    - predeclared # shadowing of predeclared identifiers (len, cap, error, ...)
+    - nakedret # naked returns only in short funcs
+    # style
+    - revive # configurable linter, drop-in for golint
+    - gocritic # bugs / perf / style diagnostics
+    # size limits
+    - funlen # function length
+    - lll # line length
+
+  settings:
+    funlen:
+      lines: 80
+      statements: 50
+    lll:
+      line-length: 120
+      tab-width: 1
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - hugeParam # value types are fine in this codebase
+        - rangeValCopy # intentional in several places
+        - unnamedResult # noisy; many helpers return (string, error) unnamed
+        - paramTypeCombine # style preference; keep explicit param types
+        - filepathJoin # false-positives on absolute paths in tests
+    revive:
+      severity: warning
+      rules:
+        - name: exported
+          disabled: true # not a library; public API is the CLI itself
+        - name: var-naming
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: increment-decrement
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: useless-break
 
 formatters:
   enable:
     - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-use-default: false

@@ -42,7 +42,9 @@ func newSessionExecAsyncCommand() *cobra.Command {
 			if result, handled, errReturn := classifyCommand(cmd, userCommand); handled {
 				return errReturn
 			} else if result.Dangerous {
-				return writeError(cmd, "dangerous_command_requires_confirmation", "command looks destructive; exec-async does not support --confirm-danger for safety reasons", result.Message)
+				return writeError(cmd, "dangerous_command_requires_confirmation",
+					"command looks destructive; exec-async does not support --confirm-danger for safety reasons",
+					result.Message)
 			}
 
 			jobID, err := ids.New()
@@ -62,7 +64,8 @@ func newSessionExecAsyncCommand() *cobra.Command {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, firstNonEmpty(ssh.Jump, entry.Jump), timeout+10, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity,
+				firstNonEmpty(ssh.Jump, entry.Jump), timeout+10, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -105,6 +108,13 @@ func newSessionJobStatusCommand() *cobra.Command {
 			if jobID == "" {
 				return writeInvalidArgs(cmd, "--job-id is required", "")
 			}
+			// jobID flows into a remote `mkdir -p .../<jobName>` path and a
+			// tmux window name with NO shell quoting. Reject anything that
+			// is not a valid assh id, otherwise a caller-supplied value like
+			// "x; <cmd>" executes arbitrary commands on the remote host.
+			if !ids.Valid(jobID) {
+				return writeInvalidArgs(cmd, "--job-id must be a valid assh job id (hex, 8-32 chars)", "")
+			}
 			if lines < 1 {
 				lines = 50
 			}
@@ -118,7 +128,8 @@ func newSessionJobStatusCommand() *cobra.Command {
 			remoteCommand := jobStatusRemoteCommand(jobName, lines)
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump,
+				30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -167,6 +178,12 @@ func newSessionJobCancelCommand() *cobra.Command {
 			if jobID == "" {
 				return writeInvalidArgs(cmd, "--job-id is required", "")
 			}
+			// See job-status: jobID is used unquoted in remote paths and
+			// tmux targets; reject non-assh-id values to prevent command
+			// injection via --job-id.
+			if !ids.Valid(jobID) {
+				return writeInvalidArgs(cmd, "--job-id must be a valid assh job id (hex, 8-32 chars)", "")
+			}
 
 			entry, err := session.LoadRegistry(stateBaseDir(), sid)
 			if err != nil {
@@ -174,10 +191,12 @@ func newSessionJobCancelCommand() *cobra.Command {
 			}
 
 			jobName := "assh_job_" + jobID
-			remoteCommand := "tmux kill-window -t " + remote.SingleQuote(jobName) + " 2>/dev/null && echo '{\"ok\":true}' || echo '{\"ok\":false,\"error\":\"job not found\"}'"
+			remoteCommand := "tmux kill-window -t " + remote.SingleQuote(jobName) +
+				" 2>/dev/null && echo '{\"ok\":true}' || echo '{\"ok\":false,\"error\":\"job not found\"}'"
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump,
+				30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -205,7 +224,10 @@ func execAsyncRemoteCommand(tmuxName, jobName string, seq int, command string, w
 	return strings.Join([]string{
 		"mkdir -p " + jobDir,
 		"printf '%s\\n' " + remote.SingleQuote(command) + " > " + scriptFile,
-		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) + " -n " + remote.SingleQuote(jobName) + " sh -c 'sh " + scriptFile + " > " + outFile + " 2>&1; echo $? > " + rcFile + "; echo __JOB_COMPLETE__ >> " + outFile + "'",
+		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) + " -n " + remote.SingleQuote(jobName) +
+			" sh -c 'if command -v bash >/dev/null 2>&1; then bash " + scriptFile + "; else sh " + scriptFile +
+			"; fi > " + outFile + " 2>&1; echo $? > " + rcFile +
+			"; echo __JOB_COMPLETE__ >> " + outFile + "'",
 	}, " && ")
 }
 
@@ -248,12 +270,15 @@ func execSyncRemoteCommandPTY(sid, tmuxName string, seq int, command string, wai
 		"mkdir -p " + jobDir,
 		"printf '%s\\n' " + remote.SingleQuote(command) + " > " + scriptFile,
 		"rm -f " + rcFile,
-		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) + " -n exec sh -c 'sh " + scriptFile + " > " + outFile + " 2>&1; echo $? > " + rcFile + "'",
+		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) +
+			" -n exec sh -c 'if command -v bash >/dev/null 2>&1; then bash " +
+			scriptFile + "; else sh " + scriptFile + "; fi > " + outFile + " 2>&1; echo $? > " + rcFile + "'",
 		"i=0; while [ $i -lt " + strconv.Itoa(waitSeconds) + " ] && [ ! -f " + rcFile + " ]; do i=$((i+1)); sleep 1; done",
 		"test -f " + rcFile + " || { echo __ASSH_TIMEOUT__; exit 124; }",
 		"printf '__ASSH_RC__=%s\\n' \"$(cat " + rcFile + ")\"",
 		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(" + lineCount + " " + outFile + ")\"",
 		"mkdir -p " + sessionDir + "/" + sid,
-		"cp " + outFile + " " + sessionOut + " 2>/dev/null; cp " + scriptFile + " " + sessionErr + " 2>/dev/null; cp " + rcFile + " " + sessionRC + " 2>/dev/null; true",
+		"cp " + outFile + " " + sessionOut + " 2>/dev/null; cp " + scriptFile + " " + sessionErr +
+			" 2>/dev/null; cp " + rcFile + " " + sessionRC + " 2>/dev/null; true",
 	}, " && ")
 }

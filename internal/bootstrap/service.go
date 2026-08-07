@@ -16,12 +16,20 @@ const keyCheckCommand = "true"
 
 var probeCommand = capabilities.ProbeCommand()
 
-const installTmuxRemoteCommand = "if command -v apt >/dev/null 2>&1; then sudo -n apt update >/dev/null 2>&1 && sudo -n apt install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
-	"elif command -v dnf >/dev/null 2>&1; then sudo -n dnf install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
-	"elif command -v yum >/dev/null 2>&1; then sudo -n yum install -y tmux || { echo tmux_install_failed >&2; exit 1; }; " +
-	"elif command -v apk >/dev/null 2>&1; then sudo -n apk add tmux || { echo tmux_install_failed >&2; exit 1; }; " +
-	"elif command -v pacman >/dev/null 2>&1; then sudo -n pacman -Sy --noconfirm tmux || { echo tmux_install_failed >&2; exit 1; }; " +
-	"elif command -v brew >/dev/null 2>&1; then brew install tmux || { echo tmux_install_failed >&2; exit 1; }; " +
+const installTmuxRemoteCommand = "if command -v apt >/dev/null 2>&1; then " +
+	"sudo -n apt update >/dev/null 2>&1 && sudo -n apt install -y tmux " +
+	"|| { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v dnf >/dev/null 2>&1; then sudo -n dnf install -y tmux " +
+	"|| { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v yum >/dev/null 2>&1; then sudo -n yum install -y tmux " +
+	"|| { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v apk >/dev/null 2>&1; then sudo -n apk add tmux " +
+	"|| { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v pacman >/dev/null 2>&1; then " +
+	"sudo -n pacman -Sy --noconfirm tmux " +
+	"|| { echo tmux_install_failed >&2; exit 1; }; " +
+	"elif command -v brew >/dev/null 2>&1; then brew install tmux " +
+	"|| { echo tmux_install_failed >&2; exit 1; }; " +
 	"else echo tmux_missing >&2; exit 127; fi"
 
 type Request struct {
@@ -160,7 +168,10 @@ func (s Service) Run(ctx context.Context, req Request) (Result, error) {
 
 		verify := s.RunSSH(ctx, target, keyCheckCommand)
 		if code := sshErrorCode(ctx.Err(), verify); code != "" {
-			return Result{}, Error{Code: "key_deploy_failed", Message: "key deployment completed but key login verification failed"}
+			return Result{}, Error{
+				Code:    "key_deploy_failed",
+				Message: "key deployment completed but key login verification failed",
+			}
 		}
 	}
 
@@ -177,16 +188,9 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		return Result{}, Error{Code: "tmux_missing", Message: "unsupported remote session backend"}
 	}
 
-	tmuxInstalled := probe.TmuxInstalled
-	if !probe.TmuxInstalled {
-		if req.SkipTmuxInstall {
-			return Result{}, Error{Code: "tmux_missing", Message: "tmux is not installed"}
-		}
-		installResult := s.RunSSH(ctx, target, installTmuxRemoteCommand)
-		if code := sshErrorCode(ctx.Err(), installResult); code != "" {
-			return Result{}, Error{Code: installErrorCode(code), Message: sshErrorMessage(ctx.Err(), installResult)}
-		}
-		tmuxInstalled = true
+	tmuxInstalled, err := s.ensureTmux(ctx, req, target, probe.TmuxInstalled)
+	if err != nil {
+		return Result{}, err
 	}
 
 	gcDeleted, gcErrors, err := s.runGC(ctx, req, target)
@@ -212,24 +216,8 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		return Result{}, Error{Code: code, Message: sshErrorMessage(ctx.Err(), openResult)}
 	}
 
-	entry := session.RegistryEntry{
-		SID:           metadata.SID,
-		Label:         metadata.Label,
-		Host:          req.Host,
-		User:          req.User,
-		Port:          req.Port,
-		Identity:      req.Identity,
-		Jump:          req.Jump,
-		HostKeyPolicy: req.HostKeyPolicy,
-		ForcePTY:      req.ForcePTY,
-		TmuxName:      metadata.TmuxName,
-		CreatedAt:     metadata.CreatedAt,
-		TTLSeconds:    metadata.TTLSeconds,
-		Seq:           0,
-		Profile:       req.Profile,
-	}
-	if err := session.SaveRegistry(req.StateDir, entry); err != nil {
-		return Result{}, Error{Code: "internal_error", Message: err.Error()}
+	if err := s.saveOpenRegistry(req, metadata); err != nil {
+		return Result{}, err
 	}
 
 	return Result{
@@ -251,6 +239,46 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 			"close": "assh session close -s " + sid,
 		},
 	}, nil
+}
+
+// ensureTmux installs tmux on the remote host when missing unless the caller
+// opted out. Returns the resolved tmux-installed flag.
+func (s Service) ensureTmux(ctx context.Context, req Request, target SSHTarget, alreadyInstalled bool) (bool, error) {
+	if alreadyInstalled {
+		return true, nil
+	}
+	if req.SkipTmuxInstall {
+		return false, Error{Code: "tmux_missing", Message: "tmux is not installed"}
+	}
+	installResult := s.RunSSH(ctx, target, installTmuxRemoteCommand)
+	if code := sshErrorCode(ctx.Err(), installResult); code != "" {
+		return false, Error{Code: installErrorCode(code), Message: sshErrorMessage(ctx.Err(), installResult)}
+	}
+	return true, nil
+}
+
+// saveOpenRegistry persists the registry entry for a freshly opened session.
+func (s Service) saveOpenRegistry(req Request, metadata session.Metadata) error {
+	entry := session.RegistryEntry{
+		SID:           metadata.SID,
+		Label:         metadata.Label,
+		Host:          req.Host,
+		User:          req.User,
+		Port:          req.Port,
+		Identity:      req.Identity,
+		Jump:          req.Jump,
+		HostKeyPolicy: req.HostKeyPolicy,
+		ForcePTY:      req.ForcePTY,
+		TmuxName:      metadata.TmuxName,
+		CreatedAt:     metadata.CreatedAt,
+		TTLSeconds:    metadata.TTLSeconds,
+		Seq:           0,
+		Profile:       req.Profile,
+	}
+	if err := session.SaveRegistry(req.StateDir, entry); err != nil {
+		return Error{Code: "internal_error", Message: err.Error()}
+	}
+	return nil
 }
 
 func (s Service) runGC(ctx context.Context, req Request, target SSHTarget) ([]string, []GCError, error) {
@@ -323,9 +351,11 @@ func sshErrorCode(ctxErr error, result SSHResult) string {
 		errorText(result.Err),
 	}, "\n"))
 	switch {
-	case strings.Contains(text, "permission denied"), strings.Contains(text, "authentication failed"):
+	case strings.Contains(text, "permission denied"),
+		strings.Contains(text, "authentication failed"):
 		return "auth_failed"
-	case strings.Contains(text, "host key verification failed"), strings.Contains(text, "remote host identification has changed"):
+	case strings.Contains(text, "host key verification failed"),
+		strings.Contains(text, "remote host identification has changed"):
 		return "host_key_failed"
 	case strings.Contains(text, "tmux_missing"):
 		return "tmux_missing"

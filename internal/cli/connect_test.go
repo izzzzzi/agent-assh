@@ -94,7 +94,10 @@ func TestConnectPassesJumpIntoBootstrapTarget(t *testing.T) {
 				if target.Jump != "bastion.example.com" {
 					t.Fatalf("target.Jump=%q want bastion.example.com", target.Jump)
 				}
-				return bootstrap.SSHResult{ExitCode: 0, Stdout: []byte("os=linux\ntmux=installed\npkg=apt\ninstall=noninteractive\n")}
+				return bootstrap.SSHResult{
+					ExitCode: 0,
+					Stdout:   []byte("os=linux\ntmux=installed\npkg=apt\ninstall=noninteractive\n"),
+				}
 			},
 			DeployPassword: func(context.Context, string, bootstrap.SSHTarget, string) error {
 				return nil
@@ -108,7 +111,11 @@ func TestConnectPassesJumpIntoBootstrapTarget(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"connect", "--host", "10.0.0.1", "--password-env", "TARGET_PASS", "--jump", "bastion.example.com"})
+	cmd.SetArgs([]string{
+		"connect", "--host", "10.0.0.1",
+		"--password-env", "TARGET_PASS",
+		"--jump", "bastion.example.com",
+	})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)

@@ -1,17 +1,70 @@
 #!/bin/sh
 set -eu
 
+# ---------------------------------------------------------------------------
+# assh pre-commit hook
+# Fast guards first (cheap, staged-only), then the full quality gate.
+# Install once with: npm run hooks:install
+# ---------------------------------------------------------------------------
+
+# 1. Forbid direct commits to protected branches.
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+case "$branch" in
+main|master)
+	echo "pre-commit: direct commits to $branch are forbidden; use a feature branch" >&2
+	exit 1
+	;;
+esac
+
+# 2. No whitespace errors or leftover conflict markers in staged changes.
+if git diff --cached --check | grep -q .; then
+	echo "pre-commit: whitespace errors or conflict markers in staged changes:" >&2
+	git diff --cached --check >&2
+	exit 1
+fi
+
+# 3. No debug print statements left in non-test Go files (staged only).
+staged_go=$(
+	git diff --cached --name-only --diff-filter=ACM \
+		| grep '\.go$' \
+		| grep -v '_test\.go$' \
+		|| true
+)
+if [ -n "$staged_go" ]; then
+	# fmt.Println / print( / println( are debug smells; t.Log/Testing.Logf are fine.
+	if prints=$(echo "$staged_go" | xargs grep -nE 'fmt\.Println|fmt\.Print\(|\bprint\(' 2>/dev/null) && [ -n "$prints" ]; then
+		echo "pre-commit: debug print statements in non-test Go files:" >&2
+		echo "$prints" >&2
+		echo "remove them or use t.Log in tests" >&2
+		exit 1
+	fi
+fi
+
+# 4. Optional editorconfig check (only if the tool is installed).
+if command -v editorconfig-checker >/dev/null 2>&1; then
+	echo "pre-commit: editorconfig"
+	editorconfig-checker || {
+		echo "pre-commit: editorconfig violations (install: brew/pip install editorconfig-checker)" >&2
+		exit 1
+	}
+fi
+
+# ---------------------------------------------------------------------------
+# Full quality gate (slower, runs on the whole tree).
+# ---------------------------------------------------------------------------
 echo "pre-commit: gofmt"
 test -z "$(gofmt -l .)"
 
 echo "pre-commit: go vet"
 go vet ./...
 
-echo "pre-commit: go test"
-go test ./...
-
 echo "pre-commit: golangci-lint"
 go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run
 
-echo "pre-commit: npm check"
+echo "pre-commit: go test"
+go test ./...
+
+echo "pre-commit: npm check (markdownlint + smoke + pack)"
 npm run check
+
+echo "pre-commit: OK"

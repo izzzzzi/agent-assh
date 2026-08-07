@@ -8,7 +8,7 @@ import (
 
 func TestControlSocketPathIsStableAndStateLocal(t *testing.T) {
 	got := ControlSocketPath("/tmp/assh-state", "deploy")
-	want := filepath.Join("/tmp/assh-state", "forward", "sockets", "deploy.sock")
+	want := filepath.Join("/tmp", "assh-state", "forward", "sockets", "deploy.sock")
 	if got != want {
 		t.Fatalf("ControlSocketPath() = %q, want %q", got, want)
 	}

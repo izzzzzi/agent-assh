@@ -59,7 +59,7 @@ Need SSH?
   File operations:
     assh transfer list -H HOST -u USER --path /var/log
     assh transfer stat -H HOST -u USER --path /etc/nginx.conf
-    assh transfer put -H HOST -u USER LOCAL_PATH REMOTE_PATH
+    assh transfer put -H HOST -u USER LOCAL_PATH REMOTE_PATH  # creates missing remote parent dirs
     assh transfer get -H HOST -u USER REMOTE_PATH LOCAL_PATH
     assh transfer sync --direction push --source ./dist --dest /var/www -H HOST
     assh transfer mkdir -H HOST -u USER --path /opt/newapp

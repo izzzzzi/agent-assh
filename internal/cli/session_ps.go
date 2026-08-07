@@ -39,7 +39,8 @@ func newSessionProcessListCommand() *cobra.Command {
 			remoteCommand := remoteProcessListCommand(filter, top)
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump,
+				30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -82,7 +83,8 @@ func newSessionProcessKillCommand() *cobra.Command {
 				return writeInvalidArgs(cmd, "--pid is required", "")
 			}
 			if pid == 1 {
-				return writeError(cmd, "dangerous_command_requires_confirmation", "killing PID 1 (init/systemd) is blocked for safety", "")
+				return writeError(cmd, "dangerous_command_requires_confirmation",
+					"killing PID 1 (init/systemd) is blocked for safety", "")
 			}
 
 			sig := signal
@@ -98,10 +100,13 @@ func newSessionProcessKillCommand() *cobra.Command {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 
-			remoteCommand := "kill -" + sig + " " + strconv.Itoa(pid) + " 2>/dev/null && echo '{\"ok\":true,\"pid\":'" + strconv.Itoa(pid) + ",\"signal\":\"" + sig + "\"}' || echo '{\"ok\":false,\"pid\":'" + strconv.Itoa(pid) + ",\"error\":\"kill failed\"}'"
+			remoteCommand := "kill -" + sig + " " + strconv.Itoa(pid) +
+				" 2>/dev/null && echo '{\"ok\":true,\"pid\":'" + strconv.Itoa(pid) + ",\"signal\":\"" + sig + "\"}'" +
+				" || echo '{\"ok\":false,\"pid\":'" + strconv.Itoa(pid) + ",\"error\":\"kill failed\"}'"
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, 30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump,
+				30, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
@@ -122,14 +127,15 @@ func newSessionProcessKillCommand() *cobra.Command {
 	return cmd
 }
 
-var processSignalPattern = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]{0,15}|[1-9][0-9]{0,2})$`)
+var processSignalPattern = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]{0,15}|[1-9]\d{0,2})$`)
 
 func validProcessSignal(signal string) bool {
 	return processSignalPattern.MatchString(signal)
 }
 
 func remoteProcessListCommand(filter string, top int) string {
-	cmd := `ps -eo pid,ppid,user,rss,vsz,%cpu,%mem,etime,args --sort=-%cpu 2>/dev/null | head -n $((` + strconv.Itoa(top) + ` + 1))`
+	cmd := `ps -eo pid,ppid,user,rss,vsz,%cpu,%mem,etime,args --sort=-%cpu 2>/dev/null` +
+		` | head -n $((` + strconv.Itoa(top) + ` + 1))`
 	cmd += ` | awk -v filter=` + remote.SingleQuote(filter) + ` '
 function json_escape(value) {
 	gsub(/\\/, "\\\\", value)
@@ -143,7 +149,10 @@ NR==1{next}
 {
 	command=substr($0,index($0,$9))
 	if (filter != "" && index(tolower(command), filter) == 0) next
-	printf "%s{\"pid\":%s,\"ppid\":%s,\"user\":\"%s\",\"rss_kb\":%s,\"vsz_kb\":%s,\"cpu_pct\":%s,\"mem_pct\":%s,\"etime\":\"%s\",\"command\":\"%s\"}",(count++>0?",":""),$1,$2,json_escape($3),$4,$5,$6,$7,json_escape($8),json_escape(command)
+	fmt="%s{\"pid\":%s,\"ppid\":%s,\"user\":\"%s\"" \
+	   ",\"rss_kb\":%s,\"vsz_kb\":%s,\"cpu_pct\":%s,\"mem_pct\":%s" \
+	   ",\"etime\":\"%s\",\"command\":\"%s\"}"
+	printf fmt,(count++>0?",":""),$1,$2,json_escape($3),$4,$5,$6,$7,json_escape($8),json_escape(command)
 }
 END{print "]"}'`
 	return cmd

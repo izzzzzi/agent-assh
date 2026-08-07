@@ -206,6 +206,7 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 - Установка пакетов неинтерактивная; неподдерживаемые package managers возвращают machine-readable errors.
 - Интерактивные password prompts не поддерживаются в v1.
 - `assh` использует системный OpenSSH client.
+- `session exec` не пробрасывает локальный stdin в команду. Команды отправляются в remote `tmux`-окно через неинтерактивный ssh, поэтому piping вроде `cat f | assh session exec -s SID -- "docker exec -i ... cat >f"` данные теряет, а tmux-окно зависает в ожидании ввода. При детекции piped-stdin возвращается `{"ok":false,"error":"stdin_pipe_unsupported",...}` с подсказкой использовать `transfer put` или временный файл. Для разовых команд с stdin используйте `assh exec`.
 
 ## Ручная установка
 

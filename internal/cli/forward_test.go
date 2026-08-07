@@ -50,8 +50,11 @@ func TestForwardStartWritesStateAndReturnsControlSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if record.Jump != "bastion.example.com" || len(record.Local) != 1 || len(record.Dynamic) != 1 || record.ControlSocket == "" {
+	if record.Jump != "bastion.example.com" || len(record.Local) != 1 || len(record.Dynamic) != 1 {
 		t.Fatalf("record=%#v", record)
+	}
+	if record.ControlSocket == "" {
+		t.Fatalf("record.ControlSocket empty: %#v", record)
 	}
 }
 
@@ -136,8 +139,16 @@ func TestForwardValidatesRequiredArguments(t *testing.T) {
 		want string
 	}{
 		{name: "subcommand", args: []string{"forward"}, want: "forward subcommand required"},
-		{name: "start name", args: []string{"forward", "start", "--host", "example.com", "--local-forward", "8080:localhost:80"}, want: "--name is required"},
-		{name: "start rule", args: []string{"forward", "start", "--name", "deploy", "--host", "example.com"}, want: "at least one forwarding rule required"},
+		{
+			name: "start name",
+			args: []string{"forward", "start", "--host", "example.com", "--local-forward", "8080:localhost:80"},
+			want: "--name is required",
+		},
+		{
+			name: "start rule",
+			args: []string{"forward", "start", "--name", "deploy", "--host", "example.com"},
+			want: "at least one forwarding rule required",
+		},
 		{name: "status name", args: []string{"forward", "status"}, want: "--name is required"},
 		{name: "stop name", args: []string{"forward", "stop"}, want: "--name is required"},
 	}

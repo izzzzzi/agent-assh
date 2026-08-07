@@ -29,6 +29,10 @@ assh session db-query -s SID --type postgres -d mydb -q "SELECT * FROM orders LI
 assh session db-query -s SID --type mysql -d mydb -U dbuser -W dbpass -q "SHOW TABLES"
 ```
 
+A failed query (bad credentials, unreachable server, syntax error) returns
+`{"ok":false,"error":"command_failed",...}` with the database error in
+`message` — treat that as a failure, not as an empty result set.
+
 ## Host Scanning
 
 ```bash

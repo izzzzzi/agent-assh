@@ -33,12 +33,15 @@ var patterns = []pattern{
 	{"bearer", regexp.MustCompile(`(?i)\bbearer\s+[A-Za-z0-9._\-+/=]{12,}`)},
 	// key=value / key: value assignments for sensitive keys. Captures the key so
 	// it is preserved; only the value is masked.
-	{"secret_assignment", regexp.MustCompile(`(?i)\b(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret)\b(\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s"';,)]+)`)},
+	{"secret_assignment", regexp.MustCompile(`(?i)\b(` +
+		`password|passwd|pwd|secret|token|api[_-]?key|` +
+		`access[_-]?key|private[_-]?key|client[_-]?secret)\b` +
+		`(\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s"';,)]+)`)},
 }
 
 var (
-	pemBegin = regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----`)
-	pemEnd   = regexp.MustCompile(`-----END [A-Z0-9 ]*PRIVATE KEY-----`)
+	pemBegin = regexp.MustCompile(`-{5}BEGIN [A-Z0-9 ]*PRIVATE KEY-{5}`)
+	pemEnd   = regexp.MustCompile(`-{5}END [A-Z0-9 ]*PRIVATE KEY-{5}`)
 )
 
 // Result reports how a buffer was redacted.

@@ -199,7 +199,8 @@ func runBootstrapSSH(ctx context.Context, target bootstrap.SSHTarget, remoteComm
 	}
 }
 
-func deployPublicKeyWithPassword(ctx context.Context, password string, target bootstrap.SSHTarget, identity string) error {
+func deployPublicKeyWithPassword(ctx context.Context, password string,
+	target bootstrap.SSHTarget, identity string) error {
 	pubKey, err := os.ReadFile(identity + ".pub")
 	if err != nil {
 		return err

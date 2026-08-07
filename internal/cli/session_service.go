@@ -38,25 +38,34 @@ func newSessionServiceCommand() *cobra.Command {
 			var remoteCommand string
 			switch action {
 			case "status":
-				remoteCommand = "systemctl status " + remote.SingleQuote(service) + " --no-pager -l 2>/dev/null || echo 'SERVICE_NOT_FOUND'"
+				remoteCommand = "systemctl status " + remote.SingleQuote(service) +
+					" --no-pager -l 2>/dev/null || echo 'SERVICE_NOT_FOUND'"
 			case "restart":
-				remoteCommand = "sudo systemctl restart " + remote.SingleQuote(service) + " 2>&1 && echo 'RESTART_OK' || echo 'RESTART_FAILED'"
+				remoteCommand = "sudo systemctl restart " + remote.SingleQuote(service) +
+					" 2>&1 && echo 'RESTART_OK' || echo 'RESTART_FAILED'"
 			case "start":
-				remoteCommand = "sudo systemctl start " + remote.SingleQuote(service) + " 2>&1 && echo 'START_OK' || echo 'START_FAILED'"
+				remoteCommand = "sudo systemctl start " + remote.SingleQuote(service) +
+					" 2>&1 && echo 'START_OK' || echo 'START_FAILED'"
 			case "stop":
-				remoteCommand = "sudo systemctl stop " + remote.SingleQuote(service) + " 2>&1 && echo 'STOP_OK' || echo 'STOP_FAILED'"
+				remoteCommand = "sudo systemctl stop " + remote.SingleQuote(service) +
+					" 2>&1 && echo 'STOP_OK' || echo 'STOP_FAILED'"
 			case "logs":
 				if lines < 1 {
 					lines = 50
 				}
-				remoteCommand = "journalctl -u " + remote.SingleQuote(service) + " --no-pager -n " + strconv.Itoa(lines) + " 2>/dev/null || echo 'JOURNALCTL_UNAVAILABLE'"
+				remoteCommand = "journalctl -u " + remote.SingleQuote(service) +
+					" --no-pager -n " + strconv.Itoa(lines) +
+					" 2>/dev/null || echo 'JOURNALCTL_UNAVAILABLE'"
 			default:
 				return writeInvalidArgs(cmd, "invalid action: "+action, "valid: status, restart, start, stop, logs")
 			}
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(
+				entry.Host, entry.User, entry.Port, entry.Identity,
+				ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy, entry.ForcePTY,
+			), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}

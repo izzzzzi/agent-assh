@@ -18,7 +18,8 @@ import (
 func TestSessionExportRejectsUnknownSession(t *testing.T) {
 	t.Setenv("ASSH_STATE_DIR", t.TempDir())
 
-	got := executeSessionJSONError(t, []string{"session", "export", "--sid", "abcdef12", "--output", filepath.Join(t.TempDir(), "missing.tar.gz")})
+	args := []string{"session", "export", "--sid", "abcdef12", "--output", filepath.Join(t.TempDir(), "missing.tar.gz")}
+	got := executeSessionJSONError(t, args)
 	if got["ok"] != false || got["error"] != "session_not_found" {
 		t.Fatalf("unexpected response: %#v", got)
 	}
@@ -67,7 +68,11 @@ func TestSessionReadCachesOutputForExport(t *testing.T) {
 		return transport.Result{Stdout: []byte("line-a\nline-b\n\n__ASSH_TOTAL_LINES__=2\n"), ExitCode: 0}
 	}
 
-	got := executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--stream", "stdout", "--limit", "50"})
+	readArgs := []string{
+		"session", "read", "--sid", "abcdef12",
+		"--seq", "1", "--stream", "stdout", "--limit", "50",
+	}
+	got := executeSessionJSON(t, readArgs)
 	if got["ok"] != true {
 		t.Fatalf("unexpected response: %#v", got)
 	}
@@ -88,11 +93,21 @@ func TestSessionReadCachesMultiplePagesForExport(t *testing.T) {
 		return transport.Result{Stdout: []byte("line-a\nline-b\nline-c\n\n__ASSH_TOTAL_LINES__=3\n"), ExitCode: 0}
 	}
 
-	got := executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--stream", "stdout", "--offset", "0", "--limit", "2"})
+	page1 := []string{
+		"session", "read", "--sid", "abcdef12",
+		"--seq", "1", "--stream", "stdout",
+		"--offset", "0", "--limit", "2",
+	}
+	got := executeSessionJSON(t, page1)
 	if got["ok"] != true {
 		t.Fatalf("unexpected response: %#v", got)
 	}
-	got = executeSessionJSON(t, []string{"session", "read", "--sid", "abcdef12", "--seq", "1", "--stream", "stdout", "--offset", "2", "--limit", "1"})
+	page2 := []string{
+		"session", "read", "--sid", "abcdef12",
+		"--seq", "1", "--stream", "stdout",
+		"--offset", "2", "--limit", "1",
+	}
+	got = executeSessionJSON(t, page2)
 	if got["ok"] != true {
 		t.Fatalf("unexpected response: %#v", got)
 	}
@@ -127,8 +142,11 @@ func TestSessionExportArchiveContainsCachedRead(t *testing.T) {
 	}
 
 	files := readCLITarGz(t, archivePath)
-	if !strings.Contains(files["outputs/seq-1-stdout-offset-0-limit-50.json"], `"content": "hello\n"`) || !strings.Contains(files["outputs/seq-1-stdout-offset-2-limit-1.json"], `"content": "world\n"`) {
-		t.Fatalf("archive missing cached outputs: %#v", files)
+	if !strings.Contains(files["outputs/seq-1-stdout-offset-0-limit-50.json"], `"content": "hello\n"`) {
+		t.Fatalf("archive missing hello output: %#v", files)
+	}
+	if !strings.Contains(files["outputs/seq-1-stdout-offset-2-limit-1.json"], `"content": "world\n"`) {
+		t.Fatalf("archive missing world output: %#v", files)
 	}
 }
 

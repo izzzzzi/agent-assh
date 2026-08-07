@@ -31,10 +31,16 @@ func TestForwardStoreSaveLoadListDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if loaded.Name != record.Name || loaded.Host != record.Host || loaded.Jump != record.Jump || loaded.ControlSocket != record.ControlSocket {
+	if loaded.Name != record.Name || loaded.Host != record.Host {
 		t.Fatalf("loaded record = %#v, want %#v", loaded, record)
 	}
-	if len(loaded.Local) != 1 || loaded.Local[0] != record.Local[0] || len(loaded.Remote) != 1 || loaded.Remote[0] != record.Remote[0] || len(loaded.Dynamic) != 1 || loaded.Dynamic[0] != record.Dynamic[0] {
+	if loaded.Jump != record.Jump || loaded.ControlSocket != record.ControlSocket {
+		t.Fatalf("loaded record = %#v, want %#v", loaded, record)
+	}
+	if !slicesEqual(loaded.Local, record.Local) || !slicesEqual(loaded.Remote, record.Remote) {
+		t.Fatalf("loaded rules = %#v", loaded)
+	}
+	if !slicesEqual(loaded.Dynamic, record.Dynamic) {
 		t.Fatalf("loaded rules = %#v", loaded)
 	}
 
@@ -62,4 +68,18 @@ func TestForwardStoreRejectsUnsafeNames(t *testing.T) {
 	if _, err := store.Load("../bad"); err == nil {
 		t.Fatal("Load() error = nil, want invalid name")
 	}
+}
+
+// slicesEqual reports whether two string slices have equal length and equal
+// elements. Used by TestForwardStoreSaveLoadListDelete to compare rule slices.
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

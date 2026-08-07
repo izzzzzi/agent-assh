@@ -3,8 +3,11 @@ package cli
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/izzzzzi/agent-assh/internal/response"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
@@ -68,6 +71,28 @@ func newTransferLeafCommand(use string, direction transport.SCPDirection) *cobra
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
 
+			// Create the destination parent directory before scp: scp refuses
+			// to upload into a missing directory ("dest open: No such file or
+			// directory"). A trailing-slash destination is treated as a
+			// directory, so it is created itself and the file lands inside it.
+			if direction == transport.Upload {
+				if parent, ok := remoteUploadParent(destination); ok {
+					mkdirResult := runSSH(ctx, ssh.command(), remoteMkdirCommand(parent))
+					if code := sshResultErrorCode(ctx.Err(), mkdirResult); code != "" {
+						return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), mkdirResult), "")
+					}
+					if mkdirResult.ExitCode != 0 {
+						return writeError(cmd, "mkdir_failed",
+							strings.TrimSpace(string(mkdirResult.Stderr)),
+							"could not create remote destination directory")
+					}
+				}
+			} else if parent := filepath.Dir(destination); parent != "." && parent != string(filepath.Separator) {
+				if err := os.MkdirAll(parent, 0o755); err != nil {
+					return writeError(cmd, "transfer_failed", err.Error(), "")
+				}
+			}
+
 			result := runSCP(ctx, scpCommandFromSSHOptions(ssh), source, destination, direction)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -82,7 +107,8 @@ func newTransferLeafCommand(use string, direction transport.SCPDirection) *cobra
 					return writeError(cmd, "transfer_failed", err.Error(), "")
 				}
 			}
-			writeAudit("transfer_"+use, "", ssh.Host, ssh.User, "transfer "+use, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("transfer_"+use, "", ssh.Host, ssh.User, "transfer "+use,
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, response.OK{
 				"ok":          true,
@@ -96,6 +122,37 @@ func newTransferLeafCommand(use string, direction transport.SCPDirection) *cobra
 	}
 	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
 	return cmd
+}
+
+// remoteUploadParent returns the remote directory that must exist before an
+// scp upload to destination, and whether creating it is needed.
+func remoteUploadParent(destination string) (string, bool) {
+	dir := strings.TrimRight(destination, "/")
+	if dir == "" {
+		return "", false
+	}
+	if strings.HasSuffix(destination, "/") {
+		// Destination is a directory itself: create it so the file lands inside.
+		return dir, true
+	}
+	i := strings.LastIndexByte(dir, '/')
+	if i < 0 {
+		return "", false // bare filename, no parent
+	}
+	parent := dir[:i]
+	if parent == "" || parent == "/" {
+		return "", false // root always exists
+	}
+	return parent, true
+}
+
+// remoteMkdirCommand builds a `mkdir -p` command for a remote path. A leading
+// `~/` is expanded outside single quotes so the remote shell resolves $HOME.
+func remoteMkdirCommand(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		return "mkdir -p ~/" + remote.SingleQuote(path[2:])
+	}
+	return "mkdir -p " + remote.SingleQuote(path)
 }
 
 func transferSizeBefore(direction transport.SCPDirection, source string) (int64, error) {
@@ -128,6 +185,7 @@ func scpCommandFromSSHOptions(ssh sshOptions) transport.SCPCommand {
 	}
 }
 
-var runSCP = func(ctx context.Context, command transport.SCPCommand, source string, destination string, direction transport.SCPDirection) transport.Result {
+var runSCP = func(ctx context.Context, command transport.SCPCommand,
+	source, destination string, direction transport.SCPDirection) transport.Result {
 	return command.Run(ctx, source, destination, direction)
 }

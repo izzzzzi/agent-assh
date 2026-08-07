@@ -55,6 +55,9 @@ assh session exec-async -s f7a2b3c4 -- "make build"
 # Returns job_id
 assh session job-status -s f7a2b3c4 --job-id JOB_ID
 assh session job-status -s f7a2b3c4 --job-id JOB_ID --raw
+```
+Jobs run under `bash` when the remote has it (falls back to `sh`), so
+bash-isms like `source ~/.bashrc && ...` work in job commands.
 assh session job-cancel -s f7a2b3c4 --job-id JOB_ID
 ```
 

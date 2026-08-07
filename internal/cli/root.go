@@ -23,7 +23,8 @@ func NewRootCommand() *cobra.Command {
 			return writeInvalidArgs(cmd, "command required", "run assh --help")
 		},
 	}
-	cmd.PersistentFlags().Bool("json", true, "emit JSON output (deprecated; JSON is always emitted for operational commands)")
+	cmd.PersistentFlags().Bool("json", true,
+		"emit JSON output (deprecated; JSON is always emitted for operational commands)")
 	_ = cmd.PersistentFlags().MarkHidden("json")
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return writeInvalidArgs(cmd, err.Error(), "run assh --help")

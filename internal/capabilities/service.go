@@ -17,11 +17,14 @@ func ProbeCommand() string {
 		"os=$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')",
 		"case \"$os\" in linux*) os=linux ;; darwin*) os=darwin ;; *) os=${os:-unknown} ;; esac",
 		"printf 'os=%s\\n' \"$os\"",
-		"if command -v tmux >/dev/null 2>&1; then printf 'tmux=installed\\n'; else printf 'tmux=missing\\n'; fi",
+		"if command -v tmux >/dev/null 2>&1; then printf 'tmux=installed\\n'; " +
+			"else printf 'tmux=missing\\n'; fi",
 		"pkg=unknown",
-		"for candidate in apt dnf yum apk pacman brew; do if command -v \"$candidate\" >/dev/null 2>&1; then pkg=$candidate; break; fi; done",
+		"for candidate in apt dnf yum apk pacman brew; do " +
+			"if command -v \"$candidate\" >/dev/null 2>&1; then pkg=$candidate; break; fi; done",
 		"printf 'pkg=%s\\n' \"$pkg\"",
-		"if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then printf 'install=noninteractive\\n'; else printf 'install=unknown\\n'; fi",
+		"if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; " +
+			"then printf 'install=noninteractive\\n'; else printf 'install=unknown\\n'; fi",
 		"printf '\\n__ASSH_PROBE_END__\\n'",
 	}, "; ")
 }

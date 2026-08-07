@@ -107,7 +107,10 @@ func Export(baseDir, sid, archivePath string) (ExportResult, error) {
 	}, nil
 }
 
-func writeExportArchive(file *os.File, entry RegistryEntry, events []audit.Event, outputs []state.SessionOutputPage) (included []string, err error) {
+func writeExportArchive(
+	file *os.File, entry RegistryEntry,
+	events []audit.Event, outputs []state.SessionOutputPage,
+) (included []string, err error) {
 	gz := gzip.NewWriter(file)
 	tw := tar.NewWriter(gz)
 	defer func() {
@@ -154,7 +157,8 @@ func writeExportArchive(file *os.File, entry RegistryEntry, events []audit.Event
 }
 
 func exportAuditEvents(baseDir string, entry RegistryEntry) ([]audit.Event, error) {
-	events, err := audit.Read(filepath.Join(baseDir, "audit", "audit.jsonl"), audit.Filter{SID: entry.SID, Host: entry.Host})
+	auditPath := filepath.Join(baseDir, "audit", "audit.jsonl")
+	events, err := audit.Read(auditPath, audit.Filter{SID: entry.SID, Host: entry.Host})
 	if err != nil {
 		return nil, err
 	}
@@ -208,5 +212,7 @@ func writeTarFile(tw *tar.Writer, name string, body []byte) error {
 }
 
 func outputArchiveName(page state.SessionOutputPage) string {
-	return "outputs/seq-" + strconv.Itoa(page.Seq) + "-" + page.Stream + "-offset-" + strconv.Itoa(page.Offset) + "-limit-" + strconv.Itoa(page.Limit) + ".json"
+	return "outputs/seq-" + strconv.Itoa(page.Seq) + "-" + page.Stream +
+		"-offset-" + strconv.Itoa(page.Offset) +
+		"-limit-" + strconv.Itoa(page.Limit) + ".json"
 }

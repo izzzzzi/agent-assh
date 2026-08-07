@@ -36,7 +36,8 @@ func newTransferListCommand() *cobra.Command {
 			}
 
 			entries := parseFileListJSON(result.Stdout)
-			writeAudit("transfer_list", "", ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("transfer_list", "", ssh.Host, ssh.User, remoteCommand,
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, map[string]any{
 				"ok":      true,
@@ -79,7 +80,8 @@ func newTransferStatCommand() *cobra.Command {
 			}
 
 			stat := parseFileStatJSON(result.Stdout)
-			writeAudit("transfer_stat", "", ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("transfer_stat", "", ssh.Host, ssh.User, remoteCommand,
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			resultMap := map[string]any{
 				"ok":   true,
@@ -125,7 +127,8 @@ func newTransferMkdirCommand() *cobra.Command {
 			if result.ExitCode != 0 {
 				return writeError(cmd, "mkdir_failed", "mkdir exited with code "+strconv.Itoa(result.ExitCode), "")
 			}
-			writeAudit("transfer_mkdir", "", ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("transfer_mkdir", "", ssh.Host, ssh.User, remoteCommand,
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, map[string]any{
 				"ok":   true,
@@ -172,7 +175,8 @@ func newTransferRmCommand() *cobra.Command {
 			if result.ExitCode != 0 {
 				return writeError(cmd, "rm_failed", "rm exited with code "+strconv.Itoa(result.ExitCode), "")
 			}
-			writeAudit("transfer_rm", "", ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("transfer_rm", "", ssh.Host, ssh.User, remoteCommand,
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, map[string]any{
 				"ok":   true,
@@ -216,7 +220,8 @@ func newTransferMvCommand() *cobra.Command {
 			if result.ExitCode != 0 {
 				return writeError(cmd, "mv_failed", "mv exited with code "+strconv.Itoa(result.ExitCode), "")
 			}
-			writeAudit("transfer_mv", "", ssh.Host, ssh.User, remoteCommand, result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
+			writeAudit("transfer_mv", "", ssh.Host, ssh.User, remoteCommand,
+				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
 			return writeJSON(cmd, map[string]any{
 				"ok":     true,
@@ -234,11 +239,15 @@ func newTransferMvCommand() *cobra.Command {
 }
 
 func remoteFileListCommand(path string) string {
-	return `find ` + remote.SingleQuote(path) + ` -maxdepth 1 -printf '{"name":"%f","type":"%Y","size":%s,"mtime":"%TY-%Tm-%TdT%TH:%TM:%TSZ"}\n' 2>/dev/null || echo "[]"`
+	return `find ` + remote.SingleQuote(path) +
+		` -maxdepth 1 -printf '{"name":"%f","type":"%Y","size":%s,` +
+		`"mtime":"%TY-%Tm-%TdT%TH:%TM:%TSZ"}\n' 2>/dev/null || echo "[]"`
 }
 
 func remoteFileStatCommand(path string) string {
-	return `stat --format='{"name":"%n","size":%s,"type":"%F","mode":"%a","uid":%u,"gid":%g,"mtime":"%y"}' ` + remote.SingleQuote(path) + ` 2>/dev/null || echo "{}"`
+	return `stat --format='{"name":"%n","size":%s,"type":"%F",` +
+		`"mode":"%a","uid":%u,"gid":%g,"mtime":"%y"}' ` +
+		remote.SingleQuote(path) + ` 2>/dev/null || echo "{}"`
 }
 
 func parseFileListJSON(stdout []byte) []any {

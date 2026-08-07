@@ -207,6 +207,7 @@ OpenCode: Use `assh connect-info` for provider server-info blocks and `assh sess
 - Package installation is non-interactive; unsupported package managers return machine-readable errors.
 - Interactive password prompts are not supported in v1.
 - `assh` uses the system OpenSSH client.
+- `session exec` does not forward local stdin to the command. Commands are sent to a remote `tmux` window over non-interactive ssh, so piping like `cat f | assh session exec -s SID -- "docker exec -i ... cat >f"` drops the data and wedges the tmux window waiting for input. When piped stdin is detected, `assh` returns `{"ok":false,"error":"stdin_pipe_unsupported",...}` with a hint to use `transfer put` or a temporary file instead. Use `assh exec` for one-off commands that need stdin.
 
 ## Manual Install
 

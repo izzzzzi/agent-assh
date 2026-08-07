@@ -56,9 +56,7 @@ func (c SSHCommand) Args(remoteCommand string) []string {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)
 	}
 	if cp := c.controlPath(); cp != "" {
-		args = append(args, "-o", "ControlMaster=auto")
-		args = append(args, "-o", "ControlPath="+cp)
-		args = append(args, "-o", "ControlPersist=300")
+		args = append(args, "-o", "ControlMaster=auto", "-o", "ControlPath="+cp, "-o", "ControlPersist=300")
 	}
 
 	args = append(args, "--", c.target(), remoteCommand)
@@ -76,7 +74,7 @@ func controlDir() string {
 		return ""
 	}
 	dir := filepath.Join(home, ".ssh", "controlmasters")
-	_ = os.MkdirAll(dir, 0700)
+	_ = os.MkdirAll(dir, 0o700)
 	sshControlDir = dir
 	return dir
 }
@@ -165,9 +163,7 @@ func (c SSHCommand) ptyArgs() []string {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)
 	}
 	if cp := c.controlPath(); cp != "" {
-		args = append(args, "-o", "ControlMaster=auto")
-		args = append(args, "-o", "ControlPath="+cp)
-		args = append(args, "-o", "ControlPersist=300")
+		args = append(args, "-o", "ControlMaster=auto", "-o", "ControlPath="+cp, "-o", "ControlPersist=300")
 	}
 
 	args = append(args, "--", c.target())

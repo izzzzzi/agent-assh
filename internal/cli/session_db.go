@@ -52,17 +52,26 @@ func newSessionDBQueryCommand() *cobra.Command {
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
-			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
+			result := runSSH(ctx, sessionSSH(
+				entry.Host, entry.User, entry.Port, entry.Identity,
+				ssh.Jump, ssh.TimeoutSecond, entry.HostKeyPolicy, entry.ForcePTY,
+			), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
+			if result.ExitCode != 0 {
+				return writeError(cmd, "command_failed",
+					strings.TrimSpace(string(result.Stdout)),
+					"query failed on the remote database")
+			}
 
 			return writeJSON(cmd, map[string]any{
-				"ok":       true,
-				"sid":      sid,
-				"db_type":  dbType,
-				"database": database,
-				"output":   string(result.Stdout),
+				"ok":        true,
+				"sid":       sid,
+				"db_type":   dbType,
+				"database":  database,
+				"exit_code": result.ExitCode,
+				"output":    string(result.Stdout),
 			})
 		},
 	}
