@@ -196,7 +196,6 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 - JSON-ответы стабильны для парсинга агентом.
 - Встроенная проверка безопасности команд (safety classifier).
 - Фоновые задачи через tmux (exec-async).
-- Read-only database queries с защитой от записи.
 
 ## Ограничения
 

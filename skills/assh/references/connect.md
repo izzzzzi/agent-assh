@@ -85,6 +85,7 @@ Profiles are defined in `~/.config/assh/profiles.json`.
 
 | Error | Meaning | Fix |
 |-------|---------|-----|
-| `authentication_failed` | Bad key or password | Check credentials |
-| `unsupported_remote_session_backend` | No tmux or PTY issue | Add `--force-pty` |
-| `host_key_changed` | Host key mismatch | Use `--host-key-policy strict` or verify |
+| `auth_failed` | Bad key or password | Check credentials |
+| `tmux_missing` | No tmux or PTY issue | Add `--force-pty` |
+| `host_key_failed` | Host key mismatch | Use `--host-key-policy strict` or verify |
+| `connection_error` / `timeout` | Network problem | Retry, check reachability |

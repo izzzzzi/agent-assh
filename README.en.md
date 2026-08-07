@@ -197,7 +197,6 @@ OpenCode: Use `assh connect-info` for provider server-info blocks and `assh sess
 - JSON responses are stable for agent parsing.
 - Built-in command safety classifier blocks destructive operations.
 - Background jobs via tmux (exec-async).
-- Read-only database queries with write protection.
 
 ## Limitations
 
