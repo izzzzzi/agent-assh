@@ -31,7 +31,8 @@ This runs, in order:
 3. `go test ./...`
 4. `npm run smoke` (CLI smoke test)
 5. `npm pack --dry-run` (release artifact contract)
-6. `markdownlint-cli2` on README, README.en, AGENT_INSTRUCTIONS, SYSTEM_PROMPT_snippet
+6. `node scripts/check-skill-copies.js` (AGENTS.md + .clinerules/.cursor/copilot copies match `skills/assh/SKILL.md`)
+7. `markdownlint-cli2` on README, README.en, AGENT_INSTRUCTIONS, SYSTEM_PROMPT_snippet, CONTRIBUTING
 
 For linting only (faster feedback):
 

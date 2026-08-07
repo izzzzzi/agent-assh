@@ -26,7 +26,7 @@ Command blocked by safety?
 ├── "dangerous_command_requires_confirmation" → ask user, then --confirm-danger
 ├── Long-running (>30s, e.g. docker compose up -d) → session exec-async
 ├── Docker logs / db queries → session exec -- "docker logs ..." / "mysql ..."
-└── File write/create → transfer put / transfer write
+└── File write/create → transfer put
 ```
 
 ### Quick Reference
@@ -75,9 +75,13 @@ Command blocked by safety?
 ### Safety Classifier — What Gets Blocked
 
 `session exec` blocks these. Use `--confirm-danger` after asking user:
-- `dangerous_redirect` — `cat > file`, `echo > file`
-- `dangerous_rm_recursive` — `rm -rf`, `rm -r`
-- `dangerous_format` — `mkfs`, `wipefs`, `dd`
+- `rm_recursive` — `rm -rf` / `rm -r` (any path)
+- `rm_critical_path` — `rm` on system paths (`/`, `/etc`, `/var`, ...)
+- `find_delete` — `find ... -delete`
+- `filesystem_wipe` — `mkfs*`, `wipefs`, `shred`
+- `dd_dangerous_output` — `dd` to block devices or absolute paths
+- `recursive_permission` — `chmod/chown/chgrp -r` on system paths
+- `dangerous_redirect` — `>`, `>>` into system paths (`cat > /etc/x`); user-file redirects are allowed
 
 Profiles (restrict what commands are even allowed):
 - `readonly` — log inspection, status checks, file reads
