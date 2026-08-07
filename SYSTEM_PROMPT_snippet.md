@@ -79,13 +79,9 @@ Need SSH?
     assh session job-status -s SID --job-id JOB_ID
     assh session job-status -s SID --job-id JOB_ID --raw  # bare output, no JSON
 
-  Docker:
-    assh session docker-ps -s SID
-    assh session docker-logs -s SID --container myapp
-    assh session docker-exec -s SID --container myapp -- "ls -la"
-
-  Database (read-only):
-    assh session db-query -s SID --type mysql -d mydb -q "SELECT COUNT(*) FROM users"
+  Docker/databases and anything else not listed:
+    assh session exec -s SID -- "docker ps"
+    assh session exec -s SID -- "mysql -e 'SELECT 1' mydb"
 
   Fleet (multi-host):
     assh fleet exec -H host1 -H host2 -H host3 -u root -- "uptime"
@@ -147,5 +143,4 @@ Rules:
 - Passwords are only accepted through environment variables; never put passwords in command arguments.
 - Command text is not written to audit logs.
 - If `session exec` returns `dangerous_command_requires_confirmation`, ask for explicit user intent before rerunning with `--confirm-danger`.
-- db-query is read-only — only SELECT/SHOW/DESCRIBE/EXPLAIN allowed.
 - session watch shows a tmux attach command; the human opens a terminal to observe the agent.

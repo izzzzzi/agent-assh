@@ -11,8 +11,7 @@ Connect:
 Session: `assh session exec -s SID -- "cmd"` then `assh session read -s SID --seq N --limit 50`
 Files: `assh transfer put/get/read/list/stat/mkdir/rm/mv/sync`
 Services: `assh session service -s SID --action restart --service nginx`
-Docker: `assh session docker-ps/docker-logs/docker-exec -s SID`
-DB (read-only): `assh session db-query -s SID --type mysql -d DB -q "SELECT"`
+Docker/db/anything else: `assh session exec -s SID -- "docker ps"` / `-- "mysql -e 'SELECT 1' db"`
 Multi-host: `assh fleet exec -H H1 -H H2 -u root -- "cmd"`
 Scan: `assh scan -H HOST -u USER`
 

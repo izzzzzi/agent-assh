@@ -10,28 +10,21 @@ assh session service -s SID --action stop --service apache2
 assh session service -s SID --action logs --service nginx --lines 100
 ```
 
-## Docker
+## Docker, databases, anything else
+
+There are no dedicated subcommands — run tools directly through the session:
 
 ```bash
-assh session docker-ps -s SID
-assh session docker-ps -s SID -a               # all containers
-assh session docker-logs -s SID --container myapp --tail 100
-assh session docker-exec -s SID --container myapp -- "ls -la /app"
+assh session exec -s SID -- "docker ps -a"
+assh session exec -s SID -- "docker logs myapp --tail 100"
+assh session exec -s SID -- "docker exec myapp ls -la /app"
+assh session exec -s SID -- "mysql -e 'SELECT COUNT(*) FROM users' mydb"
+assh session exec -s SID -- "psql mydb -c 'SHOW TABLES'"
 ```
 
-## Database Query (Read-Only)
-
-Only SELECT, SHOW, DESCRIBE, EXPLAIN queries are allowed:
-
-```bash
-assh session db-query -s SID --type mysql -d mydb -q "SELECT COUNT(*) FROM users"
-assh session db-query -s SID --type postgres -d mydb -q "SELECT * FROM orders LIMIT 10"
-assh session db-query -s SID --type mysql -d mydb -U dbuser -W dbpass -q "SHOW TABLES"
-```
-
-A failed query (bad credentials, unreachable server, syntax error) returns
-`{"ok":false,"error":"command_failed",...}` with the database error in
-`message` — treat that as a failure, not as an empty result set.
+`safety` guards file-system destructive patterns (rm -rf on system paths, dd
+to block devices, redirects into /etc /var ...) — `docker rm`/`DELETE` are not
+classified, so think before running them, same as any other shell command.
 
 ## Host Scanning
 

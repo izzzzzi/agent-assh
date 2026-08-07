@@ -25,7 +25,7 @@ Restrict agent?  → add --profile readonly|ops|admin
 Command blocked by safety?
 ├── "dangerous_command_requires_confirmation" → ask user, then --confirm-danger
 ├── Long-running (>30s, e.g. docker compose up -d) → session exec-async
-├── Docker logs → session docker-logs
+├── Docker logs / db queries → session exec -- "docker logs ..." / "mysql ..."
 └── File write/create → transfer put / transfer write
 ```
 
@@ -42,8 +42,7 @@ Command blocked by safety?
 | `assh read --id ID --raw` | Read stored exec output |
 | `assh transfer put/get/read/list/stat/mkdir/rm/mv/sync` | File operations |
 | `assh session service -s SID --action restart --service NAME` | Service mgmt |
-| `assh session docker-ps/docker-logs/docker-exec -s SID` | Docker (logs, ps, exec into container) |
-| `assh session db-query -s SID --type mysql -d DB -q "SELECT"` | Read-only DB |
+| `assh session exec -s SID -- "docker ps"` | Docker/db/anything else — via exec |
 | `assh session exec-async -s SID -- "cmd"` | Background job (long-running, no timeout) |
 | `assh fleet exec -H H1 -H H2 -u root -- "cmd"` | Multi-host |
 | `assh scan -H HOST -u USER` | Host inventory JSON |
@@ -69,7 +68,6 @@ Command blocked by safety?
 - Passwords only through env vars. No `--password` flag.
 - `[REDACTED:type]` + `"redacted":true` = command succeeded, do not retry
 - `dangerous_command_requires_confirmation` → ask user before `--confirm-danger`
-- `db-query` is read-only, `session exec` blocks rm -rf/mkfs/etc
 - Never put passwords in arguments. Never echo passwords.
 - `transfer read` errors: `remote_file_not_found`, `not_a_file`, `file_too_large`, `binary_file`, `permission_denied`
 - `assh audit --savings` shows lines withheld by pagination (line metric)

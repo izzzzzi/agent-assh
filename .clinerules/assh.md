@@ -30,8 +30,7 @@ Need SSH?
 | `assh read --id ID --raw` | Read stored exec output |
 | `assh transfer put/get/read/list/stat/mkdir/rm/mv/sync` | File operations |
 | `assh session service -s SID --action restart --service NAME` | Service mgmt |
-| `assh session docker-ps/docker-logs/docker-exec -s SID` | Docker |
-| `assh session db-query -s SID --type mysql -d DB -q "SELECT"` | Read-only DB |
+| `assh session exec -s SID -- "docker ps"` | Docker/db/anything else — via exec |
 | `assh session exec-async -s SID -- "cmd"` | Background job |
 | `assh fleet exec -H H1 -H H2 -u root -- "cmd"` | Multi-host |
 | `assh scan -H HOST -u USER` | Host inventory JSON |

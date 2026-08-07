@@ -59,13 +59,8 @@ assh session job-status -s SID --job-id JOB_ID
 assh session job-status -s SID --job-id JOB_ID --raw  # bare output, no JSON
 assh session job-cancel -s SID --job-id JOB_ID
 
-Docker:
-assh session docker-ps -s SID
-assh session docker-logs -s SID --container NAME
-assh session docker-exec -s SID --container NAME -- "ls -la"
-
-Database (read-only — only SELECT/SHOW/DESCRIBE/EXPLAIN):
-assh session db-query -s SID --type mysql -d DB -q "SELECT ..."
+Docker/database and anything else not listed: run it through
+assh session exec -s SID -- "docker ps"  # arbitrary commands work
 
 Fleet (multi-host parallel):
 assh fleet exec -H host1 -H host2 -u root -- "uptime"
@@ -102,7 +97,6 @@ func agentHelpManifest() response.OK {
 			"Use returned sid and next_commands for remote work.",
 			"Read large output with bounded session read windows.",
 			"Do not add --confirm-danger unless the user explicitly intended the destructive action.",
-			"db-query is read-only — only SELECT/SHOW/DESCRIBE/EXPLAIN queries allowed.",
 			"Use assh session watch to observe agent actions in real-time.",
 			"Output is redacted by default; [REDACTED:type] is intentional, do not retry to recover the value.",
 			"Operators may add deny-only rules in ~/.config/assh/safety.rules (mode 0600, additive only).",
@@ -123,26 +117,24 @@ func agentHelpManifest() response.OK {
 			"connect_key":      "assh connect -H HOST -u USER -i KEY -n NAME",
 			"connect_ssh_conf": "assh connect --ssh-config ALIAS -n NAME",
 
-			"session_exec":     "assh session exec -s SID -- \"pwd\"",
-			"session_read":     "assh session read -s SID --seq 1 --limit 50",
-			"session_list":     "assh session list",
-			"session_export":   "assh session export -s SID --output session.tar.gz",
-			"session_close":    "assh session close -s SID",
-			"session_watch":    "assh session watch -s SID",
-			"scan":             "assh scan -H HOST -u USER",
-			"session_ps":       "assh session ps -s SID --top 20",
-			"session_service":  "assh session service -s SID --action status --service nginx",
-			"transfer_list":    "assh transfer list -H HOST -u USER --path /var/log",
-			"transfer_put":     "assh transfer put -H HOST LOCAL_PATH REMOTE_PATH",
-			"transfer_get":     "assh transfer get -H HOST REMOTE_PATH LOCAL_PATH",
-			"transfer_read":    "assh transfer read -H HOST -u USER --path /etc/app.conf",
-			"audit_savings":    "assh audit --savings",
-			"transfer_sync":    "assh transfer sync --direction push --source ./dist --dest /var/www -H HOST",
-			"session_async":    "assh session exec-async -s SID -- \"long-build.sh\"",
-			"session_docker":   "assh session docker-ps -s SID",
-			"session_db_query": "assh session db-query -s SID --type mysql -d DB -q \"SELECT ...\"",
-			"fleet_exec":       "assh fleet exec -H host1 -H host2 -u root -- \"uptime\"",
-			"forward":          "assh forward status --name NAME",
+			"session_exec":    "assh session exec -s SID -- \"pwd\"",
+			"session_read":    "assh session read -s SID --seq 1 --limit 50",
+			"session_list":    "assh session list",
+			"session_export":  "assh session export -s SID --output session.tar.gz",
+			"session_close":   "assh session close -s SID",
+			"session_watch":   "assh session watch -s SID",
+			"scan":            "assh scan -H HOST -u USER",
+			"session_ps":      "assh session ps -s SID --top 20",
+			"session_service": "assh session service -s SID --action status --service nginx",
+			"transfer_list":   "assh transfer list -H HOST -u USER --path /var/log",
+			"transfer_put":    "assh transfer put -H HOST LOCAL_PATH REMOTE_PATH",
+			"transfer_get":    "assh transfer get -H HOST REMOTE_PATH LOCAL_PATH",
+			"transfer_read":   "assh transfer read -H HOST -u USER --path /etc/app.conf",
+			"audit_savings":   "assh audit --savings",
+			"transfer_sync":   "assh transfer sync --direction push --source ./dist --dest /var/www -H HOST",
+			"session_async":   "assh session exec-async -s SID -- \"long-build.sh\"",
+			"fleet_exec":      "assh fleet exec -H host1 -H host2 -u root -- \"uptime\"",
+			"forward":         "assh forward status --name NAME",
 		},
 		"json_contract": response.OK{
 			"operational_commands_emit_json": true,

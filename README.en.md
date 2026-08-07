@@ -105,8 +105,6 @@ ctx7 skills install /izzzzzi/agent-assh assh
 - `assh session ps|kill`: process management.
 - `assh session service`: service management (status/restart/start/stop/logs).
 - `assh session exec-async|job-status|job-cancel`: background jobs.
-- `assh session docker-ps|docker-logs|docker-exec`: Docker management.
-- `assh session db-query`: read-only MySQL/PostgreSQL queries.
 - `assh session watch`: human observability into the agent's tmux session.
 - `assh exec`: run one remote command and store output locally.
 - `assh read`: read stored output with pagination or `--raw`.

@@ -100,8 +100,7 @@ Unsure about a flag? → run `assh <cmd> --help` — do NOT invent flags (invali
 | `assh read --id ID --limit 50 --raw` | Read stored exec output |
 | `assh transfer put/get/read/list/stat/mkdir/rm/mv/sync` | File operations |
 | `assh session service -s SID --action restart --service nginx` | Service mgmt |
-| `assh session docker-ps/docker-logs/docker-exec -s SID` | Docker |
-| `assh session db-query -s SID --type mysql -d DB -q "SQL"` | Read-only DB |
+| `assh session exec -s SID -- "docker ps"` | Docker/DB/anything else — via exec |
 | `assh session exec-async -s SID -- "cmd"` | Background job |
 | `assh fleet exec -H H1 -H H2 -u root -- "cmd"` | Multi-host |
 | `assh scan -H HOST -u USER` | Host inventory JSON |
@@ -144,7 +143,6 @@ need the raw output. Best-effort hygiene, not a security boundary.
 - Passwords only through env vars. No `--password` flag. Unset password env vars after connect.
 - Stale sessions: `expired=false` is TTL-only, not proof the SSH/tmux channel is alive. If `session_unreachable` or `session_stale` appears, stop retrying that SID and reconnect with explicit auth: `-i KEY`, `-E PASSWORD_ENV`, or `--ssh-config ALIAS`.
 - `dangerous_command_requires_confirmation` → ask user before `--confirm-danger`.
-- `db-query` is read-only. `session exec` blocks destructive commands.
 - Never put passwords in arguments. Never echo passwords.
 - **Never fall back to raw ssh/scp/rsync with a password.** If key auth fails and you
   have a password, use `assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME`.
