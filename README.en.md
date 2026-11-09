@@ -72,7 +72,6 @@ Continue through the session API:
 assh session exec -s f7a2b3c4 -- "pwd"
 # {"ok":true,"rc":0,"seq":1,"stdout_lines":1,"stderr_lines":0,...}
 assh session read -s f7a2b3c4 --seq 1 --limit 50
-assh session close -s f7a2b3c4
 ```
 
 `transfer` and `exec` address a host, not a session: pass them `-H`, `-u` and the `identity` from the connect response as `-i`.
@@ -90,6 +89,8 @@ assh session exec-async -s f7a2b3c4 -- "make build"
 assh session job-status -s f7a2b3c4 --job-id JOB_ID   # status, rc, last lines of output
 assh session job-cancel -s f7a2b3c4 --job-id JOB_ID
 ```
+
+When the work is done, close the session: `assh session close -s f7a2b3c4`.
 
 `assh version --check` reports whether a newer release exists.
 
@@ -157,16 +158,16 @@ ctx7 skills install /izzzzzi/agent-assh assh
 Use metadata first, then read targeted output windows:
 
 ```bash
-assh session exec -s f7a2b3c4 -- "journalctl -p warning"
-assh session read -s f7a2b3c4 --seq 1 --limit 50              # JSON: content, total_lines, has_more
-assh session read -s f7a2b3c4 --seq 1 --offset 50 --limit 50  # next page
-assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
+assh session exec -s f7a2b3c4 -- "journalctl -p warning"   # → "seq":2
+assh session read -s f7a2b3c4 --seq 2 --limit 50              # JSON: content, total_lines, has_more
+assh session read -s f7a2b3c4 --seq 2 --offset 50 --limit 50  # next page
+assh session read -s f7a2b3c4 --seq 2 --stream stderr --limit 50
 ```
 
 `--raw` prints the page as plain text without the JSON wrapper:
 
 ```bash
-assh session read -s f7a2b3c4 --seq 1 --limit 50 --raw
+assh session read -s f7a2b3c4 --seq 2 --limit 50 --raw
 ```
 
 Pages are counted in lines, not bytes: one very long line is returned whole, so trim it on the server (`| cut -c1-500`).
@@ -257,7 +258,7 @@ A profile is checked by `session exec`, `session exec-async`, `session service` 
 - `transfer list` and `transfer stat` need GNU `find`/`stat` on the host; elsewhere they return `unsupported_remote`.
 - With `--force-pty`, stderr is merged into stdout and terminal noise (banners, prompts) is stripped heuristically.
 - Run one `session exec` at a time per session: commands share one shell and run in order.
-- One SSH connection per host is reused for 5 minutes (ControlMaster). Changes that apply only to a new login, such as group membership or sshd settings, show up after it expires.
+- One SSH connection per host is reused (ControlMaster) and closes after 5 idle minutes; while commands keep coming it stays open. Changes that apply only to a new login, such as group membership or sshd settings, show up only once it has closed.
 - `session exec` forwards local stdin only with `--stdin` (up to 4 MiB, uploaded to a temporary remote file). Without the flag, piped input such as `cat f | assh session exec -s SID -- "docker exec -i ... cat >f"` is rejected with `{"ok":false,"error":"stdin_pipe_unsupported",...}` instead of wedging the tmux window. `assh exec` does not forward stdin at all; for larger payloads use `assh transfer put`.
 
 ## Manual Install

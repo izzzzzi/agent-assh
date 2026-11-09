@@ -72,7 +72,6 @@ assh connect -H HOST -u USER -i KEY -n deploy --reuse
 assh session exec -s f7a2b3c4 -- "pwd"
 # {"ok":true,"rc":0,"seq":1,"stdout_lines":1,"stderr_lines":0,...}
 assh session read -s f7a2b3c4 --seq 1 --limit 50
-assh session close -s f7a2b3c4
 ```
 
 `transfer` и `exec` адресуются по хосту, а не по сессии: передавайте им `-H`, `-u` и `identity` из ответа `connect` как `-i`.
@@ -90,6 +89,8 @@ assh session exec-async -s f7a2b3c4 -- "make build"
 assh session job-status -s f7a2b3c4 --job-id JOB_ID   # статус, rc, последние строки вывода
 assh session job-cancel -s f7a2b3c4 --job-id JOB_ID
 ```
+
+Закончив работу, закройте сессию: `assh session close -s f7a2b3c4`.
 
 `assh version --check` показывает, вышел ли более новый релиз.
 
@@ -157,16 +158,16 @@ ctx7 skills install /izzzzzi/agent-assh assh
 Сначала смотрите метаданные, потом читайте нужные окна вывода:
 
 ```bash
-assh session exec -s f7a2b3c4 -- "journalctl -p warning"
-assh session read -s f7a2b3c4 --seq 1 --limit 50              # JSON: content, total_lines, has_more
-assh session read -s f7a2b3c4 --seq 1 --offset 50 --limit 50  # следующая страница
-assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
+assh session exec -s f7a2b3c4 -- "journalctl -p warning"   # → "seq":2
+assh session read -s f7a2b3c4 --seq 2 --limit 50              # JSON: content, total_lines, has_more
+assh session read -s f7a2b3c4 --seq 2 --offset 50 --limit 50  # следующая страница
+assh session read -s f7a2b3c4 --seq 2 --stream stderr --limit 50
 ```
 
 `--raw` выводит страницу обычным текстом без JSON-обёртки:
 
 ```bash
-assh session read -s f7a2b3c4 --seq 1 --limit 50 --raw
+assh session read -s f7a2b3c4 --seq 2 --limit 50 --raw
 ```
 
 Страницы считаются в строках, а не в байтах: одна очень длинная строка вернётся целиком, поэтому обрезайте её на сервере (`| cut -c1-500`).
@@ -256,7 +257,7 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 - `transfer list` и `transfer stat` требуют GNU `find`/`stat` на хосте; иначе возвращают `unsupported_remote`.
 - С `--force-pty` stderr сливается со stdout, а шум терминала (баннеры, приглашения) вырезается эвристически.
 - Выполняйте по одному `session exec` на сессию: команды делят один shell и идут по очереди.
-- Одно SSH-соединение на хост переиспользуется 5 минут (ControlMaster). Изменения, которые действуют только на новый вход (членство в группах, настройки sshd), проявятся после его истечения.
+- Одно SSH-соединение на хост переиспользуется (ControlMaster) и закрывается через 5 минут простоя; пока команды идут, оно остаётся открытым. Изменения, которые действуют только на новый вход (членство в группах, настройки sshd), проявятся лишь после его закрытия.
 - `session exec` пробрасывает локальный stdin только с флагом `--stdin` (до 4 МиБ, загружается во временный файл на сервере). Без флага piping вроде `cat f | assh session exec -s SID -- "docker exec -i ... cat >f"` отклоняется с `{"ok":false,"error":"stdin_pipe_unsupported",...}`, а не подвешивает tmux-окно. `assh exec` stdin не пробрасывает вовсе; для больших данных используйте `assh transfer put`.
 
 ## Ручная установка

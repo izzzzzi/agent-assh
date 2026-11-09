@@ -116,10 +116,11 @@ func TestAuditSavingsCountsEachReadOnce(t *testing.T) {
 	writeAudit("session_read", "abcdef12", "h", "root", "tail", 0, 3, 0)
 	writeAuditSavings("session_read", "abcdef12", 10, 3)
 	writeAuditSavings("session_read", "abcdef12", 0, 2)
+	writeAuditSavings("read", "", 0, 0) // a read of empty output still counts
 
 	got := runCmdJSON(t, []string{"audit", "--savings"})
-	if got["reads"] != float64(2) {
-		t.Errorf("reads = %#v, want 2", got["reads"])
+	if got["reads"] != float64(3) {
+		t.Errorf("reads = %#v, want 3", got["reads"])
 	}
 	if got["withheld_lines"] != float64(7) {
 		t.Errorf("withheld_lines = %#v, want 7", got["withheld_lines"])

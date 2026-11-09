@@ -12,7 +12,7 @@ git clone https://github.com/izzzzzi/agent-assh.git
 cd agent-assh
 npm install            # runs postinstall, which downloads the released binary
 npm run hooks:install  # wires .githooks/ as the git hooks path
-go build -o native/assh ./cmd/assh   # run your working tree through bin/assh.js
+go build -o native/ ./cmd/assh      # run your working tree through bin/assh.js
 ```
 
 `postinstall` fetches the binary for the version in `package.json` from GitHub

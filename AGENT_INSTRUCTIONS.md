@@ -15,9 +15,10 @@ on the server and you read only the lines you need. If `assh` is missing, run
 | Password | `assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME`, then `unset PASSWORD_ENV` |
 | Pasted provider block | write it to a `0600` file, `assh connect-info --file FILE -n NAME`, delete the file |
 
-Optional: `-p PORT`, `-J JUMP`, `--reuse` (return a live session for this host
-instead of opening another), `--force-pty` (gateways that reject `-T`, such as
-RunPod), `--profile readonly|ops` (allow-list for the session).
+Optional on `connect`: `-p PORT`, `-J JUMP`, `--reuse` (return a live session
+for this host instead of opening another), `--force-pty` (gateways that reject
+`-T`, such as RunPod), `--profile readonly|ops` (allow-list for the session).
+`connect-info` takes only `-p`, `-J` and `-i`.
 
 `connect` returns `sid`, `identity` and `next_commands`. Use the `sid` below.
 
@@ -29,7 +30,6 @@ assh session exec -s SID -- "cmd"
 assh session read -s SID --seq 3                        # JSON: content, total_lines, has_more
 assh session read -s SID --seq 3 --offset 50 --limit 50 # next page (default limit is 50)
 assh session read -s SID --seq 3 --stream stderr --raw  # plain text, no JSON wrapper
-assh session close -s SID
 ```
 
 - Pass the command as one quoted string. `cd` and `export` persist between execs.
@@ -55,6 +55,8 @@ assh session job-cancel -s SID --job-id JOB
 `status` is `running`, `completed` (with `rc`), `cancelled` or `not_found`.
 Use this for anything that may exceed the exec wait or has no known duration.
 
+When the work is done, close the session: `assh session close -s SID`.
+
 ## Files and one-off commands
 
 These take `-H HOST -u USER` (plus `-i KEY`, `-p`, `-J`), not a `sid`. Pass the
@@ -65,7 +67,7 @@ These take `-H HOST -u USER` (plus `-i KEY`, `-p`, `-J`), not a `sid`. Pass the
 | Read a text file | `assh transfer read -H HOST -u USER --path FILE`, then `assh read --id OUTPUT_ID` |
 | Upload / download | `assh transfer put -H HOST -u USER LOCAL REMOTE` / `assh transfer get -H HOST -u USER REMOTE LOCAL` |
 | List / stat | `assh transfer list -H HOST -u USER --path DIR` / `assh transfer stat ... --path FILE` |
-| Sync a directory | `assh transfer sync --direction push\|pull --source SRC --dest DST -H HOST -u USER` |
+| Sync a directory | `assh transfer sync --direction push --source SRC --dest DST -H HOST -u USER` (`pull` for the other way) |
 | One command, no session | `assh exec -H HOST -u USER -- "cmd"`, then `assh read --id OUTPUT_ID` |
 
 ## Errors

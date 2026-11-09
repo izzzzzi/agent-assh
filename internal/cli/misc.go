@@ -119,9 +119,10 @@ func newAuditCommand() *cobra.Command {
 					if e.Action != "read" && e.Action != "session_read" {
 						continue
 					}
-					// Each read also leaves a plain audit event under the same
-					// action; only the savings event carries line counts.
-					if e.RawLines == 0 && e.ServedLines == 0 {
+					// A session read also leaves a plain audit event under the
+					// same action. That one carries the command hash; the
+					// savings event does not, even when it served zero lines.
+					if e.CommandHash != "" {
 						continue
 					}
 					reads++
