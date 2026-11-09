@@ -53,6 +53,12 @@ var dangerousCommandCases = []struct {
 	{name: "subshell group rm recursive", command: "(rm -rf /tmp/build)", rule: "rm_recursive"},
 	{name: "rm critical path", command: "rm /etc/passwd", rule: "rm_critical_path"},
 	{name: "rm quoted critical path fragment", command: `rm /"etc"/passwd`, rule: "rm_critical_path"},
+	{name: "rm home glob", command: "rm /home/*", rule: "rm_critical_path"},
+	{name: "rm home user glob", command: "rm /home/alice/*.log", rule: "rm_critical_path"},
+	{name: "rm opt glob", command: "rm /opt/app/*", rule: "rm_critical_path"},
+	{name: "rm srv glob", command: "rm /srv/www/*", rule: "rm_critical_path"},
+	{name: "rm root glob", command: "rm /root/.ssh/*", rule: "rm_critical_path"},
+	{name: "sudo rm home glob", command: "sudo rm /home/*", rule: "rm_critical_path"},
 	{name: "find delete", command: "find /tmp -type f -delete", rule: "find_delete"},
 	{name: "path find delete", command: "/usr/bin/find /tmp -delete", rule: "find_delete"},
 	{name: "find quoted delete", command: `find /tmp "-delete"`, rule: "find_delete"},
@@ -108,6 +114,13 @@ func TestCheckCommandAllowsSafeCommands(t *testing.T) {
 		"rm file.tmp",
 		"rm --force file.tmp",
 		"rm --dir emptydir",
+		// Single named files under user data directories are routine cleanup;
+		// only a glob or a recursive delete there is destructive.
+		"rm /opt/app/old.log",
+		"rm /home/alice/notes.txt",
+		"rm /srv/www/index.html",
+		"rm /root/backup.tar",
+		"rm -f /opt/app/old.log",
 		"ls -la /etc",
 		"cat /etc/passwd",
 		"chmod --reference=/tmp/mode /etc/file",
@@ -126,5 +139,29 @@ func TestCheckCommandAllowsSafeCommands(t *testing.T) {
 				t.Fatalf("CheckCommand(%q) = %#v, want safe", command, got)
 			}
 		})
+	}
+}
+
+func TestCheckCommandInspectsDoubleQuotedSubstitution(t *testing.T) {
+	blocked := []string{
+		`echo "$(rm -rf /tmp/x)"`,
+		"echo \"`rm -rf /tmp/x`\"",
+		`echo "it's $(rm -rf /tmp/x)"`,
+		`grep 'a\'; rm -rf /tmp/x; echo ''`,
+		`cat <(rm -rf /tmp/x)`,
+	}
+	for _, command := range blocked {
+		if !CheckCommand(command).Dangerous {
+			t.Errorf("CheckCommand(%q) passed, want blocked", command)
+		}
+	}
+	allowed := []string{
+		`echo '$(rm -rf /tmp/x)'`,
+		`echo "\$(rm -rf /tmp/x)"`,
+	}
+	for _, command := range allowed {
+		if CheckCommand(command).Dangerous {
+			t.Errorf("CheckCommand(%q) blocked, want allowed", command)
+		}
 	}
 }

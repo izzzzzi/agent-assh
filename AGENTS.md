@@ -1,89 +1,102 @@
-**When you need SSH — ALWAYS use `assh`. Never use raw `ssh`, `scp`, or `rsync`.**
+<!-- Generated from skills/assh/ by scripts/check-skill-copies.js. Edit the skill, not this file. -->
 
-Use `assh` for SSH work so large remote output stays out of the agent context.
+# assh — SSH for LLM agents
 
-Install when missing:
+For any SSH work use `assh`, not raw `ssh`/`scp`/`rsync`: command output stays
+on the server and you read only the lines you need. If `assh` is missing, run
+`npm i -g agent-assh`.
+
+## Connect
+
+| You have | Command |
+| --- | --- |
+| Key file | `assh connect -H HOST -u USER -i KEY -n NAME` |
+| `~/.ssh/config` alias | `assh connect --ssh-config ALIAS -n NAME` |
+| Password | `assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME`, then `unset PASSWORD_ENV` |
+| Pasted provider block | write it to a `0600` file, `assh connect-info --file FILE -n NAME`, delete the file |
+
+Optional: `-p PORT`, `-J JUMP`, `--reuse` (return a live session for this host
+instead of opening another), `--force-pty` (gateways that reject `-T`, such as
+RunPod), `--profile readonly|ops` (allow-list for the session).
+
+`connect` returns `sid`, `identity` and `next_commands`. Use the `sid` below.
+
+## Run a command, then read its output
+
 ```bash
-npm i -g agent-assh
-assh version
-# check for updates before remote work:
-assh version --check
+assh session exec -s SID -- "cmd"
+# {"ok":true,"rc":0,"seq":3,"stdout_lines":120,"stderr_lines":0,...}
+assh session read -s SID --seq 3                        # JSON: content, total_lines, has_more
+assh session read -s SID --seq 3 --offset 50 --limit 50 # next page (default limit is 50)
+assh session read -s SID --seq 3 --stream stderr --raw  # plain text, no JSON wrapper
+assh session close -s SID
 ```
 
-### Agent Algorithm for SSH
+- Pass the command as one quoted string. `cd` and `export` persist between execs.
+- `ok:true` means assh ran the command; `rc` is its exit status.
+- Read the `seq` that exec returned. Numbers are consumed by failed execs too, so gaps are normal.
+- Run one exec at a time per `sid`: they share one shell and run in order.
+- exec waits 300 s by default (`-t SECONDS`). After `timeout` the command is
+  **still running** and later execs queue behind it: read its `seq` later, do
+  not rerun it.
+- Pages are counted in lines, not bytes, so one huge line comes back whole.
+  Trim on the server: `| cut -c1-500`, `| tail -n 100`.
+- stdin: `cat script.sh | assh session exec -s SID --stdin -- "bash -s"`
+  (4 MiB max). Without `--stdin` piped input is rejected.
 
+## Long-running commands
+
+```bash
+assh session exec-async -s SID -- "make build"     # returns job_id
+assh session job-status -s SID --job-id JOB -n 50  # status, rc, last 50 lines in output
+assh session job-cancel -s SID --job-id JOB
 ```
-Need SSH?
-├── Have a key file?        → assh connect -H HOST -u USER -i KEY -n NAME
-├── Have SSH config alias?  → assh connect --ssh-config ALIAS -n NAME
-├── Pasted provider block?  → save to 0600 temp → assh connect-info --file TMP -n NAME → rm
-├── First-contact w/ pass?  → assh connect -H HOST -u USER -E PASS_ENV -n NAME
-└── Picky gateway?          → assh connect ... --force-pty -n NAME
 
-Restrict agent?  → add --profile readonly|ops|admin
+`status` is `running`, `completed` (with `rc`), `cancelled` or `not_found`.
+Use this for anything that may exceed the exec wait or has no known duration.
 
-Command blocked by safety?
-├── "dangerous_command_requires_confirmation" → ask user, then --confirm-danger
-├── Long-running (>30s, e.g. docker compose up -d) → session exec-async
-├── Docker logs / db queries → session exec -- "docker logs ..." / "mysql ..."
-└── File write/create → transfer put
-```
+## Files and one-off commands
 
-### Quick Reference
+These take `-H HOST -u USER` (plus `-i KEY`, `-p`, `-J`), not a `sid`. Pass the
+`identity` that `connect` returned as `-i`.
 
-| Command | What |
-|---------|------|
-| `assh connect -H HOST -u USER -i KEY -n NAME` | Bootstrap + open tmux session |
-| `assh connect ... --profile readonly` | Restrict session to allow-list |
-| `assh session exec -s SID -- "cmd"` | Run command in tmux session (safety checks apply) |
-| `assh session read -s SID --seq N --limit 50` | Read paginated output |
-| `assh session close -s SID` | Close session |
-| `assh exec -H HOST -u USER -- "cmd"` | One-off command, no tmux |
-| `assh read --id ID --raw` | Read stored exec output |
-| `assh transfer put/get/read/list/stat/mkdir/rm/mv/sync` | File operations |
-| `assh session service -s SID --action restart --service NAME` | Service mgmt |
-| `assh session exec -s SID -- "docker ps"` | Docker/db/anything else — via exec |
-| `assh session exec-async -s SID -- "cmd"` | Background job (long-running, no timeout) |
-| `assh fleet exec -H H1 -H H2 -u root -- "cmd"` | Multi-host |
-| `assh scan -H HOST -u USER` | Host inventory JSON |
-| `assh version --check` | Check for CLI updates |
-| `assh transfer read -H HOST -u USER --path FILE` | Read remote file |
+| Task | Command |
+| --- | --- |
+| Read a text file | `assh transfer read -H HOST -u USER --path FILE`, then `assh read --id OUTPUT_ID` |
+| Upload / download | `assh transfer put -H HOST -u USER LOCAL REMOTE` / `assh transfer get -H HOST -u USER REMOTE LOCAL` |
+| List / stat | `assh transfer list -H HOST -u USER --path DIR` / `assh transfer stat ... --path FILE` |
+| Sync a directory | `assh transfer sync --direction push\|pull --source SRC --dest DST -H HOST -u USER` |
+| One command, no session | `assh exec -H HOST -u USER -- "cmd"`, then `assh read --id OUTPUT_ID` |
 
-### JSON Contract
+## Errors
 
-`connect` → `{"ok":true,"sid":"...","next_commands":{"exec":"...","read":"...","close":"..."}}`
-`session exec` → `{"ok":true,"rc":0,"seq":N,"stdout_lines":N,"stderr_lines":N,"sid":"..."}`
-`scan` → JSON with hostname, OS, CPU, disk, memory
-`transfer list` → `{"ok":true,"entries":[{"name":"...","type":"f|d","size":N}]}`
+| `error` | What to do |
+| --- | --- |
+| `dangerous_command_requires_confirmation` | Ask the user. Only `session exec` accepts `--confirm-danger`; `exec`, `exec-async`, `fleet` and `transfer rm` refuse outright. |
+| `command_not_allowed` | The session profile forbids it. Report it; do not work around it. |
+| `session_unreachable`, `session_stale`, `session_not_found` | Stop using that `sid` and reconnect with the same auth. |
+| `output_not_found` | That `seq` produced no output. `assh session list` shows the current `seq`. |
+| `timeout` | See above: the command is still running. |
+| `invalid_args` | Run `assh <command> --help`. Do not guess flags. |
 
-### Token Economy
+`[REDACTED:type]` with `"redacted":true` means a secret was masked on purpose
+and the command succeeded. Do not retry to recover the value; `--no-redact`
+exists on `exec`, `session read`, `session job-status` and `transfer read`.
 
-1. `assh session exec` → JSON metadata only (fits in context)
-2. `assh session read --raw` → clean text, no `\n`, fewer tokens
-3. `assh session read` (no `--raw`) → only when pagination needed
-4. Always `--limit N` — don't read more than you need
+## Limits
 
-### Security Rules
+- The safety classifier and profiles catch accidents; they are not a security
+  boundary. `docker rm`, `DROP TABLE`, `git reset --hard` and the like are not
+  classified, so think before running them.
+- Redaction is best-effort: do not print files you know hold secrets.
+- Never put a password in a command argument and never echo one.
 
-- Passwords only through env vars. No `--password` flag.
-- `[REDACTED:type]` + `"redacted":true` = command succeeded, do not retry
-- `dangerous_command_requires_confirmation` → ask user before `--confirm-danger`
-- Never put passwords in arguments. Never echo passwords.
-- `transfer read` errors: `remote_file_not_found`, `not_a_file`, `file_too_large`, `binary_file`, `permission_denied`
-- `assh audit --savings` shows lines withheld by pagination (line metric)
+## References
 
-### Safety Classifier — What Gets Blocked
+Load only the one you need:
 
-`session exec` blocks these. Use `--confirm-danger` after asking user:
-- `rm_recursive` — `rm -rf` / `rm -r` (any path)
-- `rm_critical_path` — `rm` on system paths (`/`, `/etc`, `/var`, ...)
-- `find_delete` — `find ... -delete`
-- `filesystem_wipe` — `mkfs*`, `wipefs`, `shred`
-- `dd_dangerous_output` — `dd` to block devices or absolute paths
-- `recursive_permission` — `chmod/chown/chgrp -r` on system paths
-- `dangerous_redirect` — `>`, `>>` into system paths (`cat > /etc/x`); user-file redirects are allowed
-
-Profiles (restrict what commands are even allowed):
-- `readonly` — log inspection, status checks, file reads
-- `ops` — readonly + restarts, pulls, apt updates
-- `admin` — full access (default)
+- [connect](skills/assh/references/connect.md) — auth methods, profiles, connect errors
+- [session](skills/assh/references/session.md) — exec options, jobs, processes, cleanup
+- [transfer](skills/assh/references/transfer.md) — file operations and their errors
+- [server](skills/assh/references/server.md) — services, scan, fleet, port forwarding
+- [security](skills/assh/references/security.md) — passwords, safety rules, redaction, host keys

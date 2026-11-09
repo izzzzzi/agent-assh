@@ -1,6 +1,10 @@
 package transport
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -76,5 +80,67 @@ func TestSCPCommandArgsForDownload(t *testing.T) {
 	// Remote source path is execve argv, not shell — no single quotes.
 	if !containsSubsequence(args, "--", "root@example.com:/var/log/app.log", "app.log") {
 		t.Fatalf("Args() = %#v, want unquoted remote source (execve, no shell)", args)
+	}
+}
+
+// writeSCPMock drops an executable shell script named scp into a temp dir and
+// prepends it to PATH, so SCPCommand.Run resolves the mock through the default
+// binary name as well as an explicit Binary value.
+func writeSCPMock(t *testing.T, script string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the scp mock is a POSIX shell script")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "scp"), []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestSCPCommandRunReportsExitCodeAndStreams(t *testing.T) {
+	writeSCPMock(t, "#!/bin/sh\necho 'sent 1 file'\necho 'lost connection' >&2\nexit 5\n")
+
+	cmd := SCPCommand{Binary: "scp", Host: "example.com", User: "root"}
+	result := cmd.Run(context.Background(), "/tmp/src", "/tmp/dst", Upload)
+
+	if result.ExitCode != 5 {
+		t.Fatalf("Run() ExitCode = %d, want 5", result.ExitCode)
+	}
+	if result.Err == nil {
+		t.Fatal("Run() Err = nil, want an exit error")
+	}
+	if !strings.Contains(string(result.Stdout), "sent 1 file") {
+		t.Fatalf("Run() Stdout = %q, want the mock's stdout", result.Stdout)
+	}
+	if !strings.Contains(string(result.Stderr), "lost connection") {
+		t.Fatalf("Run() Stderr = %q, want the mock's stderr", result.Stderr)
+	}
+}
+
+func TestSCPCommandRunDefaultsBinaryAndSucceeds(t *testing.T) {
+	writeSCPMock(t, "#!/bin/sh\nexit 0\n")
+
+	// Binary is left empty so Run must fall back to the "scp" name on PATH.
+	cmd := SCPCommand{Host: "example.com", User: "root"}
+	result := cmd.Run(context.Background(), "/tmp/src", "/tmp/dst", Upload)
+
+	if result.ExitCode != 0 {
+		t.Fatalf("Run() ExitCode = %d, want 0; err = %v", result.ExitCode, result.Err)
+	}
+	if result.Err != nil {
+		t.Fatalf("Run() Err = %v, want nil", result.Err)
+	}
+}
+
+func TestSCPCommandRunReportsMissingBinary(t *testing.T) {
+	cmd := SCPCommand{Binary: "assh-no-such-binary", Host: "example.com", User: "root"}
+	result := cmd.Run(context.Background(), "/tmp/src", "/tmp/dst", Upload)
+
+	if result.ExitCode != -1 {
+		t.Fatalf("Run() ExitCode = %d, want -1 when the binary cannot be started", result.ExitCode)
+	}
+	if result.Err == nil {
+		t.Fatal("Run() Err = nil, want a start error")
 	}
 }

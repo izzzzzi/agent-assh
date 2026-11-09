@@ -1,91 +1,78 @@
-# assh Connect — All Methods
+# assh connect
 
-**When you need to SSH to a server — ALWAYS use `assh connect`. Never use `ssh user@host` directly.**
-
-## 1. Direct host + key (simplest)
+## Methods
 
 ```bash
+# key file
 assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_ed25519 -n deploy
-```
 
-Returns `sid` and `next_commands`. Use the sid for all session work.
+# ~/.ssh/config alias (host, user, port and key come from the config)
+assh connect --ssh-config my-alias -n deploy
 
-## 2. SSH config alias
-
-```bash
-assh connect --ssh-config my-server-alias -n deploy
-```
-
-## 3. Pasted provider server-info block
-
-Save the exact block to a temp file with mode 0600:
-
-```bash
-cat > /tmp/server.txt << 'EOF'
-Host: 203.0.113.10
-User: root
-Password: s3cr3t
-EOF
-chmod 0600 /tmp/server.txt
-assh connect-info --file /tmp/server.txt -n deploy
-rm -f /tmp/server.txt
-```
-
-If parsing fails, extract host/user/password manually and use method 4.
-
-## 4. First-contact with password
-
-```bash
-export TARGET_PASS="s3cr3t"
+# password, first contact: assh installs its own key, later logins use it
 assh connect -H 203.0.113.10 -u root -E TARGET_PASS -n deploy
 unset TARGET_PASS
 ```
 
-Password goes in env var, never in command arguments. If key login works,
-`connect` does not read the password.
+`-E` names an environment variable that already holds the password. If key
+login works, the variable is not read.
 
-## 5. Picky SSH gateway (RunPod, etc.)
+### Pasted provider block
 
-Add `--force-pty` for hosts that reject `-T`:
-
-```bash
-assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_ed25519 --force-pty -n deploy
-```
-
-## 6. With command profile (restrict agent commands)
+`connect-info` reads `Label: value` lines (host/IPv4, user/login, password,
+port; English or Russian labels). Create the file with your file-writing tool,
+or under `umask 077`, so the password never sits in a world-readable file:
 
 ```bash
-assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_ed25519 -n deploy --profile readonly
+( umask 077; cat > /tmp/server.txt )   # paste the block, then Ctrl-D
+assh connect-info --file /tmp/server.txt -n deploy
+rm -f /tmp/server.txt
 ```
 
-Profiles limit what commands the session can run. Available profiles:
-- `readonly` — log inspection, status checks, file reads
-- `ops` — readonly + restarts, pulls, apt updates
-- `admin` — full access (default)
+`connect-info` has no `-E`: the password comes from the block. If parsing
+fails, use the password method above.
 
-Blocked command returns:
+## Options
+
+| Flag | Use |
+| --- | --- |
+| `-p PORT`, `-J JUMP` | non-default port, jump host |
+| `--reuse` | return a live session for the same host, user, key and profile instead of opening a new one |
+| `--force-pty` | gateways that reject `-T` (RunPod); stderr is merged into stdout in this mode |
+| `--profile NAME` | restrict the session, see below |
+| `--no-install-tmux` | fail with `tmux_missing` instead of installing tmux |
+| `--ttl 12h` | session lifetime in the local registry |
+| `--host-key-policy` | `accept-new` (default), `strict`, `no-check` |
+
+## Response
+
+`ok`, `sid`, `session` (your `-n` label), `tmux_name`, `host`, `user`,
+`identity` (the key to pass as `-i` to `transfer` and `exec`), `key_deployed`,
+`reused` (only with `--reuse`), `next_commands` (`exec`, `read`, `list`,
+`close` with the sid filled in).
+
+## Profiles
+
+`--profile readonly` allows log and status reads; `ops` adds restarts,
+`git pull` and `apt update`; `admin` (default) allows everything. The lists
+live in `~/.config/assh/profiles.json`.
+
+A profile is checked by `session exec`, `session exec-async`,
+`session service` and `session kill`. Every part of a compound command must be
+allowed, and command substitution or a redirect into a file is refused:
 
 ```json
-{"ok":false,"error":"command_not_allowed","message":"'apt install nginx' is not in profile 'readonly'","hint":"use a different profile or connect without --profile"}
+{"ok":false,"error":"command_not_allowed","message":"'touch /tmp/x' is not in profile 'readonly'","hint":"use a different profile or connect without --profile"}
 ```
 
-Profiles are defined in `~/.config/assh/profiles.json`.
-
-## connect response fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `ok` | bool | true if session opened |
-| `sid` | string | Session ID for all subsequent commands |
-| `session` | string | Human-readable session name |
-| `tmux_name` | string | Remote tmux session name |
-| `next_commands` | object | exec/read/close templates with sid filled |
+`transfer`, `exec` and `fleet` address a host, not a session, so no profile
+applies to them.
 
 ## Errors
 
 | Error | Meaning | Fix |
-|-------|---------|-----|
-| `auth_failed` | Bad key or password | Check credentials |
-| `tmux_missing` | No tmux or PTY issue | Add `--force-pty` |
-| `host_key_failed` | Host key mismatch | Use `--host-key-policy strict` or verify |
-| `connection_error` / `timeout` | Network problem | Retry, check reachability |
+| --- | --- | --- |
+| `auth_failed` | key or password rejected | check credentials; with a password use `-E` |
+| `tmux_missing` | tmux is not installed or not on the non-interactive `PATH` | drop `--no-install-tmux`, or install tmux on the host |
+| `host_key_failed` | the host key changed since it was first seen | stop and tell the user; do not switch to `no-check` on your own |
+| `connection_error`, `timeout` | network problem | check host, port, reachability |

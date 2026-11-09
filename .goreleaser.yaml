@@ -2,9 +2,9 @@ version: 2
 
 project_name: assh
 
-before:
-  hooks:
-    - go mod tidy
+# No `before.hooks` here on purpose. A `go mod tidy` hook can rewrite go.mod and
+# go.sum mid-release, so the published binaries would no longer match the tagged
+# commit. CI verifies the module files are already tidy instead.
 
 builds:
   - id: assh

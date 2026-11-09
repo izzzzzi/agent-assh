@@ -47,7 +47,10 @@ func newConnectCommand() *cobra.Command {
 		Example: "  export TARGET_PASS='...'\n" +
 			"  assh connect -H 10.0.0.1 -u root -E TARGET_PASS -n deploy\n" +
 			"  unset TARGET_PASS\n\n" +
-			"  assh connect -H 10.0.0.1 -u root -i ~/.ssh/id_agent_ed25519 -n deploy",
+			"  assh connect -H 10.0.0.1 -u root -i ~/.ssh/id_agent_ed25519 -n deploy\n\n" +
+			"  # repeat work on the same host: hand back the live session instead of\n" +
+			"  # opening a second one (falls back to a fresh session if none is alive)\n" +
+			"  assh connect -H 10.0.0.1 -u root -i ~/.ssh/id_agent_ed25519 --reuse",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return writeInvalidArgs(cmd, "unexpected positional arguments", "")
@@ -72,7 +75,7 @@ func newConnectCommand() *cobra.Command {
 		},
 	}
 
-	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
+	bindSSHOptions(cmd, &ssh, bootstrapSSHOptionFlags())
 	cmd.Flags().StringVar(&sshConfigAlias, "ssh-config", "", "resolve host/user/identity from ~/.ssh/config alias")
 	cmd.Flags().StringVarP(&req.PasswordEnv, "password-env", "E", "", "password environment variable for first login")
 	cmd.Flags().StringVarP(&req.SessionName, "name", "n", "", "session label")
@@ -80,6 +83,8 @@ func newConnectCommand() *cobra.Command {
 	cmd.Flags().DurationVar(&req.GCOlderThan, "gc-older-than", 24*time.Hour, "cleanup sessions older than duration")
 	cmd.Flags().BoolVar(&req.SkipGC, "no-gc", false, "skip bootstrap cleanup")
 	cmd.Flags().BoolVar(&req.SkipTmuxInstall, "no-install-tmux", false, "do not install tmux if missing")
+	cmd.Flags().BoolVar(&req.Reuse, "reuse", false,
+		"reuse a live session for the same host/user instead of opening a new one")
 	cmd.Flags().StringVar(&profile, "profile", "", "command profile (readonly, ops, admin)")
 	return cmd
 }
@@ -128,7 +133,8 @@ func newConnectInfoCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&file, "file", "", "server info file; reads stdin when omitted")
-	bindSSHOptions(cmd, &ssh, sshOptionFlags{port: true, identity: true, jump: true, timeout: true, hostKeyPolicy: true})
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{port: true, identity: true, jump: true,
+		timeout: true, hostKeyPolicy: true, noBatch: true})
 	cmd.Flags().StringVarP(&req.SessionName, "name", "n", "", "session label")
 	cmd.Flags().DurationVar(&req.TTL, "ttl", 12*time.Hour, "session ttl")
 	cmd.Flags().DurationVar(&req.GCOlderThan, "gc-older-than", 24*time.Hour, "cleanup sessions older than duration")

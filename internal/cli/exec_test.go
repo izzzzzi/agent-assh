@@ -171,20 +171,82 @@ func TestExecAcceptsJumpHost(t *testing.T) {
 	}
 }
 
-func TestSSHErrorCodeClassifiesLocalFailures(t *testing.T) {
-	if got := sshErrorCode(context.DeadlineExceeded, nil); got != "timeout" {
+func TestExecBatchFlagReachesSSHCommand(t *testing.T) {
+	oldRunSSH := runSSH
+	t.Cleanup(func() { runSSH = oldRunSSH })
+	var seen transport.SSHCommand
+	runSSH = func(_ context.Context, command transport.SSHCommand, _ string) transport.Result {
+		seen = command
+		return transport.Result{ExitCode: 0}
+	}
+
+	var out bytes.Buffer
+	cmd := NewRootCommand()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"exec", "--host", "example.com", "--user", "root", "--batch", "--", "true"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !seen.Batch {
+		t.Fatal("SSHCommand.Batch = false, want --batch to reach the transport")
+	}
+}
+
+// TestBatchFlagAvailability pins where --batch is offered. The first-login
+// commands omit it on purpose: BatchMode=yes disables the password prompt that
+// `-E` exists to answer, so offering both would be a contradiction.
+func TestBatchFlagAvailability(t *testing.T) {
+	tests := []struct {
+		path []string
+		want bool
+	}{
+		{[]string{"exec"}, true},
+		{[]string{"transfer", "put"}, true},
+		{[]string{"transfer", "get"}, true},
+		{[]string{"session", "exec"}, true},
+		{[]string{"session", "read"}, true},
+		{[]string{"scan"}, true},
+		{[]string{"forward", "start"}, true},
+		{[]string{"transfer", "sync"}, true},
+		{[]string{"connect"}, false},
+		{[]string{"connect-info"}, false},
+		{[]string{"key-deploy"}, false},
+	}
+
+	cmd := NewRootCommand()
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.path, "_"), func(t *testing.T) {
+			found, _, err := cmd.Find(tt.path)
+			if err != nil {
+				t.Fatalf("Find(%v) error = %v", tt.path, err)
+			}
+			if found == nil {
+				t.Fatalf("Find(%v) returned no command", tt.path)
+			}
+			got := found.Flags().Lookup("batch") != nil
+			if got != tt.want {
+				t.Fatalf("%v offers --batch = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLocalSSHErrorCodeClassifiesLocalFailures(t *testing.T) {
+	if got := localSSHErrorCode(context.DeadlineExceeded, nil); got != "timeout" {
 		t.Fatalf("timeout code = %q, want timeout", got)
 	}
 
-	if got := sshErrorCode(nil, &exec.Error{Name: "missing-ssh", Err: exec.ErrNotFound}); got != "ssh_missing" {
+	if got := localSSHErrorCode(nil, &exec.Error{Name: "missing-ssh", Err: exec.ErrNotFound}); got != "ssh_missing" {
 		t.Fatalf("missing binary code = %q, want ssh_missing", got)
 	}
 
-	if got := sshErrorCode(nil, errors.New("connection refused")); got != "connection_error" {
+	if got := localSSHErrorCode(nil, errors.New("connection refused")); got != "connection_error" {
 		t.Fatalf("connection error code = %q, want connection_error", got)
 	}
 
-	if got := sshErrorCode(nil, &exec.ExitError{}); got != "" {
+	if got := localSSHErrorCode(nil, &exec.ExitError{}); got != "" {
 		t.Fatalf("remote exit code = %q, want empty", got)
 	}
 }

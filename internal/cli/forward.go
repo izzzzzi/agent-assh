@@ -183,6 +183,7 @@ func forwardSpecFromOptions(
 		Jump:          ssh.Jump,
 		TimeoutSecond: ssh.TimeoutSecond,
 		HostKeyPolicy: ssh.HostKeyPolicy,
+		Batch:         ssh.Batch,
 		ControlSocket: socket,
 		Persist:       persist,
 		Local:         local,

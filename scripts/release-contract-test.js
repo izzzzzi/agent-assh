@@ -10,6 +10,31 @@ const root = path.join(__dirname, '..');
 const releaseRemote = 'https://github.com/izzzzzi/agent-assh.git';
 const goreleaserModule = 'github.com/goreleaser/goreleaser/v2@v2.12.7';
 
+// Plugin and extension manifests are consumed by Claude Code, Codex, Copilot,
+// and Pi independently of the npm package, so their version can silently drift
+// behind package.json — it did, by three minor releases. Keep them pinned.
+const manifestPaths = [
+  '.claude-plugin/plugin.json',
+  '.codex-plugin/plugin.json',
+  '.github/plugin/plugin.json',
+  'pi-extension/package.json',
+];
+
+function verifyManifestVersions(version = pkg.version) {
+  const drifted = [];
+
+  for (const relative of manifestPaths) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
+    if (manifest.version !== version) {
+      drifted.push(`${relative}: ${manifest.version} != ${version}`);
+    }
+  }
+
+  if (drifted.length > 0) {
+    throw new Error(`manifest version drift (expected ${version}):\n${drifted.join('\n')}`);
+  }
+}
+
 function expectedArchives(version) {
   return [
     ['linux', 'x64'],
@@ -138,6 +163,7 @@ function artifactFiles(directory = path.join(root, 'dist')) {
 }
 
 function main() {
+  verifyManifestVersions();
   const cleanup = ensureReleaseGitState();
 
   try {
@@ -162,4 +188,5 @@ if (require.main === module) {
 module.exports = {
   expectedArchives,
   verifyArtifactFiles,
+  verifyManifestVersions,
 };

@@ -83,7 +83,8 @@ func runSessionRead(cmd *cobra.Command, opts sessionReadOptions, ssh sshOptions)
 
 	content, total, notFound := parseSessionRead(result.Stdout)
 	if notFound {
-		return writeError(cmd, "output_not_found", "session output not found", reconnectHint(entry))
+		return writeError(cmd, "output_not_found", "session output not found",
+			outputNotFoundHint(entry, opts.seq))
 	}
 	content, redactionCount := applyReadRedaction(content, opts.noRedact)
 	if err := persistSessionReadOutput(opts, content, total); err != nil {
@@ -162,13 +163,20 @@ func parseSessionRead(stdout []byte) (string, int, bool) {
 	if strings.TrimSpace(text) == "__ASSH_NOT_FOUND__" {
 		return "", 0, true
 	}
-	marker := "\n__ASSH_TOTAL_LINES__="
-	idx := strings.LastIndex(text, marker)
-	if idx == -1 {
+	const marker = "__ASSH_TOTAL_LINES__="
+	idx := strings.LastIndex(text, "\n"+marker)
+	var totalText string
+	switch {
+	case idx >= 0:
+		totalText = text[idx+1+len(marker):]
+	case strings.HasPrefix(text, marker):
+		// Empty output under --force-pty: PTY cleanup trims the leading newline.
+		idx = 0
+		totalText = text[len(marker):]
+	default:
 		return text, countLines(stdout), false
 	}
-	totalText := strings.TrimSpace(text[idx+len(marker):])
-	total, err := strconv.Atoi(totalText)
+	total, err := strconv.Atoi(strings.TrimSpace(totalText))
 	if err != nil {
 		total = countLines([]byte(text[:idx]))
 	}

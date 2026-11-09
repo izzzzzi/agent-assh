@@ -188,10 +188,17 @@ func TestSessionReadRawNotFoundReturnsJSONError(t *testing.T) {
 		t.Fatalf("unexpected response: %#v", got)
 	}
 	hint, _ := got["hint"].(string)
-	for _, want := range []string{"do not keep retrying this SID", "assh connect",
-		"-i KEY", "-E PASSWORD_ENV", "--ssh-config ALIAS"} {
+	for _, want := range []string{"still registered", "assh session list",
+		"assh session read -s abcdef12 --seq N", "gaps are normal"} {
 		if !strings.Contains(hint, want) {
 			t.Fatalf("hint %q missing %q", hint, want)
+		}
+	}
+	// A missing seq means the session is alive but the number was wrong, so the
+	// hint must not tell the caller to reconnect and abandon it.
+	for _, unwanted := range []string{"do not keep retrying this SID", "assh connect"} {
+		if strings.Contains(hint, unwanted) {
+			t.Fatalf("hint %q must not contain %q", hint, unwanted)
 		}
 	}
 	if strings.Contains(out.String(), "__ASSH_NOT_FOUND__") {

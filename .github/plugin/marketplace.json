@@ -1,17 +1,17 @@
 {
   "name": "assh",
-  "interface": {
-    "displayName": "assh SSH"
+  "description": "SSH workflow for LLM agents — assh CLI",
+  "owner": {
+    "name": "izzzzzi",
+    "url": "https://github.com/izzzzzi"
   },
   "plugins": [
     {
       "name": "assh",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/izzzzzi/agent-assh.git",
-        "ref": "main"
-      },
-      "category": "Infrastructure"
+      "description": "Teaches the agent to use the assh CLI for SSH: sessions, paginated output, file transfer.",
+      "source": "./",
+      "category": "development",
+      "skills": "skills/"
     }
   ]
 }

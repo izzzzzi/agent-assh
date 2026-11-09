@@ -9,7 +9,6 @@ import (
 
 	"github.com/izzzzzi/agent-assh/internal/ids"
 	"github.com/izzzzzi/agent-assh/internal/redact"
-	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/izzzzzi/agent-assh/internal/state"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
@@ -141,7 +140,7 @@ func finishTransferRead(
 // It performs existence, type, permission, size, and binary checks in one round
 // trip without depending on SFTP.
 func remoteFileReadCommand(path string, maxBytes int64) string {
-	p := remote.SingleQuote(path)
+	p := shellRemotePath(path)
 	limit := strconv.FormatInt(maxBytes, 10)
 	window := strconv.Itoa(transferReadProbeWindow)
 	return strings.Join([]string{

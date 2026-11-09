@@ -1,146 +1,96 @@
-## assh SSH Workflow
+<!-- Generated from skills/assh/ by scripts/check-skill-copies.js. Edit the skill, not this file. -->
 
-**When you need SSH — ALWAYS use `assh`. Never use raw `ssh`, `scp`, or `rsync`.**
+# assh — SSH for LLM agents
 
-The assh skill (`skills/assh/SKILL.md`, `AGENTS.md`, or CLI plugin) has the
-complete decision tree and JSON contracts. If your runtime loaded it, follow it.
+For any SSH work use `assh`, not raw `ssh`/`scp`/`rsync`: command output stays
+on the server and you read only the lines you need. If `assh` is missing, run
+`npm i -g agent-assh`.
 
-Otherwise, use the instructions below.
+## Connect
 
-Use `assh` for SSH work so large remote output stays out of the agent context.
+| You have | Command |
+| --- | --- |
+| Key file | `assh connect -H HOST -u USER -i KEY -n NAME` |
+| `~/.ssh/config` alias | `assh connect --ssh-config ALIAS -n NAME` |
+| Password | `assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME`, then `unset PASSWORD_ENV` |
+| Pasted provider block | write it to a `0600` file, `assh connect-info --file FILE -n NAME`, delete the file |
 
-Install when missing:
+Optional: `-p PORT`, `-J JUMP`, `--reuse` (return a live session for this host
+instead of opening another), `--force-pty` (gateways that reject `-T`, such as
+RunPod), `--profile readonly|ops` (allow-list for the session).
+
+`connect` returns `sid`, `identity` and `next_commands`. Use the `sid` below.
+
+## Run a command, then read its output
 
 ```bash
-npm i -g agent-assh
-assh version
-assh version --check  # check for updates
+assh session exec -s SID -- "cmd"
+# {"ok":true,"rc":0,"seq":3,"stdout_lines":120,"stderr_lines":0,...}
+assh session read -s SID --seq 3                        # JSON: content, total_lines, has_more
+assh session read -s SID --seq 3 --offset 50 --limit 50 # next page (default limit is 50)
+assh session read -s SID --seq 3 --stream stderr --raw  # plain text, no JSON wrapper
+assh session close -s SID
 ```
 
-### Agent Algorithm
+- Pass the command as one quoted string. `cd` and `export` persist between execs.
+- `ok:true` means assh ran the command; `rc` is its exit status.
+- Read the `seq` that exec returned. Numbers are consumed by failed execs too, so gaps are normal.
+- Run one exec at a time per `sid`: they share one shell and run in order.
+- exec waits 300 s by default (`-t SECONDS`). After `timeout` the command is
+  **still running** and later execs queue behind it: read its `seq` later, do
+  not rerun it.
+- Pages are counted in lines, not bytes, so one huge line comes back whole.
+  Trim on the server: `| cut -c1-500`, `| tail -n 100`.
+- stdin: `cat script.sh | assh session exec -s SID --stdin -- "bash -s"`
+  (4 MiB max). Without `--stdin` piped input is rejected.
 
-```text
-Need SSH?
-  Simplest path — direct host + key, no alias, no password:
-    assh connect -H HOST -u root -i KEY -n NAME
+## Long-running commands
 
-  Alternative — ~/.ssh/config alias:
-    assh connect --ssh-config ALIAS -n NAME
-
-  Alternative — pasted provider server info:
-    save to a 0600 temp file
-    assh connect-info --file TMP -n NAME
-    delete TMP after connect
-    if parsing fails, extract host/user/password, put password in env, then use connect
-
-  Alternative — first-contact with password:
-    assh connect -H HOST -u root -E PASSWORD_ENV -n NAME
-
-  Picky SSH gateways (RunPod, etc.) — add --force-pty:
-    assh connect -H HOST -u root -i KEY --force-pty -n NAME
-    assh exec -H HOST -u root -i KEY --force-pty -- "command"
-    assh read --id OUTPUT_ID --raw               # read exec output
-
-  Restrict commands? — add --profile:
-    assh connect ... --profile readonly           # read-only commands only
-    assh connect ... --profile ops                # + restarts, pulls
-    assh connect ... --profile admin              # full access (default)
-
-  Scan host health:
-    assh scan -H HOST -u USER
-
-  Continue with returned sid:
-    assh session exec -s SID -- "pwd"
-    assh session read -s SID --seq 1 --limit 50
-    assh session exec -s SID --timeout 600 -- "git pull"
-    assh session read -s SID --seq 2 --stream stderr --limit 50
-    Stale sessions: `expired=false` is TTL-only, not proof the SSH/tmux channel is alive. If `session_unreachable` or `session_stale` appears, stop retrying that SID and reconnect with explicit auth: `-i KEY`, `-E PASSWORD_ENV`, or `--ssh-config ALIAS`.
-
-  File operations:
-    assh transfer list -H HOST -u USER --path /var/log
-    assh transfer stat -H HOST -u USER --path /etc/nginx.conf
-    assh transfer put -H HOST -u USER LOCAL_PATH REMOTE_PATH  # creates missing remote parent dirs
-    assh transfer get -H HOST -u USER REMOTE_PATH LOCAL_PATH
-    assh transfer sync --direction push --source ./dist --dest /var/www -H HOST
-    assh transfer mkdir -H HOST -u USER --path /opt/newapp
-    assh transfer rm -H HOST -u USER --path /tmp/junk.log
-    assh transfer mv -H HOST -u USER --source /tmp/a --dest /tmp/b
-    assh transfer read -H HOST -u USER --path /etc/app.conf  # remote file -> output_id, then: assh read --id ID
-
-  Server management:
-    assh session ps -s SID --top 20
-    assh session kill -s SID --pid 1234
-    assh session service -s SID --action status --service nginx
-    assh session service -s SID --action restart --service docker
-    assh session service -s SID --action logs --service nginx --lines 100
-
-  Background jobs:
-    assh session exec-async -s SID -- "long-build.sh"
-    assh session job-status -s SID --job-id JOB_ID
-    assh session job-status -s SID --job-id JOB_ID --raw  # bare output, no JSON
-
-  Docker/databases and anything else not listed:
-    assh session exec -s SID -- "docker ps"
-    assh session exec -s SID -- "mysql -e 'SELECT 1' mydb"
-
-  Fleet (multi-host):
-    assh fleet exec -H host1 -H host2 -H host3 -u root -- "uptime"
-
-  Pre/post hooks:
-    assh session exec -s SID --before "git stash" --after "git stash pop" -- "deploy.sh"
-
-  Watch agent session (human observability):
-    assh session watch -s SID
-    # Copy the attach_cmd to a terminal to see the agent's tmux in real-time.
-
-  Cleanup:
-    assh session gc --older-than 24h --execute
-
-  Audit:
-    assh audit --last 20 --host HOST --failed
+```bash
+assh session exec-async -s SID -- "make build"     # returns job_id
+assh session job-status -s SID --job-id JOB -n 50  # status, rc, last 50 lines in output
+assh session job-cancel -s SID --job-id JOB
 ```
 
-### JSON Contract
+`status` is `running`, `completed` (with `rc`), `cancelled` or `not_found`.
+Use this for anything that may exceed the exec wait or has no known duration.
 
-`assh connect` returns a session id and next commands:
+## Files and one-off commands
 
-```json
-{"ok":true,"sid":"f7a2b3c4","session":"deploy","tmux_name":"assh_f7a2b3c4","next_commands":{"exec":"assh session exec -s f7a2b3c4 -- \"pwd\"","read":"assh session read -s f7a2b3c4 --seq 1 --limit 50","close":"assh session close -s f7a2b3c4"}}
-```
+These take `-H HOST -u USER` (plus `-i KEY`, `-p`, `-J`), not a `sid`. Pass the
+`identity` that `connect` returned as `-i`.
 
-`assh session exec` returns command metadata:
+| Task | Command |
+| --- | --- |
+| Read a text file | `assh transfer read -H HOST -u USER --path FILE`, then `assh read --id OUTPUT_ID` |
+| Upload / download | `assh transfer put -H HOST -u USER LOCAL REMOTE` / `assh transfer get -H HOST -u USER REMOTE LOCAL` |
+| List / stat | `assh transfer list -H HOST -u USER --path DIR` / `assh transfer stat ... --path FILE` |
+| Sync a directory | `assh transfer sync --direction push\|pull --source SRC --dest DST -H HOST -u USER` |
+| One command, no session | `assh exec -H HOST -u USER -- "cmd"`, then `assh read --id OUTPUT_ID` |
 
-```json
-{"ok":true,"rc":0,"seq":2,"stdout_lines":15,"stderr_lines":0,"sid":"f7a2b3c4","session":"deploy"}
-```
+## Errors
 
-`assh scan` returns host inventory:
+| `error` | What to do |
+| --- | --- |
+| `dangerous_command_requires_confirmation` | Ask the user. Only `session exec` accepts `--confirm-danger`; `exec`, `exec-async`, `fleet` and `transfer rm` refuse outright. |
+| `command_not_allowed` | The session profile forbids it. Report it; do not work around it. |
+| `session_unreachable`, `session_stale`, `session_not_found` | Stop using that `sid` and reconnect with the same auth. |
+| `output_not_found` | That `seq` produced no output. `assh session list` shows the current `seq`. |
+| `timeout` | See above: the command is still running. |
+| `invalid_args` | Run `assh <command> --help`. Do not guess flags. |
 
-```json
-{"hostname":"web01","os":"Linux","kernel":"6.1.0","arch":"x86_64","cpu_cores":"4","ip":"10.0.0.1","uptime":"30 days","load":"0.15 0.10 0.05","mem_total_kb":"8176248","mem_avail_kb":"5241360","disk":"12G/50G (25%)"}
-```
+`[REDACTED:type]` with `"redacted":true` means a secret was masked on purpose
+and the command succeeded. Do not retry to recover the value; `--no-redact`
+exists on `exec`, `session read`, `session job-status` and `transfer read`.
 
-`assh transfer list` returns file entries:
+## Limits
 
-```json
-{"ok":true,"host":"web01","user":"root","path":"/var/log","count":5,"entries":[{"name":"syslog","type":"f","size":12345,"mtime":"2026-06-05T10:00:00Z"}]}
-```
+- The safety classifier and profiles catch accidents; they are not a security
+  boundary. `docker rm`, `DROP TABLE`, `git reset --hard` and the like are not
+  classified, so think before running them.
+- Redaction is best-effort: do not print files you know hold secrets.
+- Never put a password in a command argument and never echo one.
 
-## Token Economy
+## More detail
 
-1. `assh session exec` → JSON metadata (always fits context)
-2. `assh session read --raw` → clean text, no `\n` or JSON wrapper
-3. `assh session read` (no `--raw`) → only when pagination needed
-4. Always `--limit N` — don't read more than you need
-
-Rules:
-
-- Operational commands emit one JSON value by default.
-- `read --raw` and `session read --raw` print only content (not JSON).
-- Output is redacted by default: `[REDACTED:type]` and `"redacted":true` mean assh masked a secret; the command succeeded, do not retry to recover it. `--no-redact` disables it. Best-effort hygiene, not a security boundary.
-- `assh audit --savings` summarizes output lines withheld by pagination (line metric, not tokens).
-- Remote non-zero status is a command result, not a transport failure.
-- Passwords are only accepted through environment variables; never put passwords in command arguments.
-- Command text is not written to audit logs.
-- If `session exec` returns `dangerous_command_requires_confirmation`, ask for explicit user intent before rerunning with `--confirm-danger`.
-- session watch shows a tmux attach command; the human opens a terminal to observe the agent.
+Full guide: `AGENT_INSTRUCTIONS.md` in the agent-assh npm package. Flags: `assh <command> --help`.

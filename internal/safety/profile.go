@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -127,8 +128,17 @@ func wildcardMatch(pattern, s string) bool {
 	return true
 }
 
+// fdDupRedirect matches descriptor duplications such as 2>&1. They write to no
+// file, and left in place their '&' would be read as a command separator.
+var fdDupRedirect = regexp.MustCompile(`\d*>&\d+`)
+
 // Match checks whether command is allowed by the named profile.
 // Returns non-dangerous Result if allowed, dangerous Result if denied or profile not found.
+//
+// Every segment of a compound command (split on ; | && & and newlines) must
+// match an allow pattern on its own, so `cat x; rm y` is not let through on the
+// strength of its first word. Command substitution and redirects into files are
+// denied outright: an allow-listed command must not carry a second one inside.
 func (p *Profiles) Match(profileName string, command string) Result {
 	command = strings.TrimSpace(command)
 	if command == "" {
@@ -142,21 +152,75 @@ func (p *Profiles) Match(profileName string, command string) Result {
 			Message:   fmt.Sprintf("profile '%s' not found", profileName),
 		}
 	}
-	tokens := strings.Fields(command)
-	if len(tokens) == 0 {
-		return Result{Dangerous: true, Rule: "profile", Message: "empty command"}
-	}
 	for _, pattern := range profile.Allow {
 		if pattern == "*" {
 			return Result{Dangerous: false}
 		}
-		if matchPattern(pattern, tokens) {
-			return Result{Dangerous: false}
+	}
+	deny := func(what string) Result {
+		return Result{
+			Dangerous: true,
+			Rule:      "profile:" + profileName,
+			Message:   fmt.Sprintf("'%s' is not in profile '%s'", what, profileName),
 		}
 	}
-	return Result{
-		Dangerous: true,
-		Rule:      "profile:" + profileName,
-		Message:   fmt.Sprintf("'%s' is not in profile '%s'", command, profileName),
+	matched := false
+	for _, segment := range splitSegments(fdDupRedirect.ReplaceAllString(command, "")) {
+		if len(commandSubstitutionScripts(segment)) > 0 {
+			return deny(strings.TrimSpace(segment) + " (command substitution)")
+		}
+		words, ok := profileWords(shellFields(segment))
+		if !ok {
+			return deny(strings.TrimSpace(segment) + " (redirect into a file)")
+		}
+		if len(words) == 0 {
+			continue
+		}
+		if !profile.allows(words) {
+			return deny(strings.TrimSpace(segment))
+		}
+		matched = true
 	}
+	if !matched {
+		return Result{Dangerous: true, Rule: "profile", Message: "empty command"}
+	}
+	return Result{Dangerous: false}
+}
+
+func (p Profile) allows(words []string) bool {
+	for _, pattern := range p.Allow {
+		if matchPattern(pattern, words) {
+			return true
+		}
+	}
+	return false
+}
+
+// profileWords reduces a tokenized segment to the words an allow pattern is
+// matched against. Grouping braces and redirects to /dev/null are dropped; any
+// other output redirect makes the segment unmatchable (ok is false).
+func profileWords(tokens []token) (words []string, ok bool) {
+	for i := 0; i < len(tokens); i++ {
+		t := tokens[i]
+		if t.Quoted {
+			words = append(words, t.Value)
+			continue
+		}
+		switch {
+		case t.Value == "{" || t.Value == "}" || t.Value == "(" || t.Value == ")":
+			continue
+		case t.Value == ">" || t.Value == ">|" || isFDRedirect(t.Value):
+			if i+1 >= len(tokens) || tokens[i+1].Value != "/dev/null" {
+				return nil, false
+			}
+			i++
+			continue
+		}
+		words = append(words, t.Value)
+	}
+	return words, true
+}
+
+func isFDRedirect(value string) bool {
+	return len(value) > 1 && strings.HasSuffix(value, ">") && isDigits(value[:len(value)-1])
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -53,11 +54,12 @@ func newTransferSyncCommand() *cobra.Command {
 			sshCmd := rsyncSSHCommand(ssh)
 			rsyncArgs = append(rsyncArgs, "-e", sshCmd)
 
-			if direction == "push" {
-				rsyncArgs = append(rsyncArgs, source, sshTarget+":"+dest)
-			} else {
-				rsyncArgs = append(rsyncArgs, sshTarget+":"+source, dest)
+			operands, err := rsyncOperands(direction, source, dest, sshTarget)
+			if err != nil {
+				return writeInvalidArgs(cmd, err.Error(),
+					"rename the path, or use `assh transfer put`/`get`, which do not go through a remote shell")
 			}
+			rsyncArgs = append(rsyncArgs, operands...)
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
@@ -68,7 +70,7 @@ func newTransferSyncCommand() *cobra.Command {
 				if ctx.Err() != nil {
 					return writeError(cmd, "timeout", "rsync timed out", "")
 				}
-				return writeError(cmd, "sync_failed", string(output), "")
+				return writeError(cmd, "sync_failed", firstNonEmpty(strings.TrimSpace(string(output)), err.Error()), "")
 			}
 
 			writeAudit("transfer_sync", "", ssh.Host, ssh.User, "rsync "+direction, 0, countLines(output), 0)
@@ -94,6 +96,25 @@ func newTransferSyncCommand() *cobra.Command {
 	return cmd
 }
 
+// rsyncOperands returns the `-- SRC DST` tail of the rsync command line.
+func rsyncOperands(direction, source, dest, sshTarget string) ([]string, error) {
+	remotePath := dest
+	if direction == "pull" {
+		remotePath = source
+	}
+	// rsync hands the remote path to the remote shell, and whether it escapes
+	// it depends on the rsync version on both ends.
+	if strings.ContainsAny(remotePath, "$`;|&<>()'\"\\\n\r") {
+		return nil, errors.New("remote path contains shell metacharacters")
+	}
+	// `--` ends option parsing: a local path starting with `-` must not be
+	// read as an rsync option (e.g. --rsh=...).
+	if direction == "push" {
+		return []string{"--", source, sshTarget + ":" + dest}, nil
+	}
+	return []string{"--", sshTarget + ":" + source, dest}, nil
+}
+
 func rsyncSSHCommand(ssh sshOptions) string {
 	args := []string{"ssh", "-T"}
 	if ssh.Port != 0 && ssh.Port != 22 {
@@ -104,6 +125,9 @@ func rsyncSSHCommand(ssh sshOptions) string {
 	}
 	if ssh.Jump != "" {
 		args = append(args, "-J", ssh.Jump)
+	}
+	if ssh.Batch {
+		args = append(args, "-o", "BatchMode=yes")
 	}
 	if value := strictHostKeyCheckingRSYNC(ssh.HostKeyPolicy); value != "" {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)
@@ -132,6 +156,8 @@ func strictHostKeyCheckingRSYNC(policy string) string {
 		return "accept-new"
 	case "strict":
 		return "yes"
+	case "no-check":
+		return "no"
 	default:
 		return ""
 	}

@@ -21,6 +21,7 @@ func newScanCommand() *cobra.Command {
 	ssh.TimeoutSecond = 30
 	cmd := &cobra.Command{
 		Use:           "scan",
+		Aliases:       []string{"hosts"},
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          noPositionalArgs,
@@ -90,7 +91,8 @@ func newKeyDeployCommand() *cobra.Command {
 			})
 		},
 	}
-	bindSSHOptions(cmd, &ssh, sshOptionFlags{host: true, user: true, port: true, identity: true, jump: true})
+	bindSSHOptions(cmd, &ssh, sshOptionFlags{host: true, user: true, port: true,
+		identity: true, jump: true, noBatch: true})
 	cmd.Flags().StringVarP(&envName, "password-env", "E", "", "password environment variable")
 	return cmd
 }
@@ -224,6 +226,12 @@ func runSSHWithPassword(ctx context.Context, password string, command transport.
 	return nil
 }
 
+// sshAskpassEnv builds the environment for the password-deploy ssh process. It
+// deliberately forwards only a small allow-list of variables instead of
+// inheriting os.Environ(): the child process must not receive unrelated secrets
+// that happen to be exported in the caller's shell (cloud credentials, tokens).
+// SSH_ASKPASS_REQUIRE=force makes ssh consult the askpass helper even when a tty
+// is attached, and DISPLAY is required for ssh to consider askpass at all.
 func sshAskpassEnv(askpass string, display string) []string {
 	keys := []string{"PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TERM"}
 	env := make([]string, 0, len(keys)+3)

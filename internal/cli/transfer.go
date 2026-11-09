@@ -57,12 +57,17 @@ func newTransferLeafCommand(use string, direction transport.SCPDirection) *cobra
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			source := args[0]
+			destination := args[1]
+
+			resolveTransferEndpoints(&ssh, &source, &destination, direction)
+			if ssh.Host == "" {
+				return writeInvalidArgs(cmd, "host required", transferHostHint(use, direction))
+			}
 			if err := ssh.validate(true); err != nil {
 				return writeInvalidArgs(cmd, err.Error(), "")
 			}
 
-			source := args[0]
-			destination := args[1]
 			bytes, err := transferSizeBefore(direction, source)
 			if err != nil {
 				return writeInvalidArgs(cmd, err.Error(), "")
@@ -124,6 +129,72 @@ func newTransferLeafCommand(use string, direction transport.SCPDirection) *cobra
 	return cmd
 }
 
+// resolveTransferEndpoints accepts the scp form `[user@]host:path` on the remote
+// side when no explicit -H was given, so a command copied from an ssh/scp recipe
+// works without being rewritten into flags. The remote argument is reduced to
+// the bare path; the host and optional user move onto the SSH options.
+func resolveTransferEndpoints(ssh *sshOptions, source, destination *string, direction transport.SCPDirection) {
+	if ssh.Host != "" {
+		return
+	}
+	remoteArg := destination
+	if direction == transport.Download {
+		remoteArg = source
+	}
+	user, host, path, ok := parseRemoteSpec(*remoteArg)
+	if !ok {
+		return
+	}
+	ssh.Host = host
+	if user != "" {
+		ssh.User = user
+	}
+	*remoteArg = path
+}
+
+// transferHostHint names the working form for the direction that failed, so the
+// error can be copied verbatim instead of leaving the caller to guess.
+func transferHostHint(use string, direction transport.SCPDirection) string {
+	if direction == transport.Download {
+		return "pass -H HOST, or use the scp form: assh transfer " + use +
+			" user@host:/remote/path /local/path"
+	}
+	return "pass -H HOST, or use the scp form: assh transfer " + use +
+		" /local/path user@host:/remote/path"
+}
+
+// parseRemoteSpec splits an scp-style [user@]host:path argument. It reports
+// ok=false for anything that is plainly a local path, so the caller can fall
+// back to requiring -H.
+//
+// A colon only introduces the host when it appears before any slash: that keeps
+// local paths containing colons (and URLs) from being read as remote specs. A
+// single-letter "host" followed by a rooted path is a Windows drive letter, not
+// a host, so it is rejected too.
+func parseRemoteSpec(spec string) (user, host, path string, ok bool) {
+	colon := strings.Index(spec, ":")
+	if colon <= 0 {
+		return "", "", "", false
+	}
+	if strings.Contains(spec[:colon], "/") {
+		return "", "", "", false
+	}
+
+	hostPart := spec[:colon]
+	path = spec[colon+1:]
+	if at := strings.LastIndex(hostPart, "@"); at >= 0 {
+		user = hostPart[:at]
+		hostPart = hostPart[at+1:]
+	}
+	if hostPart == "" || path == "" {
+		return "", "", "", false
+	}
+	if len(hostPart) == 1 && (strings.HasPrefix(path, "/") || strings.HasPrefix(path, `\`)) {
+		return "", "", "", false
+	}
+	return user, hostPart, path, true
+}
+
 // remoteUploadParent returns the remote directory that must exist before an
 // scp upload to destination, and whether creating it is needed.
 func remoteUploadParent(destination string) (string, bool) {
@@ -182,6 +253,7 @@ func scpCommandFromSSHOptions(ssh sshOptions) transport.SCPCommand {
 		Jump:          ssh.Jump,
 		TimeoutSecond: ssh.TimeoutSecond,
 		HostKeyPolicy: ssh.HostKeyPolicy,
+		Batch:         ssh.Batch,
 	}
 }
 

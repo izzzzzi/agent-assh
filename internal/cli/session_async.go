@@ -46,28 +46,34 @@ func newSessionExecAsyncCommand() *cobra.Command {
 					"command looks destructive; exec-async does not support --confirm-danger for safety reasons",
 					result.Message)
 			}
+			if err := rejectByProfile(cmd, entry.Profile, userCommand); err != nil {
+				return err
+			}
 
 			jobID, err := ids.New()
 			if err != nil {
 				return writeError(cmd, "internal_error", err.Error(), "")
 			}
 			jobName := "assh_job_" + jobID
-			userCommand = remoteCommand(args)
 
-			entry.Seq++
-			remoteCommand := execAsyncRemoteCommand(entry.TmuxName, jobName, entry.Seq, userCommand, timeout)
+			entry, err = session.NextSeq(stateBaseDir(), sid)
+			if err != nil {
+				return writeError(cmd, "internal_error", err.Error(), "")
+			}
+			remoteCommand := execAsyncRemoteCommand(sid, entry.TmuxName, jobName, userCommand)
 			localTimeout := time.Duration(timeout+10) * time.Second
 			ctx, cancel := context.WithTimeout(cmd.Context(), localTimeout)
 			defer cancel()
 
-			if err := session.SaveRegistry(stateBaseDir(), entry); err != nil {
-				return writeError(cmd, "internal_error", err.Error(), "")
-			}
-
 			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity,
 				firstNonEmpty(ssh.Jump, entry.Jump), timeout+10, entry.HostKeyPolicy, entry.ForcePTY), remoteCommand)
 			if code := lifecycleResultErrorCode(ctx.Err(), result); code != "" {
-				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
+				if code == "timeout" {
+					return writeError(cmd, "timeout", sshResultErrorMessage(ctx.Err(), result),
+						"async launch timed out; do not assume the job started; inspect `assh session job-status` "+
+							"only if a job id was returned")
+				}
+				return registeredSessionLifecycleError(cmd, entry, code, sshResultErrorMessage(ctx.Err(), result))
 			}
 
 			return writeJSON(cmd, map[string]any{
@@ -94,6 +100,7 @@ func newSessionJobStatusCommand() *cobra.Command {
 	var jobID string
 	var lines int
 	var raw bool
+	var noRedact bool
 	ssh := defaultSSHOptions()
 
 	cmd := &cobra.Command{
@@ -125,7 +132,7 @@ func newSessionJobStatusCommand() *cobra.Command {
 			}
 
 			jobName := "assh_job_" + jobID
-			remoteCommand := jobStatusRemoteCommand(jobName, lines)
+			remoteCommand := jobStatusRemoteCommand(sid, jobName, lines)
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
 			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump,
@@ -134,22 +141,28 @@ func newSessionJobStatusCommand() *cobra.Command {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
+			job := parseJobState(result.Stdout)
+			output, redactionCount := applyReadRedaction(job.output, noRedact)
 			if raw {
-				_, _ = cmd.OutOrStdout().Write(result.Stdout)
+				_, _ = cmd.OutOrStdout().Write([]byte(output))
 				return nil
 			}
 
-			alive := !containsStr(string(result.Stdout), "__JOB_NOT_FOUND__")
-			completed := containsStr(string(result.Stdout), "__JOB_COMPLETE__")
-
-			return writeJSON(cmd, map[string]any{
-				"ok":        true,
-				"sid":       sid,
-				"job_id":    jobID,
-				"alive":     alive,
-				"completed": completed,
-				"output":    string(result.Stdout),
-			})
+			payload := map[string]any{
+				"ok":              true,
+				"sid":             sid,
+				"job_id":          jobID,
+				"status":          job.status,
+				"alive":           job.status == "running",
+				"completed":       job.status == "completed",
+				"output":          output,
+				"redacted":        redactionCount > 0,
+				"redaction_count": redactionCount,
+			}
+			if job.status == "completed" {
+				payload["rc"] = job.rc
+			}
+			return writeJSON(cmd, payload)
 		},
 	}
 
@@ -157,6 +170,7 @@ func newSessionJobStatusCommand() *cobra.Command {
 	cmd.Flags().StringVar(&jobID, "job-id", "", "job id")
 	cmd.Flags().IntVarP(&lines, "lines", "n", 50, "output lines to return")
 	cmd.Flags().BoolVar(&raw, "raw", false, "print only content without JSON")
+	cmd.Flags().BoolVar(&noRedact, "no-redact", false, "disable best-effort secret redaction in served output")
 	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
 }
@@ -190,9 +204,7 @@ func newSessionJobCancelCommand() *cobra.Command {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 
-			jobName := "assh_job_" + jobID
-			remoteCommand := "tmux kill-window -t " + remote.SingleQuote(jobName) +
-				" 2>/dev/null && echo '{\"ok\":true}' || echo '{\"ok\":false,\"error\":\"job not found\"}'"
+			remoteCommand := jobCancelRemoteCommand(sid, entry.TmuxName, "assh_job_"+jobID)
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
 			result := runSSH(ctx, sessionSSH(entry.Host, entry.User, entry.Port, entry.Identity, ssh.Jump,
@@ -201,10 +213,16 @@ func newSessionJobCancelCommand() *cobra.Command {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
+			job := parseJobState(result.Stdout)
+			if job.status == "not_found" {
+				return writeError(cmd, "job_not_found", "no such job in session "+sid,
+					"use the job_id returned by `assh session exec-async`")
+			}
 			return writeJSON(cmd, map[string]any{
 				"ok":     true,
 				"sid":    sid,
 				"job_id": jobID,
+				"status": job.status,
 			})
 		},
 	}
@@ -215,59 +233,89 @@ func newSessionJobCancelCommand() *cobra.Command {
 	return cmd
 }
 
-func execAsyncRemoteCommand(tmuxName, jobName string, seq int, command string, waitSeconds int) string {
-	sessionDir := "~/.assh/sessions"
-	jobDir := sessionDir + "/jobs/" + jobName
-	outFile := jobDir + "/output.log"
-	rcFile := jobDir + "/rc"
-	scriptFile := jobDir + "/cmd.sh"
+// jobDir keeps a job's files inside its session directory, so closing or
+// collecting the session removes them along with everything else.
+func jobDir(sid, jobName string) string {
+	return "~/.assh/sessions/" + sid + "/jobs/" + jobName
+}
+
+const jobStateMarker = "__ASSH_JOB_STATE__="
+
+func execAsyncRemoteCommand(sid, tmuxName, jobName, command string) string {
+	dir := jobDir(sid, jobName)
+	outFile := dir + "/output.log"
+	rcFile := dir + "/rc"
+	scriptFile := dir + "/cmd.sh"
 	return strings.Join([]string{
-		"mkdir -p " + jobDir,
+		"mkdir -p " + dir + "/",
 		"printf '%s\\n' " + remote.SingleQuote(command) + " > " + scriptFile,
 		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) + " -n " + remote.SingleQuote(jobName) +
 			" sh -c 'if command -v bash >/dev/null 2>&1; then bash " + scriptFile + "; else sh " + scriptFile +
-			"; fi > " + outFile + " 2>&1; echo $? > " + rcFile +
-			"; echo __JOB_COMPLETE__ >> " + outFile + "'",
+			"; fi > " + outFile + " 2>&1; echo $? > " + rcFile + "'",
 	}, " && ")
 }
 
-func jobStatusRemoteCommand(jobName string, lines int) string {
-	jobDir := "~/.assh/sessions/jobs/" + jobName
-	outFile := jobDir + "/output.log"
-	rcFile := jobDir + "/rc"
-	return "test -f " + outFile + " || { echo __JOB_NOT_FOUND__; exit 0; }; " +
-		"tail -n " + strconv.Itoa(lines) + " " + outFile + " 2>/dev/null; " +
-		"test -f " + rcFile + " && printf '\\n__RC__=%s\\n' \"$(cat " + rcFile + ")\" || true"
+// jobStateSnippet prints the job state as the last line of stdout. A cancelled
+// marker wins over rc: the killed runner may still get to write its exit status.
+func jobStateSnippet(dir string) string {
+	return "if test -f " + dir + "/cancelled; then s=cancelled; " +
+		"elif test -s " + dir + "/rc; then s=\"rc:$(cat " + dir + "/rc)\"; else s=running; fi; " +
+		"printf '\\n" + jobStateMarker + "%s\\n' \"$s\""
 }
 
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && searchStr(s, substr)
+func jobStatusRemoteCommand(sid, jobName string, lines int) string {
+	dir := jobDir(sid, jobName)
+	return "test -f " + dir + "/cmd.sh || { echo " + jobStateMarker + "not_found; exit 0; }; " +
+		"tail -n " + strconv.Itoa(lines) + " " + dir + "/output.log 2>/dev/null; " +
+		jobStateSnippet(dir)
 }
 
-func searchStr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+func jobCancelRemoteCommand(sid, tmuxName, jobName string) string {
+	dir := jobDir(sid, jobName)
+	return "test -f " + dir + "/cmd.sh || { echo " + jobStateMarker + "not_found; exit 0; }; " +
+		"test -s " + dir + "/rc || { tmux kill-window -t " + remote.SingleQuote(tmuxName+":"+jobName) +
+		" 2>/dev/null; : > " + dir + "/cancelled; }; " +
+		jobStateSnippet(dir)
+}
+
+type jobState struct {
+	status string // running | completed | cancelled | not_found
+	rc     int
+	output string
+}
+
+// parseJobState splits job-status stdout into the job output and the state
+// line appended by jobStateSnippet.
+func parseJobState(stdout []byte) jobState {
+	text := string(stdout)
+	idx := strings.LastIndex(text, jobStateMarker)
+	if idx < 0 {
+		return jobState{status: "running", output: text}
 	}
-	return false
+	state := strings.TrimSpace(text[idx+len(jobStateMarker):])
+	job := jobState{status: state, output: strings.TrimSuffix(text[:idx], "\n")}
+	if value, ok := strings.CutPrefix(state, "rc:"); ok {
+		job.status = "completed"
+		job.rc, _ = strconv.Atoi(strings.TrimSpace(value))
+	}
+	return job
 }
 
 // execSyncRemoteCommandPTY runs a command synchronously using temp script + tmux new-window.
 // Used instead of ExecRemoteCommand when ForcePTY is active (PTY-gated hosts like RunPod).
-// Outputs __ASSH_RC__ and __ASSH_STDOUT_LINES__ markers for parseSessionExec.
+// The runner merges stderr into stdout, so the stderr stream is always empty.
 func execSyncRemoteCommandPTY(sid, tmuxName string, seq int, command string, waitSeconds int) string {
-	sessionDir := "~/.assh/sessions"
-	jobDir := sessionDir + "/jobs/exec_" + sid + "_" + strconv.Itoa(seq)
-	outFile := jobDir + "/output.log"
-	rcFile := jobDir + "/rc"
-	scriptFile := jobDir + "/cmd.sh"
-	sessionOut := sessionDir + "/" + sid + "/" + strconv.Itoa(seq) + ".out"
-	sessionErr := sessionDir + "/" + sid + "/" + strconv.Itoa(seq) + ".err"
-	sessionRC := sessionDir + "/" + sid + "/" + strconv.Itoa(seq) + ".rc"
+	sessionDir := "~/.assh/sessions/" + sid
+	dir := jobDir(sid, "exec_"+strconv.Itoa(seq))
+	outFile := dir + "/output.log"
+	rcFile := dir + "/rc"
+	scriptFile := dir + "/cmd.sh"
+	sessionOut := sessionDir + "/" + strconv.Itoa(seq) + ".out"
+	sessionErr := sessionDir + "/" + strconv.Itoa(seq) + ".err"
+	sessionRC := sessionDir + "/" + strconv.Itoa(seq) + ".rc"
 	lineCount := "awk 'END{print NR}'"
 	return strings.Join([]string{
-		"mkdir -p " + jobDir,
+		"mkdir -p " + dir + "/",
 		"printf '%s\\n' " + remote.SingleQuote(command) + " > " + scriptFile,
 		"rm -f " + rcFile,
 		"tmux new-window -d -t " + remote.SingleQuote(tmuxName) +
@@ -275,10 +323,9 @@ func execSyncRemoteCommandPTY(sid, tmuxName string, seq int, command string, wai
 			scriptFile + "; else sh " + scriptFile + "; fi > " + outFile + " 2>&1; echo $? > " + rcFile + "'",
 		"i=0; while [ $i -lt " + strconv.Itoa(waitSeconds) + " ] && [ ! -f " + rcFile + " ]; do i=$((i+1)); sleep 1; done",
 		"test -f " + rcFile + " || { echo __ASSH_TIMEOUT__; exit 124; }",
+		"cp " + outFile + " " + sessionOut + " && : > " + sessionErr + " && cp " + rcFile + " " + sessionRC,
 		"printf '__ASSH_RC__=%s\\n' \"$(cat " + rcFile + ")\"",
 		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(" + lineCount + " " + outFile + ")\"",
-		"mkdir -p " + sessionDir + "/" + sid,
-		"cp " + outFile + " " + sessionOut + " 2>/dev/null; cp " + scriptFile + " " + sessionErr +
-			" 2>/dev/null; cp " + rcFile + " " + sessionRC + " 2>/dev/null; true",
+		"printf '__ASSH_STDERR_LINES__=0\\n'",
 	}, " && ")
 }

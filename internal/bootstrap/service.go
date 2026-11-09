@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -47,6 +48,7 @@ type Request struct {
 	GCOlderThan     time.Duration
 	SkipGC          bool
 	SkipTmuxInstall bool
+	Reuse           bool
 	StateDir        string
 	ForcePTY        bool
 }
@@ -61,6 +63,7 @@ type Result struct {
 	TmuxInstalled bool              `json:"tmux_installed"`
 	GCDeleted     []string          `json:"gc_deleted"`
 	GCErrors      []GCError         `json:"gc_errors,omitempty"`
+	Reused        bool              `json:"reused,omitempty"`
 	SID           string            `json:"sid"`
 	Session       string            `json:"session"`
 	TmuxName      string            `json:"tmux_name"`
@@ -175,7 +178,109 @@ func (s Service) Run(ctx context.Context, req Request) (Result, error) {
 		}
 	}
 
+	// Reuse runs after authentication so a stale or wrong credential is reported
+	// the same way it always was, and only a proven-good login can hand back an
+	// existing session. It runs before the probe so a reused session skips the
+	// tmux install check and the GC sweep entirely — the session is already
+	// alive, which is stronger evidence than the probe would produce.
+	if req.Reuse {
+		if entry, ok := s.reuseSession(ctx, req, target); ok {
+			return Result{
+				OK:           true,
+				Host:         entry.Host,
+				User:         entry.User,
+				Identity:     entry.Identity,
+				KeyVerified:  true,
+				Reused:       true,
+				SID:          entry.SID,
+				Session:      entry.Label,
+				TmuxName:     entry.TmuxName,
+				NextCommands: nextCommands(entry.SID),
+			}, nil
+		}
+	}
+
 	return s.finishAfterAuth(ctx, req, target, keyDeployed)
+}
+
+// reuseSession looks for an already-open session for the same target so
+// `connect --reuse` can return an existing sid instead of opening a second tmux
+// session on the same host.
+//
+// Every candidate is confirmed with a live `tmux has-session` over SSH before it
+// is returned. Returning a sid that no longer works would be worse than not
+// reusing at all: the caller would issue `session exec` against a dead session
+// and land in exactly the session_unreachable path this flag exists to avoid.
+// Candidates are probed newest-first and the first live one wins, so a healthy
+// recent session is not rejected because an older dead entry sorts first.
+func (s Service) reuseSession(ctx context.Context, req Request, target SSHTarget) (session.RegistryEntry, bool) {
+	entries, err := session.ListRegistry(req.StateDir)
+	if err != nil {
+		return session.RegistryEntry{}, false
+	}
+
+	now := time.Now().UTC()
+	candidates := make([]session.RegistryEntry, 0, len(entries))
+	for _, entry := range entries {
+		if !reusableTarget(entry, req) {
+			continue
+		}
+		if (session.Metadata{CreatedAt: entry.CreatedAt, TTLSeconds: entry.TTLSeconds}).Expired(now) {
+			continue
+		}
+		candidates = append(candidates, entry)
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].CreatedAt.After(candidates[j].CreatedAt)
+	})
+
+	for _, entry := range candidates {
+		command, err := session.AliveRemoteCommand(entry.SID, entry.TmuxName)
+		if err != nil {
+			continue
+		}
+		probeTarget := target
+		probeTarget.Identity = entry.Identity
+		probeTarget.Jump = entry.Jump
+		probeTarget.HostKeyPolicy = entry.HostKeyPolicy
+		probeTarget.ForcePTY = entry.ForcePTY
+		if code := sshErrorCode(ctx.Err(), s.RunSSH(ctx, probeTarget, command)); code != "" {
+			continue
+		}
+		return entry, true
+	}
+	return session.RegistryEntry{}, false
+}
+
+// reusableTarget reports whether a registry entry points at the same target the
+// caller asked for. Identity is compared only when both sides carry one: an
+// empty identity means "whatever ssh defaults to", so treating it as a distinct
+// credential would refuse to reuse a session that a later command would happily
+// drive, since every session command re-reads connection details from the
+// registry rather than from the current invocation.
+func reusableTarget(entry session.RegistryEntry, req Request) bool {
+	if entry.Host != req.Host || entry.User != req.User || entry.Port != req.Port {
+		return false
+	}
+	if entry.Identity != "" && req.Identity != "" && entry.Identity != req.Identity {
+		return false
+	}
+	// A session keeps the profile it was opened with, so handing back one with a
+	// different profile would silently widen or narrow what the caller asked for.
+	return entry.Profile == req.Profile
+}
+
+// nextCommands builds the per-session command templates returned to agents.
+// This map is the agent hot path, so it stays limited to the session lifecycle:
+// exec, read, list, close. Operator-facing commands (gc, audit) are deliberately
+// excluded — see FEATURE_PLAN.md.
+func nextCommands(sid string) map[string]string {
+	return map[string]string{
+		"exec":  `assh session exec -s ` + sid + ` -- pwd`,
+		"read":  "assh session read -s " + sid + " --seq 1 --limit 50",
+		"list":  "assh session list",
+		"close": "assh session close -s " + sid,
+	}
 }
 
 func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTarget, keyDeployed bool) (Result, error) {
@@ -233,11 +338,7 @@ func (s Service) finishAfterAuth(ctx context.Context, req Request, target SSHTar
 		SID:           sid,
 		Session:       req.SessionName,
 		TmuxName:      metadata.TmuxName,
-		NextCommands: map[string]string{
-			"exec":  `assh session exec -s ` + sid + ` -- pwd`,
-			"read":  "assh session read -s " + sid + " --seq 1 --limit 50",
-			"close": "assh session close -s " + sid,
-		},
+		NextCommands:  nextCommands(sid),
 	}, nil
 }
 

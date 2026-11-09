@@ -1,109 +1,93 @@
-# assh Session — Persistent tmux Workflow
+# assh session
 
-After `connect` returns a `sid`, use these commands.
-
-## Exec — Run a Command
+## exec
 
 ```bash
-assh session exec -s f7a2b3c4 -- "pwd"
-# {"ok":true,"rc":0,"seq":1,"stdout_lines":1,"stderr_lines":0,"sid":"f7a2b3c4","session":"deploy"}
+assh session exec -s SID -- "pwd"
+# {"ok":true,"rc":0,"seq":1,"stdout_lines":1,"stderr_lines":0,"sid":"SID","session":"deploy"}
 ```
 
-## Read — Get Output
+| Flag | Use |
+| --- | --- |
+| `-t SECONDS` | how long to wait for the command (default 300) |
+| `--stdin` | forward piped stdin (4 MiB max) |
+| `--before CMD`, `--after CMD` | run around the main command in the same shell |
+| `--confirm-danger` | run a command the safety classifier blocked, after the user agreed |
 
-Always use `--limit` to keep output small:
+The command runs in the session's tmux shell, so `cd`, `export` and shell
+functions persist. Commands run strictly one after another.
+
+## read
 
 ```bash
-assh session read -s f7a2b3c4 --seq 1 --limit 50
-assh session read -s f7a2b3c4 --seq 1 --stream stderr --limit 50
+assh session read -s SID --seq 1                         # stdout, lines 1-50
+assh session read -s SID --seq 1 --offset 50 --limit 100 # lines 51-150
+assh session read -s SID --seq 1 --stream stderr
+assh session read -s SID --seq 1 --raw                   # content only
 ```
 
-Use `--raw` only for piping or exact output.
+JSON form: `content`, `total_lines`, `has_more`, `offset`, `limit`, `redacted`,
+`redaction_count`. Use JSON when you need `has_more`; use `--raw` when you just
+want the text.
 
-Stale sessions: `expired=false` is TTL-only, not proof the SSH/tmux channel is alive. If `session_unreachable` or `session_stale` appears, stop retrying that SID and reconnect with explicit auth: `-i KEY`, `-E PASSWORD_ENV`, or `--ssh-config ALIAS`.
+`seq` counts attempts. It is allocated before the command runs, so a timed-out
+or failed exec still owns its number and reading a number that produced nothing
+returns `output_not_found`.
 
-## Timeout for long commands
+## Timeouts
+
+A `timeout` error means assh stopped waiting. The command keeps running in the
+shell and blocks the commands after it. Read its `seq` later, or cancel it
+yourself (`assh session ps`, `assh session kill`). For work longer than the
+wait, start it as a job.
+
+## Jobs
 
 ```bash
-assh session exec -s f7a2b3c4 --timeout 600 -- "git pull"
+assh session exec-async -s SID -- "make build"
+# {"ok":true,"job_id":"JOB","status_cmd":"...","cancel_cmd":"..."}
+assh session job-status -s SID --job-id JOB -n 50
+# {"ok":true,"status":"completed","rc":0,"output":"...last 50 lines...","redacted":false}
+assh session job-status -s SID --job-id JOB --raw
+assh session job-cancel -s SID --job-id JOB
 ```
 
-## Pre/post hooks
+`status` is `running`, `completed` (then `rc` is present), `cancelled` or
+`not_found`. `output` is the tail of the job's combined stdout and stderr; `-n`
+sets how many lines. A job runs in its own tmux window under `bash` (`sh` if
+bash is absent): it does not share `cd` or variables with `session exec`.
+`exec-async` has no `--confirm-danger` and no `--stdin`.
+
+## Processes
 
 ```bash
-assh session exec -s f7a2b3c4 --before "git stash" --after "git stash pop" -- "deploy.sh"
+assh session ps -s SID --top 20
+assh session ps -s SID --filter nginx
+assh session kill -s SID --pid 1234 --signal KILL
 ```
 
-## Close
+## Lifecycle
 
 ```bash
-assh session close -s f7a2b3c4
+assh session list                           # sid, host, seq, expired
+assh session close -s SID                   # kills tmux, removes remote files
+assh session gc --older-than 24h --execute  # without --execute it only lists
 ```
 
-## One-Off Commands (no tmux)
-
-```bash
-assh exec -H HOST -u root -i KEY --force-pty -- "curl -s localhost:8188"
-# {"ok":true,"output_id":"ABC123","stdout_lines":3,"stderr_lines":0}
-assh read --id ABC123 --limit 50 --raw
-```
-
-## Background Jobs
-
-```bash
-assh session exec-async -s f7a2b3c4 -- "make build"
-# Returns job_id
-assh session job-status -s f7a2b3c4 --job-id JOB_ID
-assh session job-status -s f7a2b3c4 --job-id JOB_ID --raw
-```
-Jobs run under `bash` when the remote has it (falls back to `sh`), so
-bash-isms like `source ~/.bashrc && ...` work in job commands.
-assh session job-cancel -s f7a2b3c4 --job-id JOB_ID
-```
-
-## Process Management
-
-```bash
-assh session ps -s f7a2b3c4 --top 20
-assh session ps -s f7a2b3c4 --filter nginx
-assh session kill -s f7a2b3c4 --pid 1234
-assh session kill -s f7a2b3c4 --pid 1234 --signal KILL
-```
-
-## Session Cleanup
-
-```bash
-assh session gc --older-than 24h --execute
-```
-
-## Context Discipline — Token Economy
-
-**First, check metadata (always fits in context):**
-
-```bash
-assh session exec -s SID -- "command"
-# Returns {"stdout_lines":N,"stderr_lines":M} — tiny JSON
-```
-
-**Then read only what you need:**
-
-| Goal | Use | Why |
-|------|-----|-----|
-| View output | `session read --limit N --raw` | Clean text, no `\n`, bounded tokens |
-| Parse JSON | `session read --limit N` | Has `has_more`, `total_lines` |
-| Large output | `--limit N` | Only N lines into context |
-| Stderr only | `--stream stderr` | Skip stdout |
-
-**Rule:**
-- `exec` → always JSON (metadata, few tokens)
-- `read --limit N --raw` → for reading output (human or agent)
-- `read --limit N` (no `--raw`) → only when pagination needed (`has_more`, `total_lines`)
-- `audit --savings` → shows lines withheld from context
+`expired:false` in `session list` reflects the TTL only. A session can still be
+dead on the server; then exec returns `session_unreachable` or `session_stale`
+and you reconnect.
 
 ## Errors
 
 | Error | Meaning | Fix |
-|-------|---------|-----|
-| `session_not_found` | sid invalid or expired | Reconnect |
-| `dangerous_command_requires_confirmation` | Destructive command blocked | Ask user before `--confirm-danger` |
-| Non-zero `rc` | Remote command failed | Check stderr for the actual error |
+| --- | --- | --- |
+| `session_not_found` | unknown or closed sid | reconnect |
+| `session_unreachable`, `session_stale` | tmux session or host is gone | reconnect, stop retrying the sid |
+| `timeout` | wait window exceeded | command still runs; see Timeouts |
+| `command_status_unknown` | exec ended without a result | read the `seq` named in the hint before retrying |
+| `stdin_pipe_unsupported` | input was piped without `--stdin` | add `--stdin` or upload with `transfer put` |
+| `stdin_too_large` | more than 4 MiB piped | upload with `transfer put` |
+| `job_not_found` | wrong `job_id` for this session | use the id `exec-async` returned |
+| `dangerous_command_requires_confirmation` | destructive pattern | ask the user, then `--confirm-danger` |
+| `command_not_allowed` | blocked by the session profile | report it |

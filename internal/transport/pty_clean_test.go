@@ -89,6 +89,13 @@ func TestCleanPTYOutput_commandEchoStripped(t *testing.T) {
 		{"exact echo", "ls -la /tmp\nfile1\nfile2", "ls -la /tmp", "file1\nfile2"},
 		{"prefixed with $", "$ ls -la /tmp\nfile1", "ls -la /tmp", "file1"},
 		{"exit line", "command\nexit\noutput", "command", "output"},
+		{"login banner and continuation prompt",
+			"Last login: Mon Nov  9 21:04:57 2026 from 10.0.0.1\n> \nhello\nworld", "", "hello\nworld"},
+		{"wrapped command echo", "root@pod:~# { id\n> }; exit\nuid=0(root)\nlogout", "{ id", "uid=0(root)"},
+		{"prompt before echo", "root@pod:~# id\nuid=0(root) gid=0(root)", "id", "uid=0(root) gid=0(root)"},
+		{"output containing a fragment of a short command", "id\nuid=0(root) gid=0(root)", "id", "uid=0(root) gid=0(root)"},
+		{"output containing a fragment of a long command",
+			"docker ps\ndocker.io/library/nginx", "docker ps", "docker.io/library/nginx"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

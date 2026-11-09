@@ -107,11 +107,39 @@ func ExecRemoteCommand(sid, tmuxName string, seq int, command string, waitSecond
 		"|| { echo session_not_found >&2; exit 3; }; " +
 		"tmux send-keys -t " + remote.SingleQuote(tmuxName) + " " + remote.SingleQuote(wrapped) + " Enter " +
 		"|| { echo tmux_send_failed >&2; exit 3; }; " +
+		quickPollSnippet(rc) +
 		"i=0; while [ $i -lt " + waitText + " ] && [ ! -f " + rc + " ]; do i=$((i+1)); sleep 1; done; " +
 		"test -f " + rc + " || { echo __ASSH_TIMEOUT__; exit 124; }; " +
 		"printf '__ASSH_RC__=%s\\n' \"$(cat " + rc + ")\"; " +
 		"printf '__ASSH_STDOUT_LINES__=%s\\n' \"$(" + lineCount + " " + out + ")\"; " +
 		"printf '__ASSH_STDERR_LINES__=%s\\n' \"$(" + lineCount + " " + errPath + ")\"", nil
+}
+
+// quickPollSnippet checks for the rc file twice within the first half second,
+// so a command that finishes at once does not pay the 1s tick of the main wait
+// loop. Fractional sleep is not POSIX; where it is unsupported the error is
+// discarded and the main loop takes over unchanged.
+func quickPollSnippet(rc string) string {
+	return "sleep 0.15 2>/dev/null; test -f " + rc + " || sleep 0.35 2>/dev/null; "
+}
+
+// AliveRemoteCommand reports whether the tmux session backing sid is still
+// running. `connect --reuse` uses it to decide whether a registered session can
+// be handed back instead of opening a second one.
+//
+// A missing tmux binary and a missing session are both failures here but must
+// stay distinguishable: the caller treats "tmux is gone" as a reason to
+// re-bootstrap, while "session is gone" is the ordinary case of a session that
+// already exited. Exit 127 mirrors the tmux_missing convention used elsewhere in
+// this package; exit 3 mirrors ExecRemoteCommand's session_not_found.
+func AliveRemoteCommand(sid, tmuxName string) (string, error) {
+	if err := validateSessionTarget(sid, tmuxName); err != nil {
+		return "", err
+	}
+	return "command -v tmux >/dev/null 2>&1 || { echo tmux_missing >&2; exit 127; }; " +
+		"tmux has-session -t " + remote.SingleQuote(tmuxName) + " 2>/dev/null " +
+		"|| { echo session_not_found >&2; exit 3; }; " +
+		"echo assh_session_alive", nil
 }
 
 // buildSessionExecWrap assembles the remote shell snippet that runs the user
@@ -264,6 +292,62 @@ func LoadRegistry(baseDir, sid string) (RegistryEntry, error) {
 		return RegistryEntry{}, errors.New("invalid registry entry")
 	}
 	return entry, nil
+}
+
+// NextSeq allocates the next command sequence number for a session and persists
+// it. Load, increment and save run under a lock file, so two `session exec`
+// processes started at once cannot be handed the same number and overwrite each
+// other's remote output files.
+func NextSeq(baseDir, sid string) (RegistryEntry, error) {
+	if !remote.SafeSID(sid) {
+		return RegistryEntry{}, errors.New("invalid session id")
+	}
+	unlock, err := lockRegistry(filepath.Join(baseDir, "sessions", sid+".json.lock"))
+	if err != nil {
+		return RegistryEntry{}, err
+	}
+	defer unlock()
+	entry, err := LoadRegistry(baseDir, sid)
+	if err != nil {
+		return RegistryEntry{}, err
+	}
+	entry.Seq++
+	if err := SaveRegistry(baseDir, entry); err != nil {
+		return RegistryEntry{}, err
+	}
+	return entry, nil
+}
+
+const (
+	registryLockWait  = 5 * time.Second
+	registryLockStale = 30 * time.Second
+)
+
+// lockRegistry takes an exclusive lock by creating path with O_EXCL, which is
+// atomic on every platform assh ships for. The holder keeps it for one registry
+// read-modify-write, i.e. microseconds.
+// shortcut: a lock file older than registryLockStale is treated as abandoned by
+// a crashed process and removed; switch to flock if a holder ever needs longer.
+func lockRegistry(path string) (func(), error) {
+	deadline := time.Now().Add(registryLockWait)
+	for {
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			_ = file.Close()
+			return func() { _ = os.Remove(path) }, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return nil, err
+		}
+		if info, statErr := os.Stat(path); statErr == nil && time.Since(info.ModTime()) > registryLockStale {
+			_ = os.Remove(path)
+			continue
+		}
+		if time.Now().After(deadline) {
+			return nil, errors.New("session registry is locked by another assh process")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func DeleteRegistry(baseDir, sid string) error {

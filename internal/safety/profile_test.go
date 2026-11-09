@@ -89,3 +89,44 @@ func TestMatchWildcardArgs(t *testing.T) {
 		t.Error("expected blocked for docker restart")
 	}
 }
+
+func TestMatchProfileCompoundCommands(t *testing.T) {
+	p := &Profiles{
+		Profile: map[string]Profile{
+			"readonly": {Allow: []string{"journalctl *", "cat *", "grep *", "df -h", "ls *"}},
+		},
+	}
+	tests := []struct {
+		cmd  string
+		want bool // whether the command must be blocked
+	}{
+		{"cat /etc/hostname; touch /tmp/x", true},
+		{"cat /etc/hostname && reboot", true},
+		{"cat /etc/hostname\nreboot", true},
+		{"cat /etc/hostname | sh", true},
+		{"cat /etc/hostname & reboot", true},
+		{"cat $(touch /tmp/x)", true},
+		{"cat \"$(touch /tmp/x)\"", true},
+		{"cat `touch /tmp/x`", true},
+		{"cat /etc/hostname > /etc/motd", true},
+		{"cat /etc/hostname >> /tmp/x", true},
+		{"grep 'a\\'; touch /tmp/x; echo ''", true},
+		{"cat <(touch /tmp/x)", true},
+		{"grep 'a\\' /var/log/syslog", false},
+		{"grep '<(x)' /var/log/syslog", false},
+		{"cat /var/log/syslog | grep error", false},
+		{"journalctl -u nginx 2>&1", false},
+		{"df -h 2>/dev/null", false},
+		{"ls -la /var/log >/dev/null 2>&1", false},
+		{"grep 'a; b' /var/log/syslog", false},
+		{"grep '$(x)' /var/log/syslog", false},
+		{"{ cat /etc/hostname; ls /tmp; }", false},
+		{"{ touch /tmp/x; cat /etc/hostname; }", true},
+	}
+	for _, tc := range tests {
+		r := p.Match("readonly", tc.cmd)
+		if r.Dangerous != tc.want {
+			t.Errorf("Match(readonly, %q): got blocked=%v, want %v (msg: %s)", tc.cmd, r.Dangerous, tc.want, r.Message)
+		}
+	}
+}

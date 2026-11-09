@@ -44,12 +44,15 @@ func CleanPTYOutput(raw []byte, sentCommand string) []byte {
 			if trimmed == cmdLine || trimmed == "$ "+cmdLine {
 				continue
 			}
-			// Strip partial command echoes (terminal width truncation)
-			if len(trimmed) > len(cmdLine)/2 && strings.Contains(trimmed, cmdLine[:len(cmdLine)/2]) {
+			// Strip a prompt followed by the echoed command ("root@host:~# cmd").
+			// Matching on a fragment of the command instead would delete real
+			// output lines that merely contain it.
+			if prompt, ok := strings.CutSuffix(trimmed, cmdLine); ok && endsWithPrompt(prompt) {
 				continue
 			}
-			// Strip "exit" echo from the forced exit command
-			if trimmed == "exit" || trimmed == "$ exit" {
+			// Strip the echo of the exit that closes the shell, and its goodbye
+			if trimmed == "exit" || trimmed == "$ exit" || trimmed == "logout" ||
+				strings.HasSuffix(trimmed, "}; exit") {
 				continue
 			}
 			// Strip empty shell prompts (just "$" or "#" on a line)
@@ -65,6 +68,12 @@ func CleanPTYOutput(raw []byte, sentCommand string) []byte {
 	s = regexp.MustCompile(`(?m)^-- RUNPOD\.IO --$`).ReplaceAllString(s, "")
 	s = regexp.MustCompile(`(?m)^Enjoy your Pod #[a-zA-Z0-9]+ \^_\^$`).ReplaceAllString(s, "")
 
+	// Step 5b: strip the login banner line and bare continuation prompts. The
+	// command is sent as a `{ ...` group, so the shell prints "> " before its
+	// closing line.
+	s = regexp.MustCompile(`(?m)^Last login: .*$`).ReplaceAllString(s, "")
+	s = regexp.MustCompile(`(?m)^> ?$`).ReplaceAllString(s, "")
+
 	// Step 6: strip "Connection to ... closed" messages
 	s = regexp.MustCompile(`(?m)^Connection to .+ closed\.?$`).ReplaceAllString(s, "")
 
@@ -78,4 +87,9 @@ func CleanPTYOutput(raw []byte, sentCommand string) []byte {
 		return nil
 	}
 	return []byte(s)
+}
+
+func endsWithPrompt(s string) bool {
+	s = strings.TrimRight(s, " ")
+	return strings.HasSuffix(s, "$") || strings.HasSuffix(s, "#") || strings.HasSuffix(s, ">") || strings.HasSuffix(s, "%")
 }

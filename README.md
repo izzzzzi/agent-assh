@@ -28,6 +28,14 @@ unset TARGET_PASS
 
 Если вход по ключу уже работает, `assh connect` не читает `TARGET_PASS`.
 
+При повторной работе с тем же хостом можно попросить вернуть живую сессию вместо открытия новой:
+
+```bash
+assh connect -H HOST -u USER -i KEY -n deploy --reuse
+```
+
+Если подходящей живой сессии нет, `connect --reuse` выполняет обычный bootstrap.
+
 ```bash
 assh connect -H 203.0.113.10 -u root -i ~/.ssh/id_agent_ed25519 -n deploy
 ```
@@ -49,6 +57,7 @@ assh connect-info --file server.txt -n deploy
   "next_commands": {
     "exec": "assh session exec -s f7a2b3c4 -- \"pwd\"",
     "read": "assh session read -s f7a2b3c4 --seq 1 --limit 50",
+    "list": "assh session list",
     "close": "assh session close -s f7a2b3c4"
   }
 }
@@ -61,6 +70,15 @@ assh session exec -s f7a2b3c4 -- "pwd"
 assh session read -s f7a2b3c4 --seq 1 --limit 50
 assh session close -s f7a2b3c4
 ```
+
+Для скриптов через heredoc/stdin используйте явный bounded-режим (до 4 MiB):
+
+```bash
+cat script.sh | assh session exec -s f7a2b3c4 --stdin -- "bash -s"
+```
+
+Долгие команды запускайте через `assh session exec-async`, затем проверяйте `job-status`; не повторяйте
+команду вслепую после timeout.
 
 ## Установка скилла assh в AI-агентов
 
@@ -101,11 +119,14 @@ ctx7 skills install /izzzzzi/agent-assh assh
 
 - `assh connect`: первый bootstrap и открытие session.
 - `assh connect-info`: распарсить provider server-info block и подключиться.
+- `assh prompt`: вывести компактный machine-readable манифест с инструкциями для LLM-агента.
 - `assh session exec|read|close|gc`: persistent workflow через tmux.
 - `assh session ps|kill`: управление процессами.
 - `assh session service`: управление сервисами (status/restart/start/stop/logs).
 - `assh session exec-async|job-status|job-cancel`: фоновые задачи.
 - `assh session watch`: наблюдение за tmux-сессией агента человеком.
+- `assh session list`: список локальных sessions из registry.
+- `assh session export`: выгрузить session (transcript + outputs) в архив.
 - `assh exec`: выполнить одну remote-команду и сохранить вывод локально.
 - `assh read`: прочитать сохранённый вывод с пагинацией или через `--raw`.
 - `assh transfer put|get|read|list|stat|mkdir|rm|mv|sync`: файловые операции и синхронизация. `transfer read` читает удалённый текстовый файл по ssh и возвращает `output_id` для постраничного `assh read`.
@@ -185,6 +206,7 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 - `--host-key-policy accept-new` используется по умолчанию. Для hardened окружений используйте `strict`.
 - `--host-key-policy no-check` небезопасен и подходит только для одноразовых lab/dev хостов.
 - `session exec` блокирует явно destructive-команды вроде `rm -rf`, `find ... -delete`, `mkfs`, `wipefs`, опасный `dd` и recursive permission changes; для намеренного запуска нужен `--confirm-danger`.
+- `exec` применяет тот же классификатор, но флага `--confirm-danger` у него нет by design: чтобы намеренно выполнить destructive-команду, откройте session и используйте `assh session exec --confirm-danger`. `fleet exec` флага тоже не имеет — многохостовое destructive-выполнение намеренно невозможно.
 - Remote cleanup удаляет только sessions с доверенной metadata `assh`.
 
 ## Плюсы
@@ -203,7 +225,7 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 - Установка пакетов неинтерактивная; неподдерживаемые package managers возвращают machine-readable errors.
 - Интерактивные password prompts не поддерживаются в v1.
 - `assh` использует системный OpenSSH client.
-- `session exec` не пробрасывает локальный stdin в команду. Команды отправляются в remote `tmux`-окно через неинтерактивный ssh, поэтому piping вроде `cat f | assh session exec -s SID -- "docker exec -i ... cat >f"` данные теряет, а tmux-окно зависает в ожидании ввода. При детекции piped-stdin возвращается `{"ok":false,"error":"stdin_pipe_unsupported",...}` с подсказкой использовать `transfer put` или временный файл. Для разовых команд с stdin используйте `assh exec`.
+- `session exec` пробрасывает локальный stdin только с флагом `--stdin` (до 4 МиБ, загружается во временный файл на сервере). Без флага piping вроде `cat f | assh session exec -s SID -- "docker exec -i ... cat >f"` отклоняется с `{"ok":false,"error":"stdin_pipe_unsupported",...}`, а не подвешивает tmux-окно. `assh exec` stdin не пробрасывает вовсе; для больших данных используйте `assh transfer put`.
 
 ## Ручная установка
 
@@ -212,6 +234,8 @@ OpenCode: Используй `assh connect-info` для provider server-info blo
 ```text
 https://github.com/izzzzzi/agent-assh/releases
 ```
+
+Инсталлятор сверяет SHA-256 архива с `checksums.txt`, но берёт его из того же релиза. Это защищает от обрыва и порчи загрузки, но **не** от подмены релиза: независимой подписи (Sigstore/cosign) пока нет. Если вам нужна проверка происхождения, собирайте бинарь из исходников.
 
 ## English
 

@@ -16,6 +16,7 @@ type Spec struct {
 	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
+	Batch         bool
 	ControlSocket string
 	Persist       time.Duration
 	Local         []string
@@ -29,7 +30,9 @@ func ControlSocketPath(baseDir string, name string) string {
 
 func StartArgs(spec Spec) []string {
 	args := commonArgs(spec)
-	args = append(args, "-N", "-f", "-M", "-S", spec.ControlSocket)
+	// Without ExitOnForwardFailure ssh backgrounds itself and reports success
+	// even when the port could not be bound.
+	args = append(args, "-N", "-f", "-M", "-S", spec.ControlSocket, "-o", "ExitOnForwardFailure=yes")
 	if spec.Persist > 0 {
 		args = append(args, "-o", "ControlPersist="+spec.Persist.String())
 	}
@@ -77,6 +80,9 @@ func commonArgs(spec Spec) []string {
 	}
 	if spec.TimeoutSecond > 0 {
 		args = append(args, "-o", "ConnectTimeout="+strconv.Itoa(spec.TimeoutSecond))
+	}
+	if spec.Batch {
+		args = append(args, "-o", "BatchMode=yes")
 	}
 	if value := strictHostKeyChecking(spec.HostKeyPolicy); value != "" {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)

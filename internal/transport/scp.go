@@ -24,6 +24,8 @@ type SCPCommand struct {
 	TimeoutSecond int
 	HostKeyPolicy string
 	ControlPath   string
+	// Batch adds -o BatchMode=yes; see transport.SSHCommand.Batch.
+	Batch bool
 }
 
 func (c SCPCommand) Args(source string, destination string, direction SCPDirection) []string {
@@ -39,6 +41,9 @@ func (c SCPCommand) Args(source string, destination string, direction SCPDirecti
 	}
 	if c.TimeoutSecond > 0 {
 		args = append(args, "-o", "ConnectTimeout="+strconv.Itoa(c.TimeoutSecond))
+	}
+	if c.Batch {
+		args = append(args, "-o", "BatchMode=yes")
 	}
 	if value := strictHostKeyChecking(c.HostKeyPolicy); value != "" {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)

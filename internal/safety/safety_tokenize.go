@@ -14,35 +14,49 @@ import "strings"
 
 func commandSubstitutionScripts(segment string) []string {
 	var scripts []string
-	var quote rune
+	var quote byte
 	escaped := false
 	for i := 0; i < len(segment); i++ {
-		if escaped {
-			escaped = false
-			continue
-		}
-		if segment[i] == '\\' {
-			escaped = true
-			continue
-		}
-		if quote != 0 {
-			if rune(segment[i]) == quote {
+		c := segment[i]
+		// Single quotes make everything literal, including backslashes.
+		if quote == '\'' {
+			if c == '\'' {
 				quote = 0
 			}
 			continue
 		}
-		if segment[i] == '\'' || segment[i] == '"' {
-			quote = rune(segment[i])
+		if escaped {
+			escaped = false
 			continue
 		}
-		if i+1 < len(segment) && segment[i] == '$' && segment[i+1] == '(' {
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+		if c == '"' {
+			if quote == '"' {
+				quote = 0
+			} else {
+				quote = '"'
+			}
+			continue
+		}
+		if c == '\'' && quote == 0 {
+			quote = '\''
+			continue
+		}
+		// The shell still expands $(...) and backticks inside double quotes, so
+		// they are inspected there as well as unquoted. Process substitution,
+		// <(...) and >(...), runs a command too, but only unquoted.
+		opensSubstitution := c == '$' || (quote == 0 && (c == '<' || c == '>'))
+		if i+1 < len(segment) && opensSubstitution && segment[i+1] == '(' {
 			if script, end, ok := dollarCommandSubstitution(segment, i+2); ok {
 				scripts = append(scripts, script)
 				i = end
 			}
 			continue
 		}
-		if segment[i] == '`' {
+		if c == '`' {
 			if script, end, ok := backtickCommandSubstitution(segment, i+1); ok {
 				scripts = append(scripts, script)
 				i = end
@@ -95,6 +109,16 @@ func splitSegments(command string) []string {
 
 	for i := 0; i < len(command); i++ {
 		r := rune(command[i])
+		// Inside single quotes nothing is special, backslash included. Checking
+		// the escape first would keep the quote "open" past `'a\'` and hide
+		// everything after it from the classifier.
+		if quote == '\'' {
+			b.WriteRune(r)
+			if r == '\'' {
+				quote = 0
+			}
+			continue
+		}
 		if escaped {
 			b.WriteRune(r)
 			escaped = false
@@ -167,6 +191,14 @@ func shellFields(segment string) []token {
 			if r == '|' {
 				continue
 			}
+		}
+		if quote == '\'' {
+			if r == '\'' {
+				quote = 0
+			} else {
+				b.WriteRune(r)
+			}
+			continue
 		}
 		if escaped {
 			b.WriteRune(r)

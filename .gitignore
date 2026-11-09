@@ -6,5 +6,11 @@ native/
 dist/
 .pi-subagents/
 .superpowers/
-docs/superpowers/
+# Historical scratch directory is local-only; tracked design records under docs/superpowers remain visible.
 .worktrees/
+
+# Session-analysis exports may contain hostnames, IPs, and credentials. Keep raw
+# captures and generated dashboards out of commits; retain the Markdown findings.
+analysis/*.json
+analysis/*.jsonl
+analysis/dashboard.html

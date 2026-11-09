@@ -360,3 +360,19 @@ func reconnectHint(entry session.RegistryEntry) string {
 		"assh connect -H " + host + " -u " + user + " -E PASSWORD_ENV -n " + name + "; " +
 		"prefer assh connect --ssh-config ALIAS -n " + name + " for repeat use"
 }
+
+// outputNotFoundHint explains a missing seq without sending the caller into a
+// reconnect. A wrong --seq is the usual cause and the session is still alive, so
+// the reconnect advice would abandon a healthy session. Every attempt consumes a
+// seq number even when it fails (see session_exec), which makes gaps normal —
+// `assh session list` reports the current value for the SID.
+func outputNotFoundHint(entry session.RegistryEntry, seq int) string {
+	sid := entry.SID
+	if sid == "" {
+		sid = "SID"
+	}
+	return "the session is still registered; seq " + strconv.Itoa(seq) +
+		" has no stored output (numbers are consumed even when a command fails, so gaps are normal); " +
+		"run `assh session list` to read the current seq for " + sid +
+		", then `assh session read -s " + sid + " --seq N --limit 50`"
+}

@@ -1,10 +1,10 @@
 ---
-description: "assh exec — run a command on a remote host"
+description: "assh session exec — run a command in an open assh session"
 ---
 
-# assh exec
+# assh session exec
 
-Run a one-off command on a remote host via assh.
+Run a command in an open assh session and read its output.
 
 ```
 assh session exec -s SID -- "command"

@@ -338,3 +338,74 @@ func TestExpiredReturnsFalseWhenTTLNotPositive(t *testing.T) {
 		}
 	}
 }
+
+func TestAliveRemoteCommandRejectsInvalidTarget(t *testing.T) {
+	tests := []struct {
+		name     string
+		sid      string
+		tmuxName string
+	}{
+		{name: "unsafe sid", sid: "../etc", tmuxName: "assh_../etc"},
+		{name: "mismatched tmux name", sid: "aabbccdd", tmuxName: "assh_deadbeef"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := AliveRemoteCommand(test.sid, test.tmuxName); err == nil {
+				t.Fatal("AliveRemoteCommand() error = nil, want validation error")
+			}
+		})
+	}
+}
+
+// TestAliveRemoteCommandDistinguishesTmuxFromSession keeps the two failure
+// modes apart: a host without tmux (127) is a reason to re-bootstrap, while a
+// session that already exited (3) is the ordinary case.
+func TestAliveRemoteCommandDistinguishesTmuxFromSession(t *testing.T) {
+	command, err := AliveRemoteCommand("aabbccdd", "assh_aabbccdd")
+	if err != nil {
+		t.Fatalf("AliveRemoteCommand() error = %v", err)
+	}
+	for _, want := range []string{
+		"command -v tmux",
+		"exit 127",
+		"tmux has-session -t 'assh_aabbccdd'",
+		"exit 3",
+		"assh_session_alive",
+	} {
+		if !strings.Contains(command, want) {
+			t.Fatalf("command missing %q:\n%s", want, command)
+		}
+	}
+}
+
+func TestNextSeqIsUniqueUnderConcurrency(t *testing.T) {
+	dir := t.TempDir()
+	const sid = "abcdef12"
+	if err := SaveRegistry(dir, RegistryEntry{SID: sid, TmuxName: "assh_" + sid}); err != nil {
+		t.Fatal(err)
+	}
+	const workers = 24
+	seqs := make(chan int, workers)
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			entry, err := NextSeq(dir, sid)
+			errs <- err
+			seqs <- entry.Seq
+		}()
+	}
+	seen := map[int]bool{}
+	for i := 0; i < workers; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+		seq := <-seqs
+		if seen[seq] {
+			t.Fatalf("seq %d handed out twice", seq)
+		}
+		seen[seq] = true
+	}
+	if entry, _ := LoadRegistry(dir, sid); entry.Seq != workers {
+		t.Fatalf("final seq=%d want %d", entry.Seq, workers)
+	}
+}
