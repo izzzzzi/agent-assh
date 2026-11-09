@@ -209,6 +209,7 @@ func TestBatchFlagAvailability(t *testing.T) {
 		{[]string{"session", "read"}, true},
 		{[]string{"scan"}, true},
 		{[]string{"forward", "start"}, true},
+		{[]string{"transfer", "sync"}, true},
 		{[]string{"connect"}, false},
 		{[]string{"connect-info"}, false},
 		{[]string{"key-deploy"}, false},

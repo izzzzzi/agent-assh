@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/izzzzzi/agent-assh/internal/forward"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 )
 
@@ -137,5 +138,15 @@ func TestParseSessionReadHandlesMarkerWithoutLeadingNewline(t *testing.T) {
 	content, total, _ = parseSessionRead([]byte("a\nb\n\n__ASSH_TOTAL_LINES__=7\n"))
 	if content != "a\nb\n" || total != 7 {
 		t.Fatalf("content=%q total=%d", content, total)
+	}
+}
+
+func TestBatchReachesRsyncAndForwardSSH(t *testing.T) {
+	if got := rsyncSSHCommand(sshOptions{Batch: true}); !strings.Contains(got, "BatchMode=yes") {
+		t.Fatalf("rsync ssh command ignores --batch: %s", got)
+	}
+	args := strings.Join(forward.StartArgs(forward.Spec{Host: "h", User: "u", Batch: true, ControlSocket: "/tmp/s"}), " ")
+	if !strings.Contains(args, "BatchMode=yes") {
+		t.Fatalf("forward start ignores --batch: %s", args)
 	}
 }

@@ -126,6 +126,9 @@ func rsyncSSHCommand(ssh sshOptions) string {
 	if ssh.Jump != "" {
 		args = append(args, "-J", ssh.Jump)
 	}
+	if ssh.Batch {
+		args = append(args, "-o", "BatchMode=yes")
+	}
 	if value := strictHostKeyCheckingRSYNC(ssh.HostKeyPolicy); value != "" {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)
 	}

@@ -16,6 +16,7 @@ type Spec struct {
 	Jump          string
 	TimeoutSecond int
 	HostKeyPolicy string
+	Batch         bool
 	ControlSocket string
 	Persist       time.Duration
 	Local         []string
@@ -79,6 +80,9 @@ func commonArgs(spec Spec) []string {
 	}
 	if spec.TimeoutSecond > 0 {
 		args = append(args, "-o", "ConnectTimeout="+strconv.Itoa(spec.TimeoutSecond))
+	}
+	if spec.Batch {
+		args = append(args, "-o", "BatchMode=yes")
 	}
 	if value := strictHostKeyChecking(spec.HostKeyPolicy); value != "" {
 		args = append(args, "-o", "StrictHostKeyChecking="+value)

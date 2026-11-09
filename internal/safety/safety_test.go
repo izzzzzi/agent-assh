@@ -147,6 +147,8 @@ func TestCheckCommandInspectsDoubleQuotedSubstitution(t *testing.T) {
 		`echo "$(rm -rf /tmp/x)"`,
 		"echo \"`rm -rf /tmp/x`\"",
 		`echo "it's $(rm -rf /tmp/x)"`,
+		`grep 'a\'; rm -rf /tmp/x; echo ''`,
+		`cat <(rm -rf /tmp/x)`,
 	}
 	for _, command := range blocked {
 		if !CheckCommand(command).Dangerous {

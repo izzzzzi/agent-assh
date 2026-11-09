@@ -46,8 +46,10 @@ func commandSubstitutionScripts(segment string) []string {
 			continue
 		}
 		// The shell still expands $(...) and backticks inside double quotes, so
-		// they are inspected there as well as unquoted.
-		if i+1 < len(segment) && c == '$' && segment[i+1] == '(' {
+		// they are inspected there as well as unquoted. Process substitution,
+		// <(...) and >(...), runs a command too, but only unquoted.
+		opensSubstitution := c == '$' || (quote == 0 && (c == '<' || c == '>'))
+		if i+1 < len(segment) && opensSubstitution && segment[i+1] == '(' {
 			if script, end, ok := dollarCommandSubstitution(segment, i+2); ok {
 				scripts = append(scripts, script)
 				i = end
@@ -107,6 +109,16 @@ func splitSegments(command string) []string {
 
 	for i := 0; i < len(command); i++ {
 		r := rune(command[i])
+		// Inside single quotes nothing is special, backslash included. Checking
+		// the escape first would keep the quote "open" past `'a\'` and hide
+		// everything after it from the classifier.
+		if quote == '\'' {
+			b.WriteRune(r)
+			if r == '\'' {
+				quote = 0
+			}
+			continue
+		}
 		if escaped {
 			b.WriteRune(r)
 			escaped = false
@@ -179,6 +191,14 @@ func shellFields(segment string) []token {
 			if r == '|' {
 				continue
 			}
+		}
+		if quote == '\'' {
+			if r == '\'' {
+				quote = 0
+			} else {
+				b.WriteRune(r)
+			}
+			continue
 		}
 		if escaped {
 			b.WriteRune(r)
