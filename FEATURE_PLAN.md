@@ -1,9 +1,9 @@
-<!-- /autoplan restore point: /Users/apple/.gstack/projects/izzzzzi-agent-assh/main-autoplan-restore-20260615-132303.md -->
 # Plan: Close Top Competitive Gaps for assh
 
 Branch: main | Repo: izzzzzi/agent-assh | Commit: 5b27869
 Drafted by /autoplan from competitive analysis (2026-06-15)
 Status: APPROVED by /autoplan on 2026-06-15 — option A (all recommendations accepted)
+Implemented: all four features (F1 redaction, F2 `transfer read`, F3 `safety.rules`, F4 `audit --savings`) shipped; this file is kept as the design record.
 Reviews: CEO + Eng + DX (subagent-only; Codex unavailable — usage limit). All
 critical findings independently code-verified against the repo.
 

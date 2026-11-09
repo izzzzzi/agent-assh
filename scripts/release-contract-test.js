@@ -10,14 +10,13 @@ const root = path.join(__dirname, '..');
 const releaseRemote = 'https://github.com/izzzzzi/agent-assh.git';
 const goreleaserModule = 'github.com/goreleaser/goreleaser/v2@v2.12.7';
 
-// Plugin and extension manifests are consumed by Claude Code, Codex, Copilot,
-// and Pi independently of the npm package, so their version can silently drift
-// behind package.json — it did, by three minor releases. Keep them pinned.
+// Plugin manifests are consumed by Claude Code, Codex and Copilot independently
+// of the npm package, so their version can silently drift behind package.json —
+// it did, by three minor releases. Keep them pinned.
 const manifestPaths = [
   '.claude-plugin/plugin.json',
   '.codex-plugin/plugin.json',
   '.github/plugin/plugin.json',
-  'pi-extension/package.json',
 ];
 
 function verifyManifestVersions(version = pkg.version) {

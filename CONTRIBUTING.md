@@ -10,9 +10,14 @@ You need Go 1.22+ and Node 18+.
 ```bash
 git clone https://github.com/izzzzzi/agent-assh.git
 cd agent-assh
-npm install            # installs the npm wrapper deps + postinstall hooks
+npm install            # runs postinstall, which downloads the released binary
 npm run hooks:install  # wires .githooks/ as the git hooks path
+go build -o native/ ./cmd/assh      # run your working tree through bin/assh.js
 ```
+
+`postinstall` fetches the binary for the version in `package.json` from GitHub
+Releases. On a branch where that version is not released yet, run
+`AGENT_ASSH_SKIP_DOWNLOAD=1 npm install`.
 
 After `hooks:install`, every `git commit` runs the pre-commit gate locally
 before the commit is created. This mirrors what CI checks, so a green local
@@ -87,6 +92,8 @@ flag-derived options as a struct or explicit args. See `runSessionExec` /
    release-config validation.
 4. Keep `README.md` (Russian) and `README.en.md` (English) in sync for any
    user-facing change.
+5. Agent-facing instructions are edited only in `skills/assh/`; regenerate the
+   copies with `node scripts/check-skill-copies.js --write`.
 
 ## Releasing
 
@@ -94,4 +101,6 @@ Releases are driven by tags. The `pre-push` hook verifies that a pushed
 `vX.Y.Z` tag matches the `package.json` version of the commit it points at;
 ordinary pushes are not checked, so `main` may move past the last release.
 Tagging triggers `goreleaser` (Go binaries to GitHub Releases) and `npm publish`
-(via the `release.yml` workflow). Never bump a version without a matching tag.
+(via the `release.yml` workflow). The version lives in `package.json`, the three
+`plugin.json` manifests and the entry in `.claude-plugin/marketplace.json`;
+`npm run release:contract` fails if they disagree.
