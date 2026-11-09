@@ -1,42 +1,33 @@
 #!/bin/sh
 set -eu
 
-# Check: if pushing a tag vX.Y.Z, package.json version must match X.Y.Z
-# This catches the most common CI failure before it reaches GitHub.
-ref=$(git symbolic-ref HEAD 2>/dev/null || true)
-if [ -z "$ref" ]; then
-  echo "pre-push: detached HEAD, skipping version check"
-  exit 0
-fi
+# A release tag vX.Y.Z triggers the release workflow, which refuses to publish
+# unless package.json carries the same version. Check that here, before the tag
+# reaches GitHub.
+#
+# Ordinary pushes are not checked: main is free to move past the last release
+# tag, and the version is bumped when the next release is cut.
+#
+# git feeds one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>
+zero=0000000000000000000000000000000000000000
 
-branch=$(basename "$ref")
-# Only check on main branch
-if [ "$branch" != "main" ]; then
-  exit 0
-fi
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/tags/v*) ;;
+    *) continue ;;
+  esac
+  # Deleting a tag pushes the all-zero sha; nothing to verify.
+  [ "$local_sha" = "$zero" ] && continue
 
-# Check if any new tags are being pushed
-current_commit=$(git rev-parse HEAD)
-pkg_version=$(node -p "require('./package.json').version" 2>/dev/null || echo "")
-
-if [ -z "$pkg_version" ]; then
-  echo "pre-push: WARNING — could not read package.json version"
-  exit 0
-fi
-
-# Verify that a tag v{pkg_version} exists on the current commit
-# or warn if it would be the wrong version
-expected_tag="v${pkg_version}"
-if git rev-parse "refs/tags/${expected_tag}" >/dev/null 2>&1; then
-  tag_commit=$(git rev-parse "refs/tags/${expected_tag}")
-  if [ "$tag_commit" != "$current_commit" ]; then
+  tag=${remote_ref#refs/tags/}
+  version=$(git show "${local_sha}^{commit}:package.json" 2>/dev/null |
+    node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version" 2>/dev/null || echo "")
+  if [ "v${version}" != "$tag" ]; then
     echo ""
-    echo "ERROR: tag ${expected_tag} points to ${tag_commit}"
-    echo "       but HEAD is ${current_commit}"
-    echo "       Either move the tag or bump package.json version."
+    echo "ERROR: tag ${tag} points at a commit whose package.json version is '${version}'."
+    echo "       Bump package.json (and the plugin manifests) first, then tag that commit."
     echo ""
     exit 1
   fi
-fi
-
-echo "pre-push: version ok (${expected_tag})"
+  echo "pre-push: ${tag} matches package.json"
+done

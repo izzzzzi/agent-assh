@@ -91,6 +91,7 @@ flag-derived options as a struct or explicit args. See `runSessionExec` /
 ## Releasing
 
 Releases are driven by tags. The `pre-push` hook verifies that a pushed
-`vX.Y.Z` tag matches `package.json`'s version and that HEAD carries that tag.
+`vX.Y.Z` tag matches the `package.json` version of the commit it points at;
+ordinary pushes are not checked, so `main` may move past the last release.
 Tagging triggers `goreleaser` (Go binaries to GitHub Releases) and `npm publish`
 (via the `release.yml` workflow). Never bump a version without a matching tag.
