@@ -30,6 +30,16 @@ function verifyManifestVersions(version = pkg.version) {
     }
   }
 
+  // Claude Code installs the plugin from this entry (its source is ./skills, so
+  // only the skill is copied), which makes the entry's version the installed one.
+  const marketplacePath = '.claude-plugin/marketplace.json';
+  const marketplace = JSON.parse(fs.readFileSync(path.join(root, marketplacePath), 'utf8'));
+  for (const plugin of marketplace.plugins) {
+    if (plugin.version !== version) {
+      drifted.push(`${marketplacePath} plugin ${plugin.name}: ${plugin.version} != ${version}`);
+    }
+  }
+
   if (drifted.length > 0) {
     throw new Error(`manifest version drift (expected ${version}):\n${drifted.join('\n')}`);
   }

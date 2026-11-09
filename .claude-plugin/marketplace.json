@@ -10,8 +10,24 @@
     {
       "name": "assh",
       "description": "Teaches the agent to use the assh CLI for SSH: sessions, paginated output, file transfer.",
-      "source": "./",
-      "category": "development"
+      "version": "1.4.0",
+      "source": "./skills",
+      "skills": "./",
+      "category": "development",
+      "author": {
+        "name": "izzzzzi",
+        "url": "https://github.com/izzzzzi"
+      },
+      "homepage": "https://github.com/izzzzzi/agent-assh",
+      "repository": "https://github.com/izzzzzi/agent-assh",
+      "license": "MIT",
+      "keywords": [
+        "ssh",
+        "tmux",
+        "devops",
+        "remote",
+        "cli"
+      ]
     }
   ]
 }
