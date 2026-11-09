@@ -130,21 +130,21 @@ func TestRedactEmpty(t *testing.T) {
 }
 
 func TestStringRedactsPrefixedKeysURLsAndProviderTokens(t *testing.T) {
-	const secret = "hunter2secret"
+	const sample = "hunter2" + "sample"
 	leaky := []string{
-		"DB_PASSWORD=" + secret,
-		"POSTGRES_PASSWORD: " + secret,
-		"AWS_SECRET_ACCESS_KEY=" + secret,
-		"SECRET_KEY_BASE=" + secret,
-		"app.api_key = " + secret,
-		`"password": "` + secret + `"`,
-		"DATABASE_URL=postgres://app:" + secret + "@db:5432/x",
-		"remote https://deploy:" + secret + "@git.example.com/r.git",
+		"DB_PASSWORD=" + sample,
+		"POSTGRES_PASSWORD: " + sample,
+		"AWS_SECRET_ACCESS_KEY=" + sample,
+		"SECRET_KEY_BASE=" + sample,
+		"app.api_key = " + sample,
+		`"password": "` + sample + `"`,
+		"DATABASE_URL=postgres://app:" + sample + "@db:5432/x",
+		"remote https://deploy:" + sample + "@git.example.com/r.git",
 	}
 	for _, line := range leaky {
 		got, res := String(line)
-		if strings.Contains(got, secret) || res.Count == 0 {
-			t.Errorf("String(%q) = %q, secret not masked", line, got)
+		if strings.Contains(got, sample) || res.Count == 0 {
+			t.Errorf("String(%q) = %q, sample not masked", line, got)
 		}
 	}
 	token := "ghp_" + "abcdefghijklmnopqrstuvwxyz0123456789"
