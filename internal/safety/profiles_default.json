@@ -28,19 +28,23 @@
         "free -h",
         "uptime",
         "systemctl status *",
-        "systemctl restart *",
-        "systemctl reload *",
         "docker ps",
         "docker logs *",
+        "ss -tlnp",
+        "ps aux",
+        "ls *",
+        "uname -a",
+        "systemctl restart *",
+        "systemctl reload *",
         "docker restart *",
         "git pull",
-        "apt update",
-        "ss -tlnp",
-        "ps aux"
+        "apt update"
       ]
     },
     "admin": {
-      "allow": ["*"]
+      "allow": [
+        "*"
+      ]
     }
   }
 }

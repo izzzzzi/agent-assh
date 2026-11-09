@@ -114,21 +114,29 @@ func newAuditCommand() *cobra.Command {
 				if err != nil {
 					return writeError(cmd, "internal_error", err.Error(), "")
 				}
-				var reads, rawLines, servedLines int
+				var reads, rawLines, servedLines, withheld int
 				for _, e := range events {
 					if e.Action != "read" && e.Action != "session_read" {
+						continue
+					}
+					// Each read also leaves a plain audit event under the same
+					// action; only the savings event carries line counts.
+					if e.RawLines == 0 && e.ServedLines == 0 {
 						continue
 					}
 					reads++
 					rawLines += e.RawLines
 					servedLines += e.ServedLines
+					if e.RawLines > e.ServedLines {
+						withheld += e.RawLines - e.ServedLines
+					}
 				}
 				return writeJSON(cmd, response.OK{
 					"ok":             true,
 					"reads":          reads,
 					"raw_lines":      rawLines,
 					"served_lines":   servedLines,
-					"withheld_lines": rawLines - servedLines,
+					"withheld_lines": withheld,
 				})
 			}
 			if last < 1 {

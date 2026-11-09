@@ -107,3 +107,21 @@ func TestAuditSavingsBypassesLastGuard(t *testing.T) {
 		t.Errorf("reads = %#v, want 0", got["reads"])
 	}
 }
+
+// A read leaves two audit events under the same action: the plain one and the
+// savings one. Only the latter may be counted, and a read that served more
+// lines than the stored total must not drive the sum negative.
+func TestAuditSavingsCountsEachReadOnce(t *testing.T) {
+	t.Setenv("ASSH_STATE_DIR", t.TempDir())
+	writeAudit("session_read", "abcdef12", "h", "root", "tail", 0, 3, 0)
+	writeAuditSavings("session_read", "abcdef12", 10, 3)
+	writeAuditSavings("session_read", "abcdef12", 0, 2)
+
+	got := runCmdJSON(t, []string{"audit", "--savings"})
+	if got["reads"] != float64(2) {
+		t.Errorf("reads = %#v, want 2", got["reads"])
+	}
+	if got["withheld_lines"] != float64(7) {
+		t.Errorf("withheld_lines = %#v, want 7", got["withheld_lines"])
+	}
+}

@@ -59,6 +59,7 @@ const copies = {
   'SYSTEM_PROMPT_snippet.md': `${GENERATED}\n\n${compact}`,
   'AGENT_INSTRUCTIONS.md': `${GENERATED}\n\n${core}\n\n${references}\n`,
   '.clinerules/assh.md': `${GENERATED}\n\n${compact}`,
+  '.github/copilot-instructions.md': `${GENERATED}\n\n${compact}`,
   '.cursor/rules/assh.mdc': `${cursorFrontmatter}\n${GENERATED}\n\n${compact}`,
   // Embedded into the binary and printed by `assh prompt`.
   'internal/cli/agent_prompt.md': compact,
