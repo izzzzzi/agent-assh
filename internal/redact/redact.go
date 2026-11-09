@@ -18,25 +18,34 @@ import (
 )
 
 type pattern struct {
-	label string
-	re    *regexp.Regexp
+	re *regexp.Regexp
+	// repl is the replacement template; capture groups keep the non-secret
+	// context (key name, separator, URL user) around the masked value.
+	repl string
 }
 
 // patterns are precompiled at package init. Each regexp matches within a single
 // line (no newline in the class) so replacements preserve line count.
 var patterns = []pattern{
 	// AWS access key id.
-	{"aws_key", regexp.MustCompile(`\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`)},
+	{regexp.MustCompile(`\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`), "[REDACTED:aws_key]"},
 	// JWT (three base64url segments).
-	{"jwt", regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b`)},
+	{regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b`), "[REDACTED:jwt]"},
 	// Bearer tokens in headers/log lines.
-	{"bearer", regexp.MustCompile(`(?i)\bbearer\s+[A-Za-z0-9._\-+/=]{12,}`)},
-	// key=value / key: value assignments for sensitive keys. Captures the key so
-	// it is preserved; only the value is masked.
-	{"secret_assignment", regexp.MustCompile(`(?i)\b(` +
+	{regexp.MustCompile(`(?i)\bbearer\s+[A-Za-z0-9._\-+/=]{12,}`), "[REDACTED:bearer]"},
+	// Password embedded in a URL: scheme://user:password@host.
+	{regexp.MustCompile(`(://[^\s:/@]+:)[^\s@/]+(@)`), "${1}[REDACTED:url_password]${2}"},
+	// key=value / key: value assignments for sensitive keys. The key may carry
+	// an identifier prefix (DB_PASSWORD, github.token) and a closing quote
+	// ("password": ...); it is preserved and only the value is masked.
+	{regexp.MustCompile(`(?i)\b((?:[A-Za-z0-9]+[_.-])*(?:` +
+		`secret[_-]?(?:access[_-]?)?key(?:[_-]?base)?|` +
 		`password|passwd|pwd|secret|token|api[_-]?key|` +
-		`access[_-]?key|private[_-]?key|client[_-]?secret)\b` +
-		`(\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s"';,)]+)`)},
+		`access[_-]?key|private[_-]?key|client[_-]?secret)["']?)` +
+		`(\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s"';,)]+)`), "${1}${2}[REDACTED:secret]"},
+	// Provider tokens recognisable by prefix, wherever they appear.
+	{regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|` +
+		`xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{35})`), "[REDACTED:api_token]"},
 }
 
 var (
@@ -70,22 +79,8 @@ func String(s string) (string, Result) {
 	count += n
 
 	for _, p := range patterns {
-		if p.label == "secret_assignment" {
-			s = p.re.ReplaceAllStringFunc(s, func(match string) string {
-				groups := p.re.FindStringSubmatch(match)
-				if len(groups) != 4 {
-					return match
-				}
-				count++
-				return groups[1] + groups[2] + "[REDACTED:secret]"
-			})
-			continue
-		}
-		label := p.label
-		s = p.re.ReplaceAllStringFunc(s, func(string) string {
-			count++
-			return "[REDACTED:" + label + "]"
-		})
+		count += len(p.re.FindAllStringIndex(s, -1))
+		s = p.re.ReplaceAllString(s, p.repl)
 	}
 	return s, Result{Count: count}
 }

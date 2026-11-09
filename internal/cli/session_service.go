@@ -35,28 +35,17 @@ func newSessionServiceCommand() *cobra.Command {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 
-			var remoteCommand string
-			switch action {
-			case "status":
-				remoteCommand = "systemctl status " + remote.SingleQuote(service) +
-					" --no-pager -l 2>/dev/null || echo 'SERVICE_NOT_FOUND'"
-			case "restart":
-				remoteCommand = "sudo systemctl restart " + remote.SingleQuote(service) +
-					" 2>&1 && echo 'RESTART_OK' || echo 'RESTART_FAILED'"
-			case "start":
-				remoteCommand = "sudo systemctl start " + remote.SingleQuote(service) +
-					" 2>&1 && echo 'START_OK' || echo 'START_FAILED'"
-			case "stop":
-				remoteCommand = "sudo systemctl stop " + remote.SingleQuote(service) +
-					" 2>&1 && echo 'STOP_OK' || echo 'STOP_FAILED'"
-			case "logs":
-				if lines < 1 {
-					lines = 50
-				}
-				remoteCommand = "journalctl -u " + remote.SingleQuote(service) +
-					" --no-pager -n " + strconv.Itoa(lines) +
-					" 2>/dev/null || echo 'JOURNALCTL_UNAVAILABLE'"
-			default:
+			// The profile sees the plain command the action stands for.
+			profileCommand := "systemctl " + action + " " + service
+			if action == "logs" {
+				profileCommand = "journalctl -u " + service
+			}
+			if err := rejectByProfile(cmd, entry.Profile, profileCommand); err != nil {
+				return err
+			}
+
+			remoteCommand, ok := serviceRemoteCommand(action, service, lines)
+			if !ok {
 				return writeInvalidArgs(cmd, "invalid action: "+action, "valid: status, restart, start, stop, logs")
 			}
 
@@ -70,12 +59,14 @@ func newSessionServiceCommand() *cobra.Command {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
+			output, redactionCount := applyReadRedaction(string(result.Stdout), false)
 			return writeJSON(cmd, map[string]any{
-				"ok":      true,
-				"sid":     sid,
-				"service": service,
-				"action":  action,
-				"output":  string(result.Stdout),
+				"ok":       true,
+				"sid":      sid,
+				"service":  service,
+				"action":   action,
+				"output":   output,
+				"redacted": redactionCount > 0,
 			})
 		},
 	}
@@ -86,4 +77,27 @@ func newSessionServiceCommand() *cobra.Command {
 	cmd.Flags().IntVarP(&lines, "lines", "l", 50, "journal lines (for logs action)")
 	bindSSHOptions(cmd, &ssh, sshOptionFlags{jump: true})
 	return cmd
+}
+
+// serviceRemoteCommand builds the systemctl/journalctl command for an action.
+// ok is false for an unknown action.
+func serviceRemoteCommand(action, service string, lines int) (command string, ok bool) {
+	quoted := remote.SingleQuote(service)
+	switch action {
+	case "status":
+		return "systemctl status " + quoted + " --no-pager -l 2>/dev/null || echo 'SERVICE_NOT_FOUND'", true
+	case "restart":
+		return "sudo systemctl restart " + quoted + " 2>&1 && echo 'RESTART_OK' || echo 'RESTART_FAILED'", true
+	case "start":
+		return "sudo systemctl start " + quoted + " 2>&1 && echo 'START_OK' || echo 'START_FAILED'", true
+	case "stop":
+		return "sudo systemctl stop " + quoted + " 2>&1 && echo 'STOP_OK' || echo 'STOP_FAILED'", true
+	case "logs":
+		if lines < 1 {
+			lines = 50
+		}
+		return "journalctl -u " + quoted + " --no-pager -n " + strconv.Itoa(lines) +
+			" 2>/dev/null || echo 'JOURNALCTL_UNAVAILABLE'", true
+	}
+	return "", false
 }

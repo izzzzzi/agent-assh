@@ -121,3 +121,21 @@ func TestConnectPassesJumpIntoBootstrapTarget(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 }
+
+func TestConnectOffersReuseFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	connect, _, err := cmd.Find([]string{"connect"})
+	if err != nil {
+		t.Fatalf("Find(connect) error = %v", err)
+	}
+	if connect == nil {
+		t.Fatal("connect command not found")
+	}
+	flag := connect.Flags().Lookup("reuse")
+	if flag == nil {
+		t.Fatal("connect does not expose --reuse")
+	}
+	if flag.DefValue != "false" {
+		t.Fatalf("--reuse default=%q want false", flag.DefValue)
+	}
+}

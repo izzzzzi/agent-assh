@@ -51,21 +51,48 @@ func isDigits(value string) bool {
 	return true
 }
 
+// systemPathPrefixes are directories whose contents keep the host bootable,
+// reachable, and authenticatable. A destructive command aimed at one of them is
+// dangerous even without recursion: `rm /etc/passwd` and `cat x > /etc/fstab`
+// both break the machine.
+var systemPathPrefixes = []string{
+	"/etc", "/var", "/usr", "/bin", "/sbin", "/lib", "/boot", "/sys", "/proc", "/dev",
+}
+
+// userDataPathPrefixes are directories holding user or application data. A
+// single-file operation inside one of them is routine — `rm /opt/app/old.log` is
+// a normal deploy step — so these paths only escalate when combined with a glob.
+var userDataPathPrefixes = []string{"/home", "/root", "/opt", "/srv"}
+
 // hasCriticalPath reports whether any non-flag token references a system
-// directory (/, /etc, /var, /usr, ...). Such paths combined with rm/chmod/dd
-// are treated as destructive because they can brick the host.
+// directory (/, /etc, /var, /usr, ...). Such paths combined with rm/chmod/dd are
+// treated as destructive because they can brick the host.
 func hasCriticalPath(tokens []token) bool {
+	return anyPath(tokens, criticalPath)
+}
+
+// hasUserDataPath reports whether any non-flag token points into a user or
+// application data directory.
+func hasUserDataPath(tokens []token) bool {
+	return anyPath(tokens, userDataPath)
+}
+
+// anyPath reports whether any non-flag token satisfies match. Flags are skipped
+// so `-rf` can never be mistaken for a path.
+func anyPath(tokens []token, match func(string) bool) bool {
 	for _, tok := range tokens {
 		if strings.HasPrefix(tok.Value, "-") {
 			continue
 		}
-		if criticalPath(tok.Value) {
+		if match(tok.Value) {
 			return true
 		}
 	}
 	return false
 }
 
+// criticalPath reports whether path is a system location. User data directories
+// are deliberately excluded: see userDataPathPrefixes.
 func criticalPath(path string) bool {
 	path = strings.TrimRight(path, "/")
 	if path == "" {
@@ -80,11 +107,41 @@ func criticalPath(path string) bool {
 		"/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/fd":
 		return false
 	}
-	for _, prefix := range []string{
-		"/etc", "/var", "/home", "/root", "/usr", "/bin", "/sbin",
-		"/lib", "/opt", "/srv", "/dev", "/boot", "/sys", "/proc",
-	} {
+	return hasPathPrefix(path, systemPathPrefixes)
+}
+
+// userDataPath reports whether path points into a user or application data
+// directory.
+func userDataPath(path string) bool {
+	path = strings.TrimRight(path, "/")
+	if path == "" {
+		return false
+	}
+	return hasPathPrefix(path, userDataPathPrefixes)
+}
+
+func hasPathPrefix(path string, prefixes []string) bool {
+	for _, prefix := range prefixes {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// hasUserDataPathGlob reports whether a destructive command targets a user data
+// directory through a glob. `rm /home/*` wipes an entire account while
+// `rm /home/alice/old.log` removes one file, so the glob is what makes the
+// difference.
+func hasUserDataPathGlob(tokens []token) bool {
+	for _, tok := range tokens {
+		if strings.HasPrefix(tok.Value, "-") {
+			continue
+		}
+		if !strings.ContainsAny(tok.Value, "*?") {
+			continue
+		}
+		if userDataPath(tok.Value) {
 			return true
 		}
 	}
@@ -132,7 +189,13 @@ func hasDangerousRedirect(tokens []token) bool {
 			target = attachedRedirectTarget(tok.Value)
 		}
 
-		if target != "" && criticalPath(target) {
+		if target == "" {
+			continue
+		}
+		// A redirect can plant content as well as destroy it, and
+		// `> /home/alice/.ssh/authorized_keys` is a persistence mechanism. User
+		// data directories therefore stay strict here, unlike plain `rm`.
+		if criticalPath(target) || userDataPath(target) {
 			return true
 		}
 	}

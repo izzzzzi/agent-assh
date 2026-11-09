@@ -3,10 +3,12 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"github.com/izzzzzi/agent-assh/internal/remote"
+	"github.com/izzzzzi/agent-assh/internal/safety"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +38,9 @@ func newTransferListCommand() *cobra.Command {
 			}
 
 			entries := parseFileListJSON(result.Stdout)
+			if err := transferMarkerError(cmd, result.Stdout, path, len(entries)); err != nil {
+				return err
+			}
 			writeAudit("transfer_list", "", ssh.Host, ssh.User, remoteCommand,
 				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
 
@@ -79,6 +84,9 @@ func newTransferStatCommand() *cobra.Command {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
 			}
 
+			if err := transferMarkerError(cmd, result.Stdout, path, 0); err != nil {
+				return err
+			}
 			stat := parseFileStatJSON(result.Stdout)
 			writeAudit("transfer_stat", "", ssh.Host, ssh.User, remoteCommand,
 				result.ExitCode, countLines(result.Stdout), countLines(result.Stderr))
@@ -119,7 +127,7 @@ func newTransferMkdirCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
 
-			remoteCommand := "mkdir -p " + remote.SingleQuote(path)
+			remoteCommand := "mkdir -p " + shellRemotePath(path)
 			result := runSSH(ctx, ssh.command(), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -160,6 +168,14 @@ func newTransferRmCommand() *cobra.Command {
 				return writeInvalidArgs(cmd, "--path is required", "")
 			}
 
+			// transfer rm has no --confirm-danger, so a system path is refused
+			// outright rather than removed without the classifier seeing it.
+			if r := safety.CheckCommand("rm " + remote.SingleQuote(path)); r.Dangerous {
+				return writeError(cmd, "dangerous_command_requires_confirmation",
+					"transfer rm refuses system paths ("+r.Rule+")",
+					"if intentional, use `assh session exec -s SID --confirm-danger -- \"rm ...\"`")
+			}
+
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
 
@@ -167,7 +183,7 @@ func newTransferRmCommand() *cobra.Command {
 			if recursive {
 				flags = "-rf "
 			}
-			remoteCommand := "rm " + flags + remote.SingleQuote(path)
+			remoteCommand := "rm " + flags + shellRemotePath(path)
 			result := runSSH(ctx, ssh.command(), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -212,7 +228,7 @@ func newTransferMvCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
 			defer cancel()
 
-			remoteCommand := "mv " + remote.SingleQuote(source) + " " + remote.SingleQuote(dest)
+			remoteCommand := "mv " + shellRemotePath(source) + " " + shellRemotePath(dest)
 			result := runSSH(ctx, ssh.command(), remoteCommand)
 			if code := sshResultErrorCode(ctx.Err(), result); code != "" {
 				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
@@ -238,16 +254,41 @@ func newTransferMvCommand() *cobra.Command {
 	return cmd
 }
 
+// Both commands report a missing path and a userland without GNU find/stat
+// explicitly. Answering `[]` or `{}` there would read as "empty directory" and
+// send the caller down the wrong path.
+const (
+	transferNotFoundMarker    = "__ASSH_NOT_FOUND__"
+	transferUnsupportedMarker = "__ASSH_UNSUPPORTED__"
+)
+
 func remoteFileListCommand(path string) string {
-	return `find ` + remote.SingleQuote(path) +
-		` -maxdepth 1 -printf '{"name":"%f","type":"%Y","size":%s,` +
-		`"mtime":"%TY-%Tm-%TdT%TH:%TM:%TSZ"}\n' 2>/dev/null || echo "[]"`
+	p := shellRemotePath(path)
+	return `test -e ` + p + ` || { echo ` + transferNotFoundMarker + `; exit 0; }; find ` + p +
+		` -mindepth 1 -maxdepth 1 -printf '{"name":"%f","type":"%Y","size":%s,` +
+		`"mtime":"%TY-%Tm-%TdT%TH:%TM:%TSZ"}\n' 2>/dev/null || echo ` + transferUnsupportedMarker
 }
 
 func remoteFileStatCommand(path string) string {
-	return `stat --format='{"name":"%n","size":%s,"type":"%F",` +
-		`"mode":"%a","uid":%u,"gid":%g,"mtime":"%y"}' ` +
-		remote.SingleQuote(path) + ` 2>/dev/null || echo "{}"`
+	p := shellRemotePath(path)
+	return `test -e ` + p + ` || { echo ` + transferNotFoundMarker + `; exit 0; }; ` +
+		`stat --format='{"name":"%n","size":%s,"type":"%F",` +
+		`"mode":"%a","uid":%u,"gid":%g,"mtime":"%y"}' ` + p + ` 2>/dev/null || echo ` + transferUnsupportedMarker
+}
+
+// transferMarkerError turns a marker in list/stat stdout into a typed error.
+// A partial listing (some entries, then a find error) is not an error.
+func transferMarkerError(cmd *cobra.Command, stdout []byte, path string, parsed int) error {
+	text := string(stdout)
+	switch {
+	case strings.Contains(text, transferNotFoundMarker):
+		return writeError(cmd, "remote_file_not_found", "no such file or directory: "+path, "")
+	case parsed == 0 && strings.Contains(text, transferUnsupportedMarker):
+		return writeError(cmd, "unsupported_remote",
+			"remote find/stat lack the GNU options this command needs",
+			"use `assh exec -H HOST -u USER -- \"ls -la PATH\"` on this host")
+	}
+	return nil
 }
 
 func parseFileListJSON(stdout []byte) []any {

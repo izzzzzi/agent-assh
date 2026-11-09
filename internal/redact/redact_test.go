@@ -120,3 +120,32 @@ func TestRedactEmpty(t *testing.T) {
 		t.Fatalf("nil bytes mishandled")
 	}
 }
+
+func TestStringRedactsPrefixedKeysURLsAndProviderTokens(t *testing.T) {
+	const secret = "hunter2secret"
+	leaky := []string{
+		"DB_PASSWORD=" + secret,
+		"POSTGRES_PASSWORD: " + secret,
+		"AWS_SECRET_ACCESS_KEY=" + secret,
+		"SECRET_KEY_BASE=" + secret,
+		"app.api_key = " + secret,
+		`"password": "` + secret + `"`,
+		"DATABASE_URL=postgres://app:" + secret + "@db:5432/x",
+		"remote https://deploy:" + secret + "@git.example.com/r.git",
+	}
+	for _, line := range leaky {
+		got, res := String(line)
+		if strings.Contains(got, secret) || res.Count == 0 {
+			t.Errorf("String(%q) = %q, secret not masked", line, got)
+		}
+	}
+	token := "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+	if got, _ := String("header " + token); strings.Contains(got, token) {
+		t.Errorf("provider token not masked: %q", got)
+	}
+	for _, line := range []string{"max_tokens=100", "passwords are hashed", "see https://example.com/a:b"} {
+		if got, res := String(line); got != line || res.Count != 0 {
+			t.Errorf("String(%q) = %q, want untouched", line, got)
+		}
+	}
+}

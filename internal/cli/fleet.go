@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/izzzzzi/agent-assh/internal/redact"
 	"github.com/spf13/cobra"
 )
 
@@ -59,11 +61,20 @@ func newFleetExecRunCommand() *cobra.Command {
 			}
 
 			results := runFleetExec(hosts, ssh, command, timeout)
+			failed := 0
+			for _, result := range results {
+				if result["ok"] != true {
+					failed++
+				}
+			}
 
+			// Top-level ok reports that the fan-out ran; per-host outcomes are in
+			// results, and failed counts the hosts that did not succeed.
 			return writeJSON(cmd, map[string]any{
 				"ok":      true,
 				"command": command,
 				"hosts":   len(hosts),
+				"failed":  failed,
 				"results": results,
 			})
 		},
@@ -76,10 +87,15 @@ func newFleetExecRunCommand() *cobra.Command {
 	return cmd
 }
 
+// fleetInlineLimit caps each host's stdout and stderr in the response. fleet
+// returns output inline rather than through the output store, so without a cap
+// N hosts times a large output would land in the caller's context at once.
+const fleetInlineLimit = 8 << 10
+
 func runFleetExec(hosts []string, baseOpts sshOptions, command string, timeout int) []map[string]any {
-	var mu sync.Mutex
 	var wg sync.WaitGroup
-	results := make([]map[string]any, 0, len(hosts))
+	// Indexed by input position: results come back in the order hosts were given.
+	results := make([]map[string]any, len(hosts))
 
 	const maxConcurrent = 50
 	sem := make(chan struct{}, maxConcurrent)
@@ -87,10 +103,10 @@ func runFleetExec(hosts []string, baseOpts sshOptions, command string, timeout i
 	parentCtx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout+5)*time.Second)
 	defer cancel()
 
-	for _, host := range hosts {
+	for i, host := range hosts {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(h string) {
+		go func(i int, h string) {
 			defer wg.Done()
 			defer func() { <-sem }()
 			opts := baseOpts
@@ -102,23 +118,43 @@ func runFleetExec(hosts []string, baseOpts sshOptions, command string, timeout i
 
 			result := runSSH(ctx, opts.command(), command)
 
+			stdout, outRes := redact.Bytes(result.Stdout)
+			stderr, errRes := redact.Bytes(result.Stderr)
+			stdoutText, outCut := tailBytes(stdout, fleetInlineLimit)
+			stderrText, errCut := tailBytes(stderr, fleetInlineLimit)
 			entry := map[string]any{
 				"host":      h,
 				"ok":        result.Err == nil && result.ExitCode == 0,
 				"exit_code": result.ExitCode,
-				"stdout":    string(result.Stdout),
-				"stderr":    string(result.Stderr),
+				"stdout":    stdoutText,
+				"stderr":    stderrText,
+			}
+			if outRes.Count+errRes.Count > 0 {
+				entry["redacted"] = true
+			}
+			if outCut || errCut {
+				entry["truncated"] = true
 			}
 			if result.Err != nil {
 				entry["error"] = result.Err.Error()
 			}
-
-			mu.Lock()
-			results = append(results, entry)
-			mu.Unlock()
-		}(host)
+			results[i] = entry
+		}(i, host)
 	}
 
 	wg.Wait()
 	return results
+}
+
+// tailBytes keeps the last limit bytes of data, cutting at a line boundary when
+// one is available. The tail is the part that carries the error or the result.
+func tailBytes(data []byte, limit int) (string, bool) {
+	if len(data) <= limit {
+		return string(data), false
+	}
+	tail := data[len(data)-limit:]
+	if i := bytes.IndexByte(tail, '\n'); i >= 0 && i+1 < len(tail) {
+		tail = tail[i+1:]
+	}
+	return string(tail), true
 }

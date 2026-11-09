@@ -100,6 +100,10 @@ func newSessionProcessKillCommand() *cobra.Command {
 				return writeError(cmd, "session_not_found", err.Error(), "")
 			}
 
+			if err := rejectByProfile(cmd, entry.Profile, "kill -"+sig+" "+strconv.Itoa(pid)); err != nil {
+				return err
+			}
+
 			remoteCommand := "kill -" + sig + " " + strconv.Itoa(pid) +
 				" 2>/dev/null && echo '{\"ok\":true,\"pid\":'" + strconv.Itoa(pid) + ",\"signal\":\"" + sig + "\"}'" +
 				" || echo '{\"ok\":false,\"pid\":'" + strconv.Itoa(pid) + ",\"error\":\"kill failed\"}'"

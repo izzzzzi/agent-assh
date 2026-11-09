@@ -1,5 +1,8 @@
 config:
   MD013: false
+  # AGENT_INSTRUCTIONS.md is assembled from several references; each has its own "Errors" section.
+  MD024:
+    siblings_only: true
   MD032: false
   MD033: false
   MD040: false

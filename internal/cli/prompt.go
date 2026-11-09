@@ -1,81 +1,17 @@
 package cli
 
 import (
+	_ "embed"
+
 	"github.com/izzzzzi/agent-assh/internal/response"
 	"github.com/spf13/cobra"
 )
 
-const agentPrompt = `Use ` + "`assh`" + ` for SSH work.
-
-Connect with direct host + key (simplest — no alias, no password):
-assh connect -H HOST -u root -i KEY -n NAME
-
-For ~/.ssh/config aliases:
-assh connect --ssh-config ALIAS -n NAME
-
-For picky SSH gateways (RunPod, etc.) that reject -T:
-assh connect -H HOST -u root -i KEY --force-pty -n NAME
-assh exec -H HOST -u root -i KEY --force-pty -- "command"
-assh read --id OUTPUT_ID --raw  # read exec output, no JSON
-
-For pasted provider server-info, save to a 0600 temp file, run:
-assh connect-info --file TMP -n NAME
-Then remove TMP. If parsing fails, extract host/user/password manually and use:
-assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME
-
-Never put passwords in command arguments. Never print, log, repeat, or summarize passwords.
-
-Use the returned sid and next_commands for all remote work:
-assh session exec -s SID -- "pwd"
-assh session read -s SID --seq 1 --limit 50
-assh session read -s SID --seq 1 --stream stderr --limit 50
-assh session read -s SID --seq 1 --limit 50 --raw
-assh session list
-assh session export -s SID --output session.tar.gz
-assh session close -s SID
-assh session watch -s SID
-
-Server management:
-assh scan -H HOST -u USER
-assh session ps -s SID --top 20
-assh session kill -s SID --pid PID
-assh session service -s SID --action status --service nginx
-assh session service -s SID --action logs --service nginx --lines 100
-
-File operations:
-assh transfer list -H HOST -u USER --path /var/log
-assh transfer stat -H HOST -u USER --path /etc/nginx.conf
-assh transfer put -H HOST LOCAL_PATH REMOTE_PATH  # creates missing remote parent dirs
-assh transfer get -H HOST REMOTE_PATH LOCAL_PATH
-assh transfer read -H HOST -u USER --path /etc/app.conf  # remote file -> output_id, then assh read --id ID
-assh transfer sync --direction push --source ./dist --dest /var/www -H HOST -u USER
-assh transfer mkdir -H HOST -u USER --path /opt/app
-assh transfer rm -H HOST -u USER --path /tmp/junk
-assh transfer mv -H HOST -u USER --source /tmp/a --dest /tmp/b
-
-Background jobs:
-assh session exec-async -s SID -- "long-build.sh"
-assh session job-status -s SID --job-id JOB_ID
-assh session job-status -s SID --job-id JOB_ID --raw  # bare output, no JSON
-assh session job-cancel -s SID --job-id JOB_ID
-
-Docker/database and anything else not listed: run it through
-assh session exec -s SID -- "docker ps"  # arbitrary commands work
-
-Fleet (multi-host parallel):
-assh fleet exec -H host1 -H host2 -u root -- "uptime"
-
-Pre/post hooks:
-assh session exec -s SID --before "git stash" --after "git stash pop" -- "deploy.sh"
-
-If session exec returns dangerous_command_requires_confirmation, do not add
---confirm-danger unless the user explicitly intended the destructive action.
-Keep large remote output out of context. Read bounded windows with --limit,
---offset, and --stream. Use --raw only for piping or exact output.
-Output is redacted by default: [REDACTED:type] with "redacted":true means a
-secret was masked; the command succeeded, do not retry to recover it. Use
---no-redact to disable. Best-effort hygiene, not a security boundary.
-`
+// agentPrompt is generated from skills/assh/SKILL.md by
+// scripts/check-skill-copies.js, so `assh prompt` cannot drift from the skill.
+//
+//go:embed agent_prompt.md
+var agentPrompt string
 
 func agentHelpManifest() response.OK {
 	return response.OK{
@@ -90,26 +26,6 @@ func agentHelpManifest() response.OK {
 			"SYSTEM_PROMPT_snippet.md",
 		},
 		"agent_prompt": agentPrompt,
-		"safety_rules": []string{
-			"Never put passwords in command arguments.",
-			"Prefer connect-info --file for pasted provider server-info blocks.",
-			"Remove temporary server-info files after connect.",
-			"Use returned sid and next_commands for remote work.",
-			"Read large output with bounded session read windows.",
-			"Do not add --confirm-danger unless the user explicitly intended the destructive action.",
-			"Use assh session watch to observe agent actions in real-time.",
-			"Output is redacted by default; [REDACTED:type] is intentional, do not retry to recover the value.",
-			"Operators may add deny-only rules in ~/.config/assh/safety.rules (mode 0600, additive only).",
-		},
-		"workflow": []string{
-			"Prefer assh connect --ssh-config ALIAS for hosts in ~/.ssh/config.",
-			"For pasted provider server-info, write the full block to a mode 0600 temporary file.",
-			"Run assh connect-info --file TMP -n NAME, then remove TMP.",
-			"If parsing fails, extract host, user, and password; put the password in an environment variable.",
-			"Run assh connect -H HOST -u USER -E PASSWORD_ENV -n NAME.",
-			"Continue with returned sid and next_commands.",
-			"Use assh session exec and assh session read with explicit limits.",
-		},
 		"commands": response.OK{
 			"prompt":           "assh prompt",
 			"connect_info":     "assh connect-info --file TMP -n NAME",

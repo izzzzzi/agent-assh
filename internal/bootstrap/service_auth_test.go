@@ -306,6 +306,7 @@ func TestRunInstallsTmuxWhenProbeReportsMissing(t *testing.T) {
 	wantNext := map[string]string{
 		"exec":  `assh session exec -s abc12345 -- pwd`,
 		"read":  "assh session read -s abc12345 --seq 1 --limit 50",
+		"list":  "assh session list",
 		"close": "assh session close -s abc12345",
 	}
 	for key, want := range wantNext {

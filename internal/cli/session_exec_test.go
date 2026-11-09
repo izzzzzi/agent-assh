@@ -132,7 +132,7 @@ func TestSessionExecDoesNotBlockQuotedDangerousText(t *testing.T) {
 }
 
 func TestSessionExecReturnsJSON(t *testing.T) {
-	setMockSSH(t, "exit 0\n")
+	setMockSSH(t, "printf '__ASSH_RC__=0\\n__ASSH_STDOUT_LINES__=0\\n__ASSH_STDERR_LINES__=0\\n'\n")
 	writeTestSessionRegistry(t, "abcdef12")
 
 	got := executeSessionJSON(t, []string{"session", "exec", "--sid", "abcdef12", "--", "pwd"})
@@ -396,7 +396,7 @@ func TestSessionJobStatusAcceptsValidJobID(t *testing.T) {
 				t.Fatalf("remoteCommand=%q job name leaked as shell fragment", remoteCommand)
 			}
 		}
-		return transport.Result{Stdout: []byte("__JOB_NOT_FOUND__\n"), ExitCode: 0}
+		return transport.Result{Stdout: []byte("__ASSH_JOB_STATE__=not_found\n"), ExitCode: 0}
 	}
 
 	got := executeSessionJSON(t, []string{"session", "job-status", "--sid", "abcdef12", "--job-id", "deadbeef12345678"})

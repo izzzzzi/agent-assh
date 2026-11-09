@@ -14,35 +14,47 @@ import "strings"
 
 func commandSubstitutionScripts(segment string) []string {
 	var scripts []string
-	var quote rune
+	var quote byte
 	escaped := false
 	for i := 0; i < len(segment); i++ {
-		if escaped {
-			escaped = false
-			continue
-		}
-		if segment[i] == '\\' {
-			escaped = true
-			continue
-		}
-		if quote != 0 {
-			if rune(segment[i]) == quote {
+		c := segment[i]
+		// Single quotes make everything literal, including backslashes.
+		if quote == '\'' {
+			if c == '\'' {
 				quote = 0
 			}
 			continue
 		}
-		if segment[i] == '\'' || segment[i] == '"' {
-			quote = rune(segment[i])
+		if escaped {
+			escaped = false
 			continue
 		}
-		if i+1 < len(segment) && segment[i] == '$' && segment[i+1] == '(' {
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+		if c == '"' {
+			if quote == '"' {
+				quote = 0
+			} else {
+				quote = '"'
+			}
+			continue
+		}
+		if c == '\'' && quote == 0 {
+			quote = '\''
+			continue
+		}
+		// The shell still expands $(...) and backticks inside double quotes, so
+		// they are inspected there as well as unquoted.
+		if i+1 < len(segment) && c == '$' && segment[i+1] == '(' {
 			if script, end, ok := dollarCommandSubstitution(segment, i+2); ok {
 				scripts = append(scripts, script)
 				i = end
 			}
 			continue
 		}
-		if segment[i] == '`' {
+		if c == '`' {
 			if script, end, ok := backtickCommandSubstitution(segment, i+1); ok {
 				scripts = append(scripts, script)
 				i = end

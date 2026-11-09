@@ -288,6 +288,161 @@ func TestTransferPutMkdirFailureIsReported(t *testing.T) {
 	}
 }
 
+func TestParseRemoteSpec(t *testing.T) {
+	tests := []struct {
+		name     string
+		spec     string
+		wantUser string
+		wantHost string
+		wantPath string
+		wantOK   bool
+	}{
+		{"host and path", "example.com:/tmp/file", "", "example.com", "/tmp/file", true},
+		{"user host and path", "root@example.com:/tmp/file", "root", "example.com", "/tmp/file", true},
+		{"user host relative path", "deploy@host:app.log", "deploy", "host", "app.log", true},
+		{"host only in host part with port-like path", "host:8080", "", "host", "8080", true},
+		{"plain local path", "/tmp/file", "", "", "", false},
+		{"relative local path", "file.txt", "", "", "", false},
+		{"local path containing a colon", "/tmp/a:b", "", "", "", false},
+		{"relative path containing a colon", "logs/a:b.txt", "", "", "", false},
+		{"empty path after colon", "host:", "", "", "", false},
+		{"empty host before colon", ":path", "", "", "", false},
+		{"empty user before at", "@host:path", "", "host", "path", true},
+		{"windows drive letter", `C:\Users\me\file.txt`, "", "", "", false},
+		{"windows drive with forward slash", "C:/Users/me/file.txt", "", "", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user, host, path, ok := parseRemoteSpec(tt.spec)
+			if ok != tt.wantOK {
+				t.Fatalf("parseRemoteSpec(%q) ok = %v, want %v", tt.spec, ok, tt.wantOK)
+			}
+			if !tt.wantOK {
+				return
+			}
+			if user != tt.wantUser || host != tt.wantHost || path != tt.wantPath {
+				t.Fatalf("parseRemoteSpec(%q) = (%q, %q, %q), want (%q, %q, %q)",
+					tt.spec, user, host, path, tt.wantUser, tt.wantHost, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestTransferPutAcceptsSCPStyleRemoteSpec(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "local.txt")
+	if err := os.WriteFile(source, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	oldRunSCP := runSCP
+	t.Cleanup(func() { runSCP = oldRunSCP })
+	runSCP = func(_ context.Context, command transport.SCPCommand, src, dst string,
+		direction transport.SCPDirection) transport.Result {
+		if command.Host != "example.com" || command.User != "root" {
+			t.Fatalf("command=%#v, want host/user taken from the scp-style argument", command)
+		}
+		if src != source || dst != "/var/www/index.html" {
+			t.Fatalf("src=%q dst=%q, want the host stripped from the remote path", src, dst)
+		}
+		return transport.Result{ExitCode: 0}
+	}
+	stubSuccessfulMkdir(t)
+
+	// No --host: the destination carries it, exactly as an scp recipe would.
+	got := executeTransferJSON(t, []string{
+		"transfer", "put", source, "root@example.com:/var/www/index.html",
+	})
+
+	if got["ok"] != true || got["host"] != "example.com" || got["user"] != "root" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	if got["destination"] != "/var/www/index.html" {
+		t.Fatalf("unexpected destination: %#v", got["destination"])
+	}
+}
+
+func TestTransferGetAcceptsSCPStyleRemoteSpec(t *testing.T) {
+	destination := filepath.Join(t.TempDir(), "local.txt")
+
+	oldRunSCP := runSCP
+	t.Cleanup(func() { runSCP = oldRunSCP })
+	runSCP = func(_ context.Context, command transport.SCPCommand, src, dst string,
+		direction transport.SCPDirection) transport.Result {
+		if direction != transport.Download {
+			t.Fatalf("direction = %v, want download", direction)
+		}
+		if command.Host != "example.com" || command.User != "deploy" {
+			t.Fatalf("command=%#v, want host/user taken from the scp-style argument", command)
+		}
+		if src != "/var/log/app.log" {
+			t.Fatalf("src=%q, want the host stripped from the remote path", src)
+		}
+		if err := os.WriteFile(dst, []byte("downloaded"), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		return transport.Result{ExitCode: 0}
+	}
+
+	got := executeTransferJSON(t, []string{
+		"transfer", "get", "deploy@example.com:/var/log/app.log", destination,
+	})
+
+	if got["ok"] != true || got["host"] != "example.com" || got["user"] != "deploy" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	if got["source"] != "/var/log/app.log" {
+		t.Fatalf("unexpected source: %#v", got["source"])
+	}
+}
+
+func TestTransferExplicitHostWinsOverArgument(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "local.txt")
+	if err := os.WriteFile(source, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	oldRunSCP := runSCP
+	t.Cleanup(func() { runSCP = oldRunSCP })
+	runSCP = func(_ context.Context, command transport.SCPCommand, src, dst string,
+		direction transport.SCPDirection) transport.Result {
+		if command.Host != "explicit.example.com" {
+			t.Fatalf("command.Host = %q, want the explicit --host to win", command.Host)
+		}
+		return transport.Result{ExitCode: 0}
+	}
+	stubSuccessfulMkdir(t)
+
+	// -H is given, so the colon in the destination must be left alone.
+	got := executeTransferJSON(t, []string{
+		"transfer", "put", "--host", "explicit.example.com", source, "/tmp/odd:name",
+	})
+
+	if got["ok"] != true || got["host"] != "explicit.example.com" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	if got["destination"] != "/tmp/odd:name" {
+		t.Fatalf("destination = %#v, want it preserved verbatim", got["destination"])
+	}
+}
+
+func TestTransferWithoutHostSuggestsSCPForm(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "local.txt")
+	if err := os.WriteFile(source, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	got := executeTransferJSONError(t, []string{"transfer", "put", source, "/tmp/remote.txt"})
+
+	if got["message"] != "host required" {
+		t.Fatalf("unexpected response: %#v", got)
+	}
+	hint, _ := got["hint"].(string)
+	if !strings.Contains(hint, "user@host:/remote/path") {
+		t.Fatalf("hint %q should show the scp form", hint)
+	}
+}
+
 func stubSuccessfulMkdir(t *testing.T) {
 	t.Helper()
 	oldRunSSH := runSSH

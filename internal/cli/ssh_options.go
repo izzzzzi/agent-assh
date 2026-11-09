@@ -15,6 +15,7 @@ type sshOptions struct {
 	TimeoutSecond int
 	HostKeyPolicy string
 	ForcePTY      bool
+	Batch         bool
 }
 
 func defaultSSHOptions() sshOptions {
@@ -52,6 +53,10 @@ func bindSSHOptions(cmd *cobra.Command, opts *sshOptions, cfg sshOptionFlags) {
 	if cfg.forcePTY {
 		cmd.Flags().BoolVar(&opts.ForcePTY, "force-pty", false, "force PTY allocation (-tt) for hosts that reject -T")
 	}
+	if !cfg.noBatch {
+		cmd.Flags().BoolVar(&opts.Batch, "batch", false,
+			"add -o BatchMode=yes so ssh fails instead of prompting for a password or passphrase")
+	}
 }
 
 type sshOptionFlags struct {
@@ -63,6 +68,11 @@ type sshOptionFlags struct {
 	timeout       bool
 	hostKeyPolicy bool
 	forcePTY      bool
+	// noBatch suppresses --batch. It is deliberately the inverted default: every
+	// ordinary command offers BatchMode, and only the first-login commands opt
+	// out, because they may legitimately need the password prompt that BatchMode
+	// disables.
+	noBatch bool
 }
 
 func standardSSHOptionFlags() sshOptionFlags {
@@ -76,6 +86,15 @@ func standardSSHOptionFlags() sshOptionFlags {
 		hostKeyPolicy: true,
 		forcePTY:      true,
 	}
+}
+
+// bootstrapSSHOptionFlags is standardSSHOptionFlags without --batch. BatchMode
+// disables the password prompt, which is exactly what a first-login command may
+// need, so the flag is not offered where -E is the point of the command.
+func bootstrapSSHOptionFlags() sshOptionFlags {
+	flags := standardSSHOptionFlags()
+	flags.noBatch = true
+	return flags
 }
 
 func (o sshOptions) validate(requireHost bool) error {
@@ -104,6 +123,7 @@ func (o sshOptions) command() transport.SSHCommand {
 		TimeoutSecond: o.TimeoutSecond,
 		HostKeyPolicy: o.HostKeyPolicy,
 		ForcePTY:      o.ForcePTY,
+		Batch:         o.Batch,
 	}
 }
 

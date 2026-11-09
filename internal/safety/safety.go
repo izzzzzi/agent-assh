@@ -81,6 +81,11 @@ func checkSegment(tokens []token, policy *Policy, depth int) Result {
 		if hasCriticalPath(args) {
 			return danger("rm_critical_path")
 		}
+		// A glob under a user data directory can wipe a whole account or app
+		// tree; a single named file there is routine and stays allowed.
+		if hasUserDataPathGlob(args) {
+			return danger("rm_critical_path")
+		}
 	case name == "find":
 		if hasLiteralArg(args, "-delete") {
 			return danger("find_delete")
@@ -92,7 +97,7 @@ func checkSegment(tokens []token, policy *Policy, depth int) Result {
 			return danger("dd_dangerous_output")
 		}
 	case name == "chmod" || name == "chown" || name == "chgrp":
-		if hasRecursiveFlag(args) && hasCriticalPath(args) {
+		if hasRecursiveFlag(args) && (hasCriticalPath(args) || hasUserDataPath(args)) {
 			return danger("recursive_permission")
 		}
 	}

@@ -14,7 +14,9 @@ import (
 	"github.com/izzzzzi/agent-assh/internal/audit"
 	"github.com/izzzzzi/agent-assh/internal/ids"
 	"github.com/izzzzzi/agent-assh/internal/redact"
+	"github.com/izzzzzi/agent-assh/internal/remote"
 	"github.com/izzzzzi/agent-assh/internal/response"
+	"github.com/izzzzzi/agent-assh/internal/session"
 	"github.com/izzzzzi/agent-assh/internal/state"
 	"github.com/izzzzzi/agent-assh/internal/transport"
 	"github.com/spf13/cobra"
@@ -46,8 +48,8 @@ func newExecCommand() *cobra.Command {
 				return errReturn
 			} else if result.Dangerous {
 				return writeError(cmd, "dangerous_command_requires_confirmation",
-					"command looks destructive; rerun with `assh session exec -s SID --confirm-danger` if intentional",
-					result.Message)
+					"command looks destructive; assh exec does not support --confirm-danger",
+					destructiveCommandHint(ssh, remoteCommand(args), result.Message))
 			}
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(ssh.TimeoutSecond)*time.Second)
@@ -56,7 +58,12 @@ func newExecCommand() *cobra.Command {
 			result := runSSH(ctx, ssh.command(), remoteCommand(args))
 
 			if code := remoteCommandResultErrorCode(ctx.Err(), result); code != "" {
-				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), "")
+				hint := ""
+				if code == "timeout" {
+					hint = "do not blindly retry; use `assh session exec-async -s SID -- \"cmd\"` " +
+						"for long commands, then `assh session job-status`"
+				}
+				return writeError(cmd, code, sshResultErrorMessage(ctx.Err(), result), hint)
 			}
 
 			stdout, stderr := result.Stdout, result.Stderr
@@ -91,6 +98,25 @@ func newExecCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&noRedact, "no-redact", false, "disable best-effort secret redaction in stored output")
 	bindSSHOptions(cmd, &ssh, standardSSHOptionFlags())
 	return cmd
+}
+
+func destructiveCommandHint(ssh sshOptions, command string, reason string) string {
+	entries, err := session.ListRegistry(stateBaseDir())
+	if err == nil {
+		for _, entry := range entries {
+			if entry.Host != ssh.Host || entry.User != ssh.User || entry.Port != ssh.Port {
+				continue
+			}
+			if entry.Identity != "" && ssh.Identity != "" && entry.Identity != ssh.Identity {
+				continue
+			}
+			return "open registered session " + entry.SID + " and rerun: " +
+				"assh session exec -s " + entry.SID + " --confirm-danger -- " +
+				remote.SingleQuote(command) + "; if intentional: " + reason
+		}
+	}
+	return "open a session and rerun with `assh session exec -s SID --confirm-danger -- " +
+		remote.SingleQuote(command) + "` if intentional: " + reason
 }
 
 func newReadCommand() *cobra.Command {
@@ -153,7 +179,11 @@ func validHostKeyPolicy(policy string) bool {
 	return policy == "accept-new" || policy == "strict" || policy == "no-check"
 }
 
-func sshErrorCode(ctxErr, runErr error) string {
+// localSSHErrorCode classifies a failure of the local ssh process itself, where
+// no remote exit status is available. Named with a "local" prefix to keep it
+// distinct from bootstrap.sshErrorCode, which classifies a remote SSHResult and
+// lives in a sibling package.
+func localSSHErrorCode(ctxErr, runErr error) string {
 	if ctxErr != nil {
 		return "timeout"
 	}
@@ -174,15 +204,25 @@ func sshErrorCode(ctxErr, runErr error) string {
 	return "connection_error"
 }
 
+// sshResultErrorCode classifies a transport failure for session lifecycle calls.
+// A remote exit status of 255 is treated as a connection error there.
 func sshResultErrorCode(ctxErr error, result transport.Result) string {
-	return sshResultErrorCodeWithPolicy(ctxErr, result, false)
+	return classifySSHResult(ctxErr, result, false)
 }
 
+// remoteCommandResultErrorCode classifies a transport failure for one-off
+// commands (`exec`, `transfer`). Unlike the session path, a bare 255 with no
+// local error is the remote command's own exit status and must be passed through
+// so callers can report it verbatim.
 func remoteCommandResultErrorCode(ctxErr error, result transport.Result) string {
-	return sshResultErrorCodeWithPolicy(ctxErr, result, true)
+	return classifySSHResult(ctxErr, result, true)
 }
 
-func sshResultErrorCodeWithPolicy(ctxErr error, result transport.Result, allowRemoteExit255 bool) string {
+// classifySSHResult maps a transport result onto a typed error code. Exit code
+// 255 is ambiguous: ssh itself uses it for connection-level failures, but a
+// remote command may legitimately exit 255 too. allowRemoteExit255 selects which
+// reading applies, and stderr is inspected first to catch ssh's own diagnostics.
+func classifySSHResult(ctxErr error, result transport.Result, allowRemoteExit255 bool) string {
 	if ctxErr != nil {
 		return "timeout"
 	}
@@ -196,7 +236,11 @@ func sshResultErrorCodeWithPolicy(ctxErr error, result transport.Result, allowRe
 		case strings.Contains(stderr, "host key verification failed"),
 			strings.Contains(stderr, "remote host identification has changed"):
 			return "host_key_failed"
-		case strings.Contains(stderr, "connection refused"),
+		case strings.Contains(stderr, "too many authentication failures"):
+			return "auth_failed"
+		case strings.Contains(stderr, "hostname contains invalid characters"),
+			strings.Contains(stderr, "bad configuration option"),
+			strings.Contains(stderr, "connection refused"),
 			strings.Contains(stderr, "could not resolve hostname"),
 			strings.Contains(stderr, "no route to host"),
 			strings.Contains(stderr, "connection timed out"),
@@ -216,7 +260,7 @@ func sshResultErrorCodeWithPolicy(ctxErr error, result transport.Result, allowRe
 			return "connection_error"
 		}
 	}
-	if code := sshErrorCode(nil, result.Err); code != "" {
+	if code := localSSHErrorCode(nil, result.Err); code != "" {
 		return code
 	}
 	return ""
